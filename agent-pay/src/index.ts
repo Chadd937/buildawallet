@@ -5,15 +5,23 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { validAddress, walletSnapshot } from "./rpc";
 import { solanaWalletSnapshot, validSolanaAddress } from "./solana";
+import human from "./subscription";
+import pages from "./human-pages";
 
 export interface Env {
   BASE_RPC_URL?: string;
   SOLANA_RPC_URL?: string;
   REQUEST_RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
+  DB?: D1Database;
+  HUMAN_API?: { fetch(request: Request): Promise<Response> };
 }
 
 type Snapshot = Awaited<ReturnType<typeof walletSnapshot>> | Awaited<ReturnType<typeof solanaWalletSnapshot>>;
 const app = new Hono<{ Bindings: Env; Variables: { snapshot: Snapshot } }>();
+for (const [path, html] of Object.entries(pages.html)) {
+  app.get(path, (c) => c.html(html, 200, { "Cache-Control": "no-store" }));
+}
+app.get("/app.js", (c) => c.body(pages.script, 200, { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store" }));
 export const SOLANA_COLLECTOR = "Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC";
 export const BASE_COLLECTOR = "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d";
 export const SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
@@ -98,5 +106,7 @@ app.use("/machine/solana-wallet", async (c, next) => {
 });
 
 app.get("/machine/solana-wallet", (c) => c.json(c.get("snapshot")));
+
+app.route("/machine/human", human);
 
 export default app;

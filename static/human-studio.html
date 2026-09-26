@@ -67,6 +67,7 @@ input,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid va
       <button class="btn" type="button" id="saveBtn">Save blueprint</button>
       <button class="btn primary" type="button" id="exportBtn">Export blueprint JSON</button>
       <a class="btn" href="/human/live">Connect for live balances</a>
+      <a class="btn" href="/pay">Premium blueprint: $19.99 / 30 days</a>
     </div>
     <div class="status" id="status"></div>
   </section>
@@ -77,7 +78,7 @@ let spec={name:'My wallet',assets:[],networks:[],custody:'',security:[],features
 try{Object.assign(spec,JSON.parse(localStorage.getItem(SPEC_KEY)||'{}'))}catch(e){}
 let meta={};
 async function boot(){
-  const catalogResponse=await fetch('/api/catalog');
+  const catalogResponse=await fetch('/machine/human/catalog');
   if(!catalogResponse.ok)throw Error('Catalog API unavailable');
   const cat=await catalogResponse.json();
   meta=cat.meta||{};
@@ -115,7 +116,7 @@ document.getElementById('saveBtn').onclick=async()=>{
   spec.name=document.getElementById('appName').value||spec.name;
   localStorage.setItem(SPEC_KEY,JSON.stringify(spec));
   try{
-    const r=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({spec,is_public:false})});
+    const r=await fetch('/machine/human/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({spec,is_public:false})});
     const j=await r.json();
     if(!r.ok)throw new Error(j.detail||'save failed');
     status.innerHTML=`Saved: <a href="${j.url}">${j.url}</a>`;

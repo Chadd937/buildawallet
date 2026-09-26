@@ -30,9 +30,10 @@ solely based on what the user wants, as many features as options."
 - Owner supplied separate USDC collectors for Base
   (0xBcCA6AED433d9020C50D44560F9679F1B5eB511d) and Solana
   (Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC).
-- The planned $1.99/month HUMAN crypto subscription is not implemented.
-  The live view reads existing external wallet balances only. Studio exports
-  JSON blueprints; it cannot package an APK.
+- The HUMAN premium blueprint plan is $19.99 USDC for 30 days, manually renewable
+  on Base or Solana after wallet ownership and on-chain receipt checks. The
+  live view still reads existing external wallet balances only. Studio exports
+  JSON designs; the premium export is a detailed design document, not an APK.
 - The separate /machine/* Worker can charge $0.01 USDC for Base and Solana
   native balance snapshots after its own deployment and paid checks. It does
   not grant agent wallet authority.

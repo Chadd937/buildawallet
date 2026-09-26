@@ -1,9 +1,7 @@
 # BuildAWallet machine payments pilot
 
 This is an isolated Cloudflare Worker in the existing BuildAWallet repository. It uses
-the `/machine/*` route on `buildawallet.xyz`; it does not mount the local signing
-prototype, handle private keys, or change the human designer and its $1.99/month
-mainnet subscription concept.
+the `/machine/*` route on `buildawallet.xyz`; it does not mount the local signing prototype or handle private keys. It also serves the HUMAN pages and forwards builder calls through a service binding to the Python Worker. The separate HUMAN premium blueprint plan costs $19.99 USDC per 30 days.
 
 Paid capabilities are `GET /machine/wallet?address=0x...` for Base mainnet
 native balance, transaction count and block, and
@@ -46,8 +44,7 @@ limit together.
 
 ## Deploy
 
-Set `BASE_RPC_URL` and `SOLANA_RPC_URL` with `npx wrangler secret put`, then run
-`npm run deploy` from this directory. Verify `/machine/info`, invalid address
+Set `BASE_RPC_URL` and `SOLANA_RPC_URL` with `npx wrangler secret put --config wrangler.jsonc`, then run `npm run deploy` from this directory. The deploy script finds the existing `buildawallet` D1 database, applies the shared migrations, writes an ignored config with its real ID, and deploys. Deploy `cloudflare-human` first. It also checks `/machine/human/catalog`, `/human`, `/pay` and `/machine/human/subscription`. Verify `/machine/info`, invalid address
 400, unpaid valid address 402, and a paid request with real USDC. The custom
 domain route requires the zone in the Cloudflare account used by Wrangler.
 

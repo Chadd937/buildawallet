@@ -97,8 +97,23 @@ npm run smoke:paid -- solana --execute
 unset BAW_TEST_SOLANA_KEYPAIR_FILE BAW_SOLANA_RPC_URL
 ```
 
-The `--check-funds` mode requires at least $0.01 USDC in the payer before it
-returns success; it never signs. The explicit `--execute` mode repeats that check,
+The `--check-funds` mode requires at least $0.01 USDC in the payer's canonical
+associated token account and checks that the collector's Solana USDC associated
+token account exists. It never signs. A missing collector account makes the
+facilitator's `TransferChecked` simulation fail. The collector account can be
+created by a separate SOL-funded fee payer without the collector's private
+key. For example, after verifying the collector address, with the Solana RPC URL
+and test payer keypair variables set as above, this command creates the account
+at the deterministic address (the test payer pays SOL rent and the transaction fee):
+
+```bash
+spl-token --url "$BAW_SOLANA_RPC_URL" --fee-payer "$BAW_TEST_SOLANA_KEYPAIR_FILE" create-account EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v --owner Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC
+```
+
+Verify that the CLI prints the expected associated token account and rerun
+`npm run smoke:paid -- solana --check-funds` before attempting to pay. Keep
+this account open; some wallet swap flows close an empty USDC account after use.
+The explicit `--execute` mode repeats the checks,
 asks for `PAY BASE` or `PAY SOLANA` before signing,
 sends exactly one paid request, checks the x402 settlement header, and verifies
 the USDC transfer in the onchain transaction. It does not retry a paid request.

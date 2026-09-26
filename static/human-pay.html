@@ -29,7 +29,7 @@ const $=id=>document.getElementById(id);
 let chain='',address='',accessToken='',solUri='',details=null;
 const selected=()=>{const id=document.querySelector('input[name="plan"]:checked')?.value;return details?.plans?.find(p=>p.id===id)};
 function renderPlans(data){
-  details=data;const prior=document.querySelector('input[name="plan"]:checked')?.value||'pro';
+  details=data;const prior=document.querySelector('input[name="plan"]:checked')?.value||new URLSearchParams(location.search).get('plan')||'pro';
   $('plans').replaceChildren(...data.plans.map(p=>{const card=document.createElement('label');card.className='plan';
     const radio=document.createElement('input');radio.type='radio';radio.name='plan';radio.value=p.id;radio.checked=p.id===prior;
     card.append(radio,document.createTextNode(p.name));

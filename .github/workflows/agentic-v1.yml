@@ -51,4 +51,4 @@ jobs:
       - name: Typecheck and test
         run: npm run typecheck && npm test
       - name: Check Wrangler bundle
-        run: npx wrangler deploy --dry-run
+        run: npx wrangler deploy --config wrangler.jsonc --dry-run

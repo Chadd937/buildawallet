@@ -1,7 +1,7 @@
-# BuildAWallet machine payments pilot
+# BuildAWallet mainnet read API and machine payments
 
 This is an isolated Cloudflare Worker in the existing BuildAWallet repository. It uses
-the `/machine/*` route on `buildawallet.xyz`; it does not mount the local signing prototype or handle private keys. It also serves the HUMAN pages and forwards builder calls through a service binding to the Python Worker. The separate HUMAN premium blueprint plan costs $19.99 USDC per 30 days.
+the `/machine/*` route on `buildawallet.xyz`; it does not mount the local signing prototype or handle private keys. It also serves the HUMAN pages and forwards builder calls through a service binding to the Python Worker. Shared HUMAN blueprint and read-only API plans cost $12, $39 and $99 USDC per 30 days for 500, 5,000 and 25,000 units. Pro and Scale support batches of 10 and 50. API keys are issued after payment verification; MCP calls use the same key and quota.
 
 Paid capabilities are `GET /machine/wallet?address=0x...` for Base mainnet
 native balance, transaction count and block, and
@@ -15,7 +15,31 @@ payment to the designated collector on the selected network:
 | --- | --- |
 | Base | `0xBcCA6AED433d9020C50D44560F9679F1B5eB511d` |
 | Solana | `Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC` |
-No claim of wallet custody, transaction signing, risk analysis, or token holdings is made.
+The public API also reads native USDC holdings and transaction status with a subscribed API key. No claim of wallet custody, transaction signing, or risk analysis is made.
+
+## Shared HUMAN and API plans
+
+The payment page at `/pay` offers Builder ($12 for 500 units), Pro ($39 for 5,000 units,
+10 items per batch), and Scale ($99 for 25,000 units, 50 items per batch), each for
+30 days. All plans include the premium HUMAN design blueprint. A paying wallet
+signs a one-use login challenge, pays the selected exact native USDC amount on
+its chosen network, then confirms the onchain transaction. The Worker verifies
+token, payer, collector, amount and confirmation, and prevents receipt reuse.
+The wallet can then issue or rotate a one-time-display `baw_live_` API key.
+Access and quota remain tied to that wallet and expire with the plan.
+
+The subscribed read API is under `/machine/v1` and covers native wallet balance,
+native USDC balance, and transaction status on Base and Solana. `GET /usage` is
+free. Pro and Scale also have `POST /batch`; successful items consume one unit
+each. An upstream failure or invalid input does not consume units. The MCP
+HTTP endpoint `/mcp` exposes the same six reads using the same API key and
+meter. Agent discovery lives at `/.well-known/agent.json`, `/agent-offer.json`
+and `/llms.txt`. The interactive Swagger reference is `/api-docs` and the
+OpenAPI 3.1 document is `/machine/openapi.json`.
+
+The existing x402 paid snapshots stay separate, with $0.01 USDC per call.
+Cloudflare's Machine Payments Protocol is a separate evolving protocol; this
+release uses tested x402 on Base/Solana and does not advertise MPP settlement.
 
 ## Local setup
 
@@ -44,7 +68,7 @@ limit together.
 
 ## Deploy
 
-Set `BASE_RPC_URL` and `SOLANA_RPC_URL` with `npx wrangler secret put --config wrangler.jsonc`, then run `npm run deploy` from this directory. The deploy script finds the existing `buildawallet` D1 database, applies the shared migrations, writes an ignored config with its real ID, and deploys. Deploy `cloudflare-human` first. It also checks `/machine/human/catalog`, `/human`, `/pay` and `/machine/human/subscription`. Verify `/machine/info`, invalid address
+Set `BASE_RPC_URL` and `SOLANA_RPC_URL` with `npx wrangler secret put --config wrangler.jsonc`, then run `npm run deploy` from this directory. The deploy script finds the existing `buildawallet` D1 database, applies the shared migrations, writes an ignored config with its real ID, and deploys. Deploy `cloudflare-human` first. It also checks the HUMAN pages, plan availability, OpenAPI and discovery. Verify `/machine/info`, invalid address
 400, unpaid valid address 402, and a paid request with real USDC. The custom
 domain route requires the zone in the Cloudflare account used by Wrangler.
 

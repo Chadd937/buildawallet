@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import app, { BASE_COLLECTOR, SOLANA_COLLECTOR } from "../src/index";
-import { PRICE_ATOMIC, SOLANA_COLLECTOR_ATA, verifyBaseReceipt, verifySolanaReceipt } from "../src/receipts";
+import { SOLANA_COLLECTOR_ATA, verifyBaseReceipt, verifySolanaReceipt } from "../src/receipts";
+import { PLANS } from "../src/plans";
 import { challengeMessage, normalizedWallet } from "../src/subscription";
 
 const basePayer = "0x6e57597d15e7069e60b2b98f136b1e109c23cbf2";
@@ -9,6 +10,7 @@ const usdc = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const txBase = "0x" + "a".repeat(64), txSol = "3".repeat(87);
 const timestamp = 1_800_000_000;
+const PRICE_ATOMIC = PLANS.pro.amountAtomic;
 
 function baseRpc(override: Record<string, any> = {}) {
   const transfer = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
@@ -34,11 +36,11 @@ function solanaRpc(override: Record<string, any> = {}) {
     blockTime: timestamp, meta: {
       err: null,
       preTokenBalances: [
-        { accountIndex: 1, mint, owner: solPayer, uiTokenAmount: { amount: "25000000" } },
+        { accountIndex: 1, mint, owner: solPayer, uiTokenAmount: { amount: "50000000" } },
         { accountIndex: 2, mint, owner: SOLANA_COLLECTOR, uiTokenAmount: { amount: "0" } },
       ],
       postTokenBalances: [
-        { accountIndex: 1, mint, owner: solPayer, uiTokenAmount: { amount: "5010000" } },
+        { accountIndex: 1, mint, owner: solPayer, uiTokenAmount: { amount: "11000000" } },
         { accountIndex: 2, mint, owner: SOLANA_COLLECTOR, uiTokenAmount: { amount: PRICE_ATOMIC.toString() } },
       ],
       innerInstructions: [],
@@ -65,28 +67,28 @@ afterEach(() => vi.unstubAllGlobals());
 describe("human subscription payment verification", () => {
   it("validates a direct Base USDC transfer after two confirmations", async () => {
     baseRpc();
-    expect(await verifyBaseReceipt("https://base.example", txBase, basePayer, timestamp)).toBe(timestamp);
+    expect(await verifyBaseReceipt("https://base.example", txBase, basePayer, timestamp, PRICE_ATOMIC)).toBe(timestamp);
   });
   it("rejects wrong Base payer, short confirmation and older payment", async () => {
     baseRpc();
-    await expect(verifyBaseReceipt("https://base.example", txBase, BASE_COLLECTOR.toLowerCase(), timestamp)).rejects.toThrow();
-    await expect(verifyBaseReceipt("https://base.example", txBase, basePayer, timestamp + 100)).rejects.toThrow();
+    await expect(verifyBaseReceipt("https://base.example", txBase, BASE_COLLECTOR.toLowerCase(), timestamp, PRICE_ATOMIC)).rejects.toThrow();
+    await expect(verifyBaseReceipt("https://base.example", txBase, basePayer, timestamp + 100, PRICE_ATOMIC)).rejects.toThrow();
     baseRpc({ eth_blockNumber: "0x20" });
-    await expect(verifyBaseReceipt("https://base.example", txBase, basePayer, timestamp)).rejects.toThrow("confirmations");
+    await expect(verifyBaseReceipt("https://base.example", txBase, basePayer, timestamp, PRICE_ATOMIC)).rejects.toThrow("confirmations");
   });
   it("validates finalized Solana token deltas, owner, and transferChecked instruction", async () => {
     solanaRpc();
-    expect(await verifySolanaReceipt("https://sol.example", txSol, solPayer, timestamp)).toBe(timestamp);
+    expect(await verifySolanaReceipt("https://sol.example", txSol, solPayer, timestamp, PRICE_ATOMIC)).toBe(timestamp);
   });
   it("rejects a Solana transfer that does not credit the collector", async () => {
     const receipt = solanaRpc();
     receipt.meta.postTokenBalances[1].uiTokenAmount.amount = "0";
-    await expect(verifySolanaReceipt("https://sol.example", txSol, solPayer, timestamp)).rejects.toThrow();
+    await expect(verifySolanaReceipt("https://sol.example", txSol, solPayer, timestamp, PRICE_ATOMIC)).rejects.toThrow();
   });
   it("rejects a Solana transfer with a different authority", async () => {
     const receipt = solanaRpc();
     receipt.transaction.message.instructions[0].parsed.info.authority = SOLANA_COLLECTOR;
-    await expect(verifySolanaReceipt("https://sol.example", txSol, solPayer, timestamp)).rejects.toThrow();
+    await expect(verifySolanaReceipt("https://sol.example", txSol, solPayer, timestamp, PRICE_ATOMIC)).rejects.toThrow();
   });
   it("requires wallet proof and an active entitlement before a premium export", async () => {
     const env = { REQUEST_RATE_LIMITER: { limit: async () => ({ success: true }) } };

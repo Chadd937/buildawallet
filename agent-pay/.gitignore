@@ -5,3 +5,6 @@ coverage/
 keypair.json
 *.keypair.json
 test-payer.json
+wrangler.deploy.jsonc
+.d1-list.json
+src/human-pages.ts

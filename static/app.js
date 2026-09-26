@@ -176,7 +176,7 @@
     var started = Date.now();
     var r;
     try {
-      r = await fetch("/api/chat", {
+      r = await fetch("/machine/human/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, spec: SPEC, state: STATE })
       }).then(function (res) { return res.json(); });
@@ -592,7 +592,7 @@
     $("#refreshGallery").onclick = renderGallery;
 
     try {
-      var r = await fetch("/api/gallery").then(function (res) { return res.json(); });
+      var r = await fetch("/machine/human/gallery").then(function (res) { return res.json(); });
       var box = $("#galleryItems");
       if (!r.items || !r.items.length) {
         box.innerHTML = '<div class="bp-none">The gallery is empty. Be the first to publish a build!</div>';
@@ -682,7 +682,7 @@
 
     btn.disabled = true; btn.textContent = "Saving...";
     try {
-      var r = await fetch("/api/save", {
+      var r = await fetch("/machine/human/save", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ spec: SPEC, is_public: isPub })
       }).then(function (res) { return res.json(); });
@@ -728,21 +728,21 @@
 
   async function loadStats() {
     try {
-      var s = await fetch("/api/stats").then(function (r) { return r.json(); });
+      var s = await fetch("/machine/human/stats").then(function (r) { return r.json(); });
       $("#builtPill").innerHTML = "<b>" + s.built + "</b> wallet" + (s.built === 1 ? "" : "s") + " designed here";
     } catch (e) { /* the pill is decoration */ }
   }
 
   /* --------------------------------------------------------------- boot */
   async function boot() {
-    CAT = await fetch("/api/catalog").then(function (r) { return r.json(); });
+    CAT = await fetch("/machine/human/catalog").then(function (r) { return r.json(); });
     META = CAT.meta;
     CAT.groups.forEach(function (g) { g.items.forEach(function (i) { GROUP_OF[i.id] = g.key; }); });
     CAT.themes.forEach(function (t) { GROUP_OF[t.id] = "theme"; });
     CAT.accents.forEach(function (a) { GROUP_OF[a.id] = "accent"; });
     $("#total").textContent = CAT.total;
 
-    var start = await fetch("/api/start").then(function (r) { return r.json(); });
+    var start = await fetch("/machine/human/start").then(function (r) { return r.json(); });
     SPEC = start.spec; STATE = start.state;
 
     var draft = readDraft();
@@ -762,7 +762,7 @@
     }
     if (m) {
       try {
-        var wl = await fetch("/api/wallet/" + m[1]).then(function (r) { return r.ok ? r.json() : null; });
+        var wl = await fetch("/machine/human/wallet/" + m[1]).then(function (r) { return r.ok ? r.json() : null; });
         if (wl) {
           SPEC = wl.spec;
           STATE.answered = ["name", "purpose", "assets", "networks", "custody", "security", "features", "platforms", "privacy", "style"];

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Premium blueprint subscription | BuildAWallet</title>
+<meta name="description" content="Subscribe for 30 days of premium wallet blueprint exports. Pay $19.99 USDC on Base or Solana mainnet.">
+<style>
+:root{color-scheme:dark;--bg:#071009;--panel:#101910;--line:#304235;--text:#f4ffe8;--muted:#a9bda3;--green:#82f27a}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top left,#1b2c1a,var(--bg) 45%);color:var(--text);font:16px/1.55 system-ui,sans-serif}
+header,main,footer{max-width:850px;margin:auto;padding:22px}header{display:flex;justify-content:space-between;gap:14px}a{color:var(--green)}header a{text-decoration:none}h1{font-size:clamp(30px,5vw,50px);line-height:1.12;margin:14px 0}.lead{font-size:19px;color:var(--muted)}
+.box{border:1px solid var(--line);background:var(--panel);border-radius:18px;padding:23px;margin:20px 0}h2{margin:0 0 10px;font-size:21px}.price{font-size:34px;font-weight:800}.muted,.fine{color:var(--muted)}.fine{font-size:13px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:650px){.grid{grid-template-columns:1fr}}
+button,.button{display:inline-block;border:0;border-radius:11px;background:var(--green);color:#071009;padding:12px 18px;margin:7px 7px 7px 0;font:700 15px system-ui;cursor:pointer;text-decoration:none}button:disabled{opacity:.5;cursor:wait}.secondary{background:#203923;color:var(--text);border:1px solid var(--line)}input{display:block;width:100%;padding:12px;border-radius:9px;border:1px solid var(--line);background:#071009;color:var(--text);font:inherit;margin:7px 0 14px}.address{overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:13px}.status{min-height:24px;color:#ffe291}.hidden{display:none}ol{padding-left:21px}
+</style></head><body>
+<header><strong><a href="/">BuildAWallet</a></strong><nav><a href="/human/studio">Studio</a> · <a href="/human/live">Live balances</a></nav></header>
+<main><p class="muted">HUMAN / PREMIUM BLUEPRINT</p><h1>A detailed plan for the wallet you designed.</h1>
+<p class="lead">Export an implementation blueprint with your selected assets, networks, security choices, and a staged build and release checklist. It is a design document, not executable wallet software.</p>
+<section class="box"><div class="price">$19.99 USDC</div><p>30 days of premium blueprint exports. Pay once on Base or Solana mainnet. Renewal is manual, and an additional payment extends the current expiry by 30 days. No automatic charge.</p><p class="fine">Free wallet design, JSON export and read-only balances remain available without a subscription. This does not include an APK, key custody, sending, swaps or transaction signing.</p></section>
+<section class="box"><h2>1. Connect and prove control of your paying wallet</h2><p class="muted">Sign a login message in your own wallet. A message signature does not move funds. Use this same wallet for the USDC transfer.</p>
+<div class="grid"><button id="base" type="button">Connect Base wallet</button><button id="solana" type="button">Connect Solana wallet</button></div><p id="walletStatus" class="status" role="status"></p></section>
+<section class="box"><h2>2. Pay on the selected chain</h2><p id="paymentDetail" class="muted">Connect a wallet to see the exact payment details.</p>
+<div id="basePay" class="hidden"><button id="sendBase" type="button">Pay 19.99 USDC on Base</button><p class="fine">Your wallet will show the USDC contract transfer and gas fee for approval. You need Base ETH for gas.</p></div>
+<div id="solPay" class="hidden"><a id="solLink" class="button" href="#">Open Solana payment in wallet</a><button id="copySol" type="button" class="secondary">Copy payment link</button><p class="fine">If your wallet does not open the payment link, send exactly 19.99 native Solana USDC (mint <span class="address">EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v</span>) from the connected wallet to the collector shown above. Use SOL for network fees. Never send to the token account address directly.</p></div>
+<label for="tx">Transaction hash or signature</label><input id="tx" autocomplete="off" spellcheck="false" placeholder="Paste the confirmed payment transaction ID"><button id="confirm" type="button">Confirm payment and unlock</button><p id="payStatus" class="status" role="status"></p></section>
+<section class="box"><h2>3. Download your premium blueprint</h2><p id="unlockStatus" class="muted">Confirm a payment to unlock this export. After returning later, connect and sign with the same paying wallet to restore access until expiry.</p><button id="download" type="button" disabled>Download premium blueprint</button><p class="fine">Your design stays in this browser until you export or save it. The payment service receives your selected design only when you download the premium export.</p></section>
+<p class="fine"><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · For payment support, keep your transaction ID and paying wallet address.</p></main><footer class="fine">BuildAWallet never asks for a seed phrase or private key.</footer>
+<script>
+(() => {
+const API='/machine/human', PRICE=19990000n, TOKEN='0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const $=id=>document.getElementById(id);
+let chain='',address='',accessToken='',solUri='';
+const textError=e=>String(e?.message||e||'Request failed').slice(0,240);
+async function api(path,body,auth=false){
+  const res=await fetch(API+path,{method:body?'POST':'GET',headers:{...(body?{'content-type':'application/json'}:{}),...(auth?{Authorization:'Bearer '+accessToken}:{})},body:body?JSON.stringify(body):undefined});
+  const data=await res.json().catch(()=>({}));if(!res.ok)throw Error(data.error||`Request failed (${res.status})`);return data;
+}
+function toHex(v){return v.toString(16).padStart(64,'0')}
+async function base(){
+  const provider=window.ethereum;if(!provider?.request)throw Error('Install an EVM wallet to pay on Base');
+  const accounts=await provider.request({method:'eth_requestAccounts'});const wallet=accounts?.[0];
+  if(!/^0x[0-9a-fA-F]{40}$/.test(wallet||''))throw Error('Invalid wallet address');
+  if(BigInt(await provider.request({method:'eth_chainId'}))!==8453n)
+    await provider.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x2105'}]});
+  if(BigInt(await provider.request({method:'eth_chainId'}))!==8453n)throw Error('Switch to Base mainnet');
+  const proof=await api('/challenge',{chain:'base',wallet});
+  const signature=await provider.request({method:'personal_sign',params:[proof.message,wallet]});
+  const login=await api('/login',{nonce:proof.nonce,signature});
+  return login;
+}
+async function solana(){
+  const provider=window.phantom?.solana||window.solana;
+  if(!provider?.connect||!provider?.signMessage)throw Error('A Solana wallet with message signing is required');
+  const result=await provider.connect();const wallet=String(result?.publicKey||provider.publicKey||'');
+  const proof=await api('/challenge',{chain:'solana',wallet});
+  const signed=await provider.signMessage(new TextEncoder().encode(proof.message),'utf8');
+  const signature=btoa(String.fromCharCode(...signed.signature));
+  return await api('/login',{nonce:proof.nonce,signature});
+}
+async function status(){
+  const state=await api('/status',null,true);
+  $('download').disabled=!state.active;
+  $('unlockStatus').textContent=state.active?`Premium access is active through ${new Date(state.expiresAt*1000).toLocaleString()}. You can download your blueprint now.`:'This wallet has no active subscription. Pay once to unlock 30 days.';
+}
+async function connect(which){
+  $('walletStatus').textContent='Waiting for your wallet signature...';
+  try{
+    const login=which==='base'?await base():await solana();
+    chain=login.chain;address=login.wallet;accessToken=login.accessToken;
+    sessionStorage.setItem('baw_human_subscription_session',JSON.stringify({chain,address,accessToken}));
+    $('walletStatus').textContent=`Connected ${chain}: ${address}`;
+    const detail=await api('/subscription');
+    if(!detail.available)throw Error('Subscription payments are not available yet. Do not send funds.');
+    const collector=detail.chains[chain].collector;
+    $('paymentDetail').innerHTML=`Send exactly 19.99 USDC on ${chain==='base'?'Base':'Solana'} mainnet to <strong class="address"></strong>. The connected wallet must be the sender.`;
+    $('paymentDetail').querySelector('strong').textContent=collector;
+    $('basePay').classList.toggle('hidden',chain!=='base');$('solPay').classList.toggle('hidden',chain!=='solana');
+    if(chain==='solana'){
+      const uri=new URL(`solana:${collector}`);
+      uri.searchParams.set('amount','19.99');uri.searchParams.set('spl-token',detail.chains.solana.token);
+      uri.searchParams.set('label','BuildAWallet premium blueprint');
+      solUri=uri.toString();$('solLink').href=solUri;
+    }
+    await status();
+  }catch(e){$('walletStatus').textContent=textError(e)}
+}
+$('base').onclick=()=>connect('base');$('solana').onclick=()=>connect('solana');
+$('sendBase').onclick=async()=>{
+  const button=$('sendBase');button.disabled=true;$('payStatus').textContent='Review the USDC payment and gas fee in your wallet.';
+  try{
+    if(chain!=='base')throw Error('Connect your Base wallet first');
+    const collector=(await api('/subscription')).chains.base.collector;
+    const data='0xa9059cbb'+collector.slice(2).toLowerCase().padStart(64,'0')+toHex(PRICE);
+    const tx=await window.ethereum.request({method:'eth_sendTransaction',params:[{from:address,to:TOKEN,value:'0x0',data}]});
+    $('tx').value=tx;$('payStatus').textContent='Transaction submitted. Wait for two confirmations, then confirm payment below.';
+  }catch(e){$('payStatus').textContent=textError(e)}finally{button.disabled=false}
+};
+$('copySol').onclick=async()=>{try{await navigator.clipboard.writeText(solUri);$('payStatus').textContent='Payment link copied.'}catch(e){$('payStatus').textContent=textError(e)}};
+$('confirm').onclick=async()=>{
+  $('payStatus').textContent='Checking the on-chain transfer...';
+  try{const data=await api('/confirm',{tx:$('tx').value.trim()},true);$('payStatus').textContent=`Payment verified. Subscription active through ${new Date(data.expiresAt*1000).toLocaleString()}.`;await status()}
+  catch(e){$('payStatus').textContent=textError(e)}
+};
+$('download').onclick=async()=>{
+  try{
+    const spec=JSON.parse(localStorage.getItem('baw_human_spec_v1')||'{}');
+    if(!Object.keys(spec).length)throw Error('Design a wallet in the studio before exporting');
+    const report=await api('/blueprint',{spec},true);
+    const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));
+    const link=document.createElement('a');link.href=url;link.download='buildawallet-premium-blueprint.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){$('unlockStatus').textContent=textError(e)}
+};
+try{
+  const stored=JSON.parse(sessionStorage.getItem('baw_human_subscription_session')||'null');
+  if(stored?.accessToken&&/^[0-9a-f]{64}$/.test(stored.accessToken)){
+    chain=stored.chain;address=stored.address;accessToken=stored.accessToken;
+    $('walletStatus').textContent=`Signed in as ${address}. You can confirm a payment or download your blueprint.`;
+    api('/subscription').then(detail=>{
+      if(!detail.available)throw Error('Subscription payments unavailable. Do not send funds.');
+      $('paymentDetail').textContent=`Use the connected ${chain} wallet. Pay exactly 19.99 USDC to ${detail.chains[chain].collector}.`;
+      $('basePay').classList.toggle('hidden',chain!=='base');$('solPay').classList.toggle('hidden',chain!=='solana');
+      if(chain==='solana'){
+        const uri=new URL(`solana:${detail.chains.solana.collector}`);uri.searchParams.set('amount','19.99');uri.searchParams.set('spl-token',detail.chains.solana.token);
+        solUri=uri.toString();$('solLink').href=solUri;
+      }
+    }).catch(e=>{$('walletStatus').textContent=textError(e)});
+    status().catch(()=>{$('download').disabled=true});
+  }
+}catch(e){}
+api('/subscription').then(detail=>{
+  if(!detail.available){
+    $('base').disabled=true;$('solana').disabled=true;$('sendBase').disabled=true;$('confirm').disabled=true;
+    $('walletStatus').textContent='Subscription payment is temporarily unavailable. Do not send funds.';
+  }
+}).catch(()=>{
+  $('base').disabled=true;$('solana').disabled=true;$('sendBase').disabled=true;$('confirm').disabled=true;
+  $('walletStatus').textContent='Payment verification is unavailable. Do not send funds.';
+});
+})();
+</script></body></html>

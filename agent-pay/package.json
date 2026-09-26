@@ -3,10 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "pretypecheck": "node scripts/sync-human-pages.mjs",
+    "pretest": "node scripts/sync-human-pages.mjs",
+    "predev": "node scripts/sync-human-pages.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "dev": "wrangler dev --config wrangler.jsonc",
-    "deploy": "wrangler deploy --config wrangler.jsonc",
+    "deploy": "bash deploy.sh",
     "smoke:paid": "node scripts/paid-smoke.mjs"
   },
   "dependencies": {

@@ -40,6 +40,10 @@ PY
 npx --yes wrangler d1 migrations apply buildawallet --remote --config wrangler.deploy.jsonc
 uv run pywrangler deploy --config wrangler.deploy.jsonc
 
-curl --fail --silent --show-error https://buildawallet.xyz/api/start > /dev/null
-curl --fail --silent --show-error https://buildawallet.xyz/healthz
-curl --fail --silent --show-error https://buildawallet.xyz/api/stats > /dev/null
+if curl --fail --silent --show-error https://buildawallet.xyz/api/start > /dev/null && \
+   curl --fail --silent --show-error https://buildawallet.xyz/healthz > /dev/null && \
+   curl --fail --silent --show-error https://buildawallet.xyz/api/stats > /dev/null; then
+  echo 'Human public API routes responded successfully.'
+else
+  echo 'Public /api route is not dispatching. Continue with agent-pay deployment and check /machine/human/catalog through its service binding.' >&2
+fi

@@ -1,52 +1,55 @@
-# BuildAWallet mainnet deployment runbook
+# BuildAWallet mainnet deployment
 
-This release has a static Pages site, a HUMAN Python Worker and a paid NON-HUMAN Worker. `wrangler deploy` at the repository root is not the complete deployment. Use a Cloudflare account that owns the `buildawallet.xyz` zone. The Pages project build output is `static` with repository root as its project root; retain `functions/w/[code].js` for saved blueprints. The Cloudflare domain and route configuration must be checked in the dashboard before deployment.
+The HUMAN Python Worker owns the builder brain and D1 database. The `agent-pay` Worker serves the HUMAN pages, a service-bound API proxy, the $19.99 USDC premium blueprint subscription, and the existing $0.01 USDC machine data routes. The static origin can also serve the pages from `static/`; the Worker routes make the HUMAN release independent of a pending static-site rebuild.
 
-## 1. Review and build
+## 1. Get the release on the authenticated machine
 
 ```bash
-python -m pip install -r requirements.txt
-pytest -q
+cd ~/buildawallet-paid-test
+git pull --ff-only origin main
 cd agent-pay
 npm ci
 npm run typecheck
 npm test
-npx wrangler deploy --dry-run
-cd ..
 ```
 
-Review the two USDC recipients against the owner's wallets, including network: Base `0xBcCA6AED433d9020C50D44560F9679F1B5eB511d`; Solana `Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC`. A correct receiving address is necessary but does not prove a buyer's USDC balance, facilitator support or settlement.
+Use the Cloudflare account that owns `buildawallet.xyz`. Keep RPC credentials in Wrangler secrets, never in the Git checkout. The existing Base and Solana mainnet RPC secrets remain attached to `buildawallet-agent-pay` when deploying a new version. To set or replace one, use `npx wrangler secret put BASE_RPC_URL --config wrangler.jsonc` or the corresponding `SOLANA_RPC_URL` command, entering only the URL at the prompt.
 
-## 2. Publish the HUMAN site and API
-
-The source is now in `Chadd937/buildawallet` on `main`. In the Cloudflare account that owns `buildawallet.xyz`, check `npx wrangler pages project list`. If no Pages project exists, create one in **Workers & Pages > Create application > Pages > Connect to Git**, selecting this repository and `main`; use repository root, no build command, and `static` as the output directory. A project created with `wrangler pages project create` is Direct Upload and cannot later be connected to Git. Check the new `pages.dev` deployment before attaching the existing custom domain, so the current site remains available during migration. If a Pages project does exist, verify its Git source and branch instead. Confirm the domain and Worker routes in the intended zone before changing production traffic. Verify `/human`, `/human/build`, `/human/studio`, `/human/live`, `/docs`, `/pricing`, `/agent-offer.json` and `/.well-known/agent.json`. Cloudflare Pages serves flat HTML files at extensionless routes; `_redirects` maps the nested HUMAN routes to their flat pages. A separate see.io deployment may also be triggered by a main branch push; its Docker service still excludes the signer.
-
-From repository root, with the correct Cloudflare account selected:
+## 2. Deploy the human backend and shared D1 database
 
 ```bash
-./cloudflare-human/prepare.sh
-cd cloudflare-human
-uv run pywrangler deploy --dry-run
-./deploy.sh
-cd ..
+cd ~/buildawallet-paid-test
+./cloudflare-human/deploy.sh
 ```
 
-`deploy.sh` provisions or finds the D1 database, applies migrations and deploys `/api/*` and `/healthz`. It needs Wrangler authentication and `uv`. Check chat, save, share, gallery and stats through the public domain. Do not put `BAW_MASTER_KEY`, `AGENT_BOOTSTRAP_SECRET` or signing keys into this Worker.
+The script finds or creates the `buildawallet` D1 database, applies migrations including the one-time payment ledger and entitlement tables, deploys `buildawallet-human-api`, and checks `/api/start`, `/healthz` and `/api/stats`. The public `/api/*` zone route has previously returned 404 despite a successful upload. If its final `curl` check still fails, the Worker may still have deployed. Continue to step 3 to check the service binding at `/machine/human/catalog`; do not accept payments unless that check and subscription readiness both pass.
 
-## 3. Deploy the paid machine Worker
-
-Run these from `agent-pay/` after confirming the intended Cloudflare zone and account. The RPC URLs are secrets; each must target its named mainnet. The Worker independently verifies Base chain ID 8453 and Solana's mainnet genesis hash before issuing a payment challenge.
+## 3. Deploy the HUMAN pages and payment Worker
 
 ```bash
-cd agent-pay
-npm ci
-npx wrangler secret put BASE_RPC_URL
-npx wrangler secret put SOLANA_RPC_URL
+cd ~/buildawallet-paid-test/agent-pay
 npm run deploy
 ```
 
-Do not paste RPC credentials into Git or `.dev.vars.example`. Confirm PayAI's production facilitator supports the exact Base and Solana payment schemes for these USDC networks, and monitor its availability. Verify `GET /machine/info` on the public domain, invalid addresses returning 400, configuration or RPC failure returning 503, and valid unpaid requests returning 402 on both data routes. Decode both payment options and compare the chain-specific collectors and $0.01 USDC amount. Complete a controlled paid call on **each** chain and confirm settlement and the balance response before directing paying customers to the endpoints. Keep enough USDC and gas in the test payer; avoid reusing a production customer payment for tests.
+This script resolves the real D1 ID from Wrangler, applies pending shared migrations, typechecks, runs tests, deploys `buildawallet-agent-pay`, and checks the public machine info, HUMAN catalog, HUMAN pages, `/pay`, and subscription readiness. It uses `--config wrangler.deploy.jsonc`, avoiding the stale `../../dist/server/wrangler.json` redirect. The generated config and D1 listing are ignored by Git.
 
-## Release boundary
+The Worker route list includes `/machine/*`, `/human`, `/human/*`, `/pay` and `/app.js`. The service binding `HUMAN_API` calls the Python Worker directly, which bypasses the currently failing public `/api/*` route. D1 and both RPC secrets must be present for the subscription endpoint to report `available: true`. If the deploy script stops on a public check, inspect that result before inviting anyone to pay.
 
-The local `agent_protocol.py` signer and `/v1` endpoints remain unmounted. The public page does not ship a generated APK or a transaction signing flow. The proposed $1.99 monthly crypto subscription has no receipt verification, entitlement store, renewal/expiry logic or gated delivery. Do not advertise these as purchasable or enable broadcast by setting an environment variable. They require separate custody architecture, durable state, replay-resistant confirmed payment accounting, policy and approval enforcement, security review, and end-to-end mainnet checks before release.
+## 4. Verify before promoting payment links
+
+```bash
+curl -fsS https://buildawallet.xyz/machine/human/catalog
+curl -fsS https://buildawallet.xyz/machine/human/subscription
+curl -fsS https://buildawallet.xyz/human
+curl -fsS https://buildawallet.xyz/human/build
+curl -fsS https://buildawallet.xyz/human/studio
+curl -fsS https://buildawallet.xyz/pay
+```
+
+Confirm `subscription.available` is `true`, `priceUSDC` is `19.99`, and the Base and Solana collectors match `0xBcCA6AED433d9020C50D44560F9679F1B5eB511d` and `Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC`. Test an unauthenticated premium export returns 401. Then use a separate funded payer wallet to make **one** controlled $19.99 USDC purchase per chain when ready, checking the explorer transaction, unlock, expiry and premium download. A transaction ID can only be redeemed once. If a response is lost, inspect the payment ledger and on-chain transfer before sending again.
+
+The earlier $0.01 machine mainnet payments have already been settled and verified on both rails (Base transaction `0x3a5017d77b1e40b7154f77a6f8863e033acf3e1a84c32fdb929fb143396f9086`, Solana transaction `5CBKCF7ffHaZ8sRVdj2W5ihtsQGjfkHj5FQr7h1YGCEJNYwt4h9dhgH9KajMHHGZ6aoUorPzDGwigR86P1MiM4eF`). These do not test the new $19.99 HUMAN confirmation path.
+
+## Scope
+
+The paid HUMAN feature is a detailed implementation blueprint export for a wallet design, with manual 30-day renewal. Free design and JSON export remain available. The public product does not create custody wallets, sign or send user transactions, or package an APK. The local `agent_protocol.py` signer and `/v1` routes remain unmounted.

@@ -89,7 +89,7 @@ function card(item,group,multi){
 }
 let catalog=null;
 async function load(){
-  const r=await fetch('/api/catalog');catalog=await r.json();render();
+  const r=await fetch('/machine/human/catalog');if(!r.ok)throw Error('Builder catalog unavailable');catalog=await r.json();render();
 }
 function render(){
   document.querySelectorAll('.step').forEach(s=>s.classList.toggle('on',+s.dataset.s===state.step));

@@ -6,15 +6,18 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "dev": "wrangler dev --config wrangler.jsonc",
-    "deploy": "wrangler deploy --config wrangler.jsonc"
+    "deploy": "wrangler deploy --config wrangler.jsonc",
+    "smoke:paid": "node scripts/paid-smoke.mjs"
   },
   "dependencies": {
+    "@solana/addresses": "8.3.0",
+    "@solana/kit": "5.5.1",
     "@x402/core": "2.27.0",
     "@x402/evm": "2.27.0",
-    "@x402/svm": "2.27.0",
-    "@solana/addresses": "8.3.0",
     "@x402/hono": "2.27.0",
-    "hono": "4.13.9"
+    "@x402/svm": "2.27.0",
+    "hono": "4.13.9",
+    "viem": "2.56.9"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260926.1",

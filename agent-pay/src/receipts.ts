@@ -1,6 +1,5 @@
 import { BASE_COLLECTOR, SOLANA_COLLECTOR } from "./index";
 
-export const PRICE_ATOMIC = 19_990_000n;
 export const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 export const SOLANA_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const SOLANA_COLLECTOR_ATA = "Hp6uUt3RmYYVmeSYyf6LpimgddHbL9QJ1LG9TbK5pJiQ";
@@ -21,7 +20,7 @@ async function rpc(url: string, method: string, params: unknown[]): Promise<any>
   return data.result;
 }
 
-export async function verifyBaseReceipt(url: string, tx: string, payer: string, earliest: number): Promise<number> {
+export async function verifyBaseReceipt(url: string, tx: string, payer: string, earliest: number, amountAtomic: bigint): Promise<number> {
   if (!/^0x[0-9a-fA-F]{64}$/.test(tx)) throw new Error("Invalid Base transaction hash");
   if (BigInt(await rpc(url, "eth_chainId", [])) !== 8453n) throw new Error("Base RPC network mismatch");
   const receipt = await rpc(url, "eth_getTransactionReceipt", [tx]);
@@ -42,12 +41,12 @@ export async function verifyBaseReceipt(url: string, tx: string, payer: string, 
     String(log.topics?.[0]).toLowerCase() === TRANSFER_TOPIC &&
     String(log.topics?.[1]).toLowerCase() === `0x${payer.slice(2).padStart(64, "0")}` &&
     String(log.topics?.[2]).toLowerCase() === `0x${BASE_COLLECTOR.slice(2).toLowerCase().padStart(64, "0")}` &&
-    BigInt(log.data) === PRICE_ATOMIC);
+    BigInt(log.data) === amountAtomic);
   if (!paid) throw new Error("No matching Base USDC transfer to the collector");
   return Number(BigInt(block.timestamp));
 }
 
-export async function verifySolanaReceipt(url: string, tx: string, payer: string, earliest: number): Promise<number> {
+export async function verifySolanaReceipt(url: string, tx: string, payer: string, earliest: number, amountAtomic: bigint): Promise<number> {
   if (!/^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(tx)) throw new Error("Invalid Solana signature");
   if (await rpc(url, "getGenesisHash", []) !== SOLANA_GENESIS) throw new Error("Solana RPC network mismatch");
   const result = await rpc(url, "getTransaction", [tx, {
@@ -72,9 +71,9 @@ export async function verifySolanaReceipt(url: string, tx: string, payer: string
     keys[b.accountIndex]?.pubkey === destination && b.mint === SOLANA_USDC && b.owner === SOLANA_COLLECTOR);
   const source = (result.meta.preTokenBalances ?? []).find((b: any) =>
     b.owner === payer && b.mint === SOLANA_USDC && keys[b.accountIndex]?.pubkey !== destination &&
-    balances("preTokenBalances", keys[b.accountIndex]?.pubkey) - balances("postTokenBalances", keys[b.accountIndex]?.pubkey) >= PRICE_ATOMIC);
+    balances("preTokenBalances", keys[b.accountIndex]?.pubkey) - balances("postTokenBalances", keys[b.accountIndex]?.pubkey) >= amountAtomic);
   if (!source || !destBalance ||
-      balances("postTokenBalances", destination) - balances("preTokenBalances", destination) !== PRICE_ATOMIC) {
+      balances("postTokenBalances", destination) - balances("preTokenBalances", destination) !== amountAtomic) {
     throw new Error("No matching Solana USDC balance transfer to the collector");
   }
   const sourceAddress = keys[source.accountIndex].pubkey;
@@ -88,7 +87,7 @@ export async function verifySolanaReceipt(url: string, tx: string, payer: string
       instruction.parsed.info?.destination === destination &&
       instruction.parsed.info?.authority === payer &&
       instruction.parsed.info?.mint === SOLANA_USDC &&
-      instruction.parsed.info?.tokenAmount?.amount === PRICE_ATOMIC.toString())) {
+      instruction.parsed.info?.tokenAmount?.amount === amountAtomic.toString())) {
     throw new Error("No matching signed Solana USDC transfer instruction");
   }
   return result.blockTime;

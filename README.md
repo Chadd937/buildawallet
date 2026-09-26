@@ -18,7 +18,7 @@ The optional Docker/see.io server in `main.py` serves the website and a read-onl
 3. `/human/studio` previews the blueprint and downloads its JSON configuration.
 4. `/human/live` connects an existing injected wallet for free read-only Base or Solana mainnet balances.
 
-Sending and generated APK wallets are not released. The HUMAN premium blueprint plan is $19.99 USDC for 30 days, payable on Base or Solana mainnet. Wallet ownership, confirmed payment receipts, one-time transaction accounting, subscription expiry and premium export authorization run in the machine Worker. The human pages and builder API require the Cloudflare deployment steps in DEPLOY_MAINNET.md before the plan is available.
+Sending and generated APK wallets are not released. Three shared HUMAN blueprint and read-only API plans are $12, $39 and $99 USDC for 30 days, payable on Base or Solana mainnet. Wallet ownership, confirmed payment receipts, one-time transaction accounting, subscription expiry and premium export authorization run in the machine Worker. The human pages and builder API require the Cloudflare deployment steps in DEPLOY_MAINNET.md before the plan is available.
 
 ## NON-HUMAN payment flow
 

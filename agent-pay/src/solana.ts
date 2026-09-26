@@ -2,22 +2,20 @@ import { isAddress } from "@solana/addresses";
 
 const MAINNET_GENESIS = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
 
+export async function checkSolanaRpc(rpcUrl: string): Promise<void> {
+  const response = await fetch(rpcUrl, { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getGenesisHash" }), signal: AbortSignal.timeout(8000) });
+  if (!response.ok) throw new Error("Solana RPC unavailable");
+  const data: any = await response.json();
+  if (data.result !== MAINNET_GENESIS) throw new Error("Solana RPC network mismatch");
+}
+
 export function validSolanaAddress(value: string | undefined): value is string {
   return typeof value === "string" && isAddress(value);
 }
 
 export async function solanaWalletSnapshot(rpcUrl: string, walletAddress: string) {
-  const genesisResponse = await fetch(rpcUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getGenesisHash" }),
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!genesisResponse.ok) throw new Error("Solana RPC unavailable");
-  const genesis: unknown = await genesisResponse.json();
-  if ((genesis as { result?: unknown } | null)?.result !== MAINNET_GENESIS) {
-    throw new Error("Solana RPC network mismatch");
-  }
+  await checkSolanaRpc(rpcUrl);
   const response = await fetch(rpcUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },

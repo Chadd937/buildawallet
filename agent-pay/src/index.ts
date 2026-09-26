@@ -7,6 +7,10 @@ import { validAddress, walletSnapshot } from "./rpc";
 import { solanaWalletSnapshot, validSolanaAddress } from "./solana";
 import human from "./subscription";
 import pages from "./human-pages";
+import api from "./api";
+import { handleMcp } from "./mcp";
+import { openapi, swaggerHtml } from "./openapi";
+import { publicPlans } from "./plans";
 
 export interface Env {
   BASE_RPC_URL?: string;
@@ -22,6 +26,22 @@ for (const [path, html] of Object.entries(pages.html)) {
   app.get(path, (c) => c.html(html, 200, { "Cache-Control": "no-store" }));
 }
 app.get("/app.js", (c) => c.body(pages.script, 200, { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store" }));
+app.get("/machine/openapi.json", (c) => c.json(openapi));
+app.get("/openapi.json", (c) => c.json(openapi));
+app.get("/api-docs", (c) => c.html(swaggerHtml));
+app.get("/docs/api", (c) => c.html(swaggerHtml));
+app.get("/.well-known/agent.json", (c) => c.json({ name: "BuildAWallet", homepage: "https://buildawallet.xyz/",
+  description: "Read-only Base and Solana mainnet wallet data; no signing or custody",
+  openapi: "https://buildawallet.xyz/machine/openapi.json", mcp: "https://buildawallet.xyz/mcp",
+  capabilities: ["wallet balances", "USDC balances", "transaction status", "premium wallet design blueprint"],
+  payments: { subscriptions: "https://buildawallet.xyz/machine/human/subscription", x402: "https://buildawallet.xyz/machine/info" } }));
+app.get("/agent-offer.json", (c) => c.json({ name: "BuildAWallet", version: "1.0.0", plans: publicPlans(),
+  api: "https://buildawallet.xyz/machine/openapi.json", mcp: "https://buildawallet.xyz/mcp",
+  payPerCall: ["https://buildawallet.xyz/machine/wallet", "https://buildawallet.xyz/machine/solana-wallet"],
+  paymentProtocol: "x402", supportedPaymentNetworks: ["eip155:8453", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"],
+  custody: false, signing: false }));
+app.get("/llms.txt", (c) => c.text(`# BuildAWallet\nRead-only Base and Solana mainnet wallet data and a premium HUMAN wallet design blueprint.\nOpenAPI: https://buildawallet.xyz/machine/openapi.json\nMCP (API key required for calls): https://buildawallet.xyz/mcp\nPlans and wallet payment: https://buildawallet.xyz/pay\nx402 pay-per-request: https://buildawallet.xyz/machine/info\nNo custody, key management, signing or transaction submission.\n`));
+app.all("/mcp", (c) => handleMcp(c.req.raw, c.env, async (request) => app.fetch(request, c.env)));
 export const SOLANA_COLLECTOR = "Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC";
 export const BASE_COLLECTOR = "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d";
 export const SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
@@ -39,6 +59,10 @@ app.get("/machine/info", (c) => c.json({
     solana: Boolean(c.env?.SOLANA_RPC_URL && c.env?.REQUEST_RATE_LIMITER),
   },
   paidEndpoints: ["/machine/wallet?address=0x...", "/machine/solana-wallet?address=..."],
+  subscriptionApi: "/machine/v1/usage",
+  documentation: "/machine/openapi.json",
+  mcp: "/mcp",
+  plans: publicPlans(),
   price: "$0.01 USDC per request",
   paymentOptions: [
     { network: "base", collector: BASE_COLLECTOR },
@@ -108,5 +132,6 @@ app.use("/machine/solana-wallet", async (c, next) => {
 app.get("/machine/solana-wallet", (c) => c.json(c.get("snapshot")));
 
 app.route("/machine/human", human);
+app.route("/machine/v1", api);
 
 export default app;

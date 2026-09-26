@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { verifyMessage } from "viem";
-import { PendingReceipt, PRICE_ATOMIC, verifyBaseReceipt, verifySolanaReceipt } from "./receipts";
+import { PendingReceipt, verifyBaseReceipt, verifySolanaReceipt } from "./receipts";
 import { BASE_COLLECTOR, SOLANA_COLLECTOR } from "./index";
+import { PERIOD_SECONDS, planById, publicPlans, type PlanId } from "./plans";
 
 type Chain = "base" | "solana";
 export interface HumanEnv {
@@ -12,12 +13,11 @@ export interface HumanEnv {
   REQUEST_RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 }
 const human = new Hono<{ Bindings: HumanEnv }>();
-const MONTH = 30 * 24 * 60 * 60;
 const SOLANA_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const now = () => Math.floor(Date.now() / 1000);
 const hex = (bytes: Uint8Array) => Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 const token = () => hex(crypto.getRandomValues(new Uint8Array(32)));
-const hash = async (value: string) => hex(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))));
+export const hashToken = async (value: string) => hex(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))));
 const json = (c: any, data: object, status = 200) => c.json(data, status, { "Cache-Control": "no-store" });
 
 function decode58(value: string): Uint8Array {
@@ -60,7 +60,7 @@ async function session(c: any): Promise<{ chain: Chain; wallet: string; issued_a
   if (!match || !c.env.DB) return null;
   return await c.env.DB.prepare(
     "SELECT chain,wallet,issued_at FROM human_sessions WHERE token_hash=? AND expires_at>?"
-  ).bind(await hash(match[1]), now()).first() as { chain: Chain; wallet: string; issued_at: number } | null;
+  ).bind(await hashToken(match[1]), now()).first() as { chain: Chain; wallet: string; issued_at: number } | null;
 }
 
 human.use("/*", async (c, next) => {
@@ -80,10 +80,10 @@ human.use("/*", async (c, next) => {
 human.get("/subscription", async (c) => {
   let schemaReady = false;
   if (c.env.DB) {
-    try { await c.env.DB.prepare("SELECT 1 FROM human_payments LIMIT 1").run(); schemaReady = true; } catch { /* migration missing */ }
+    try { await c.env.DB.prepare("SELECT 1 FROM human_api_keys LIMIT 1").run(); schemaReady = true; } catch { /* migration missing */ }
   }
   return json(c, {
-  priceUSDC: "19.99", durationDays: 30, renewal: "manual", feature: "premium implementation blueprint export",
+  plans: publicPlans(), durationDays: 30, renewal: "manual", feature: "shared HUMAN blueprint and read-only API access",
   chains: { base: { collector: BASE_COLLECTOR, token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" },
     solana: { collector: SOLANA_COLLECTOR, token: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", collectorTokenAccount: "Hp6uUt3RmYYVmeSYyf6LpimgddHbL9QJ1LG9TbK5pJiQ" } },
   available: Boolean(schemaReady && c.env.BASE_RPC_URL?.startsWith("https://") &&
@@ -120,31 +120,35 @@ human.post("/login", async (c) => {
     await c.env.DB.batch([
       c.env.DB.prepare(`INSERT INTO human_sessions(token_hash,chain,wallet,issued_at,expires_at)
         SELECT ?,chain,wallet,?,? FROM human_challenges WHERE nonce=? AND consumed_at IS NULL AND expires_at>?`)
-        .bind(await hash(accessToken), issued, issued + MONTH, body.nonce, issued),
+        .bind(await hashToken(accessToken), issued, issued + PERIOD_SECONDS, body.nonce, issued),
       c.env.DB.prepare("UPDATE human_challenges SET consumed_at=? WHERE nonce=? AND consumed_at IS NULL AND expires_at>?")
         .bind(issued, body.nonce, issued),
     ]);
     // Conditional insert can affect zero rows in a concurrent replay; check our own session.
     const proof = await c.env.DB.prepare("SELECT token_hash FROM human_sessions WHERE token_hash=?")
-      .bind(await hash(accessToken)).first();
+      .bind(await hashToken(accessToken)).first();
     if (!proof) return json(c, { error: "Challenge was already used" }, 409);
   } catch { return json(c, { error: "Login unavailable" }, 503); }
-  return json(c, { accessToken, chain: record.chain, wallet: record.wallet, expiresAt: issued + MONTH });
+  return json(c, { accessToken, chain: record.chain, wallet: record.wallet, expiresAt: issued + PERIOD_SECONDS });
 });
 
 human.get("/status", async (c) => {
   const user = await session(c);
   if (!user) return json(c, { error: "Connect and sign with your wallet" }, 401);
-  const row = await c.env.DB!.prepare("SELECT expires_at FROM human_entitlements WHERE chain=? AND wallet=?")
-    .bind(user.chain, user.wallet).first<{ expires_at: number }>();
+  const row = await c.env.DB!.prepare("SELECT expires_at,plan_id FROM human_entitlements WHERE chain=? AND wallet=?")
+    .bind(user.chain, user.wallet).first<{ expires_at: number; plan_id: PlanId }>();
+  const key = await c.env.DB!.prepare("SELECT created_at FROM human_api_keys WHERE chain=? AND wallet=?")
+    .bind(user.chain, user.wallet).first();
   return json(c, { chain: user.chain, wallet: user.wallet, active: Boolean(row && row.expires_at > now()),
-    expiresAt: row?.expires_at ?? null });
+    expiresAt: row?.expires_at ?? null, plan: row?.plan_id ?? null, apiKeyCreated: Boolean(key) });
 });
 
 human.post("/confirm", async (c) => {
   const user = await session(c);
   if (!user) return json(c, { error: "Connect and sign with your paying wallet" }, 401);
   const body: any = await c.req.json().catch(() => ({}));
+  const plan = planById(body.plan);
+  if (!plan) return json(c, { error: "Choose one of the three listed plans" }, 400);
   const rawTx = typeof body.tx === "string" ? body.tx.trim() : "";
   const tx = user.chain === "base" ? rawTx.toLowerCase() : rawTx;
   if (!tx || tx.length > 100) return json(c, { error: "Enter a transaction ID" }, 400);
@@ -155,25 +159,46 @@ human.post("/confirm", async (c) => {
   if (existing) return json(c, { error: "Transaction has already been used" }, 409);
   let paidAt: number;
   try {
-    paidAt = user.chain === "base" ? await verifyBaseReceipt(rpcUrl, tx, user.wallet, user.issued_at) :
-      await verifySolanaReceipt(rpcUrl, tx, user.wallet, user.issued_at);
+    paidAt = user.chain === "base" ? await verifyBaseReceipt(rpcUrl, tx, user.wallet, user.issued_at, plan.amountAtomic) :
+      await verifySolanaReceipt(rpcUrl, tx, user.wallet, user.issued_at, plan.amountAtomic);
   } catch (error) {
     if (error instanceof PendingReceipt) return json(c, { error: error.message }, 409);
     return json(c, { error: error instanceof Error ? error.message : "Payment could not be verified" }, 422);
   }
-  const expires = now() + MONTH;
+  const expires = now() + PERIOD_SECONDS;
   try {
     await c.env.DB!.batch([
-      c.env.DB!.prepare("INSERT INTO human_payments(chain,tx,wallet,amount_atomic,paid_at) VALUES(?,?,?,?,?)")
-        .bind(user.chain, tx, user.wallet, PRICE_ATOMIC.toString(), paidAt),
-      c.env.DB!.prepare(`INSERT INTO human_entitlements(chain,wallet,expires_at) VALUES(?,?,?)
-        ON CONFLICT(chain,wallet) DO UPDATE SET expires_at=MAX(human_entitlements.expires_at, ?)+?`)
-        .bind(user.chain, user.wallet, expires, now(), MONTH),
+      c.env.DB!.prepare("INSERT INTO human_payments(chain,tx,wallet,amount_atomic,paid_at,plan_id) VALUES(?,?,?,?,?,?)")
+        .bind(user.chain, tx, user.wallet, plan.amountAtomic.toString(), paidAt, plan.id),
+      c.env.DB!.prepare(`INSERT INTO human_entitlements(chain,wallet,expires_at,plan_id) VALUES(?,?,?,?)
+        ON CONFLICT(chain,wallet) DO UPDATE SET expires_at=MAX(human_entitlements.expires_at, ?)+?,plan_id=excluded.plan_id`)
+        .bind(user.chain, user.wallet, expires, plan.id, now(), PERIOD_SECONDS),
     ]);
   } catch { return json(c, { error: "Transaction already used or subscription storage unavailable" }, 409); }
   const row = await c.env.DB!.prepare("SELECT expires_at FROM human_entitlements WHERE chain=? AND wallet=?")
     .bind(user.chain, user.wallet).first<{ expires_at: number }>();
-  return json(c, { status: "unlocked", chain: user.chain, wallet: user.wallet, expiresAt: row?.expires_at, tx });
+  return json(c, { status: "unlocked", chain: user.chain, wallet: user.wallet, plan: plan.id, expiresAt: row?.expires_at, tx });
+});
+
+human.post("/api-key", async (c) => {
+  const user = await session(c);
+  if (!user) return json(c, { error: "Connect and sign with your paying wallet" }, 401);
+  const entitlement = await c.env.DB!.prepare("SELECT 1 FROM human_entitlements WHERE chain=? AND wallet=? AND expires_at>?")
+    .bind(user.chain, user.wallet, now()).first();
+  if (!entitlement) return json(c, { error: "An active plan is required" }, 402);
+  const apiKey = `baw_live_${token()}`;
+  await c.env.DB!.prepare(`INSERT INTO human_api_keys(chain,wallet,token_hash,created_at) VALUES(?,?,?,?)
+    ON CONFLICT(chain,wallet) DO UPDATE SET token_hash=excluded.token_hash,created_at=excluded.created_at`)
+    .bind(user.chain, user.wallet, await hashToken(apiKey), now()).run();
+  return json(c, { apiKey, message: "Copy this key now. Creating another key revokes this one." });
+});
+
+human.delete("/api-key", async (c) => {
+  const user = await session(c);
+  if (!user) return json(c, { error: "Connect and sign with your paying wallet" }, 401);
+  await c.env.DB!.prepare("DELETE FROM human_api_keys WHERE chain=? AND wallet=?")
+    .bind(user.chain, user.wallet).run();
+  return json(c, { revoked: true });
 });
 
 human.post("/blueprint", async (c) => {

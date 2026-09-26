@@ -9,6 +9,10 @@ const html = Object.fromEntries([
   ["/human/build", "human-build.html"],
   ["/human/studio", "human-studio.html"],
   ["/human/live", "human-live.html"],
+  ["/pricing", "pricing.html"],
+  ["/docs", "docs.html"],
+  ["/terms", "terms.html"],
+  ["/privacy", "privacy.html"],
 ].map(([route, filename]) => [route, readFileSync(fileURLToPath(new URL(filename, root)), "utf8")]));
 const script = readFileSync(fileURLToPath(new URL("app.js", root)), "utf8");
 const output = fileURLToPath(new URL("../src/human-pages.ts", import.meta.url));

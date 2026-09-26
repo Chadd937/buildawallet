@@ -168,6 +168,8 @@ async function main() {
   }
   if (sameAddress(chain, payer, chain.collector)) fail("Use a separate payer, not the collector wallet");
   let balanceAtomic;
+  let recipientAta;
+  let recipientReady = true;
   if (name === "base") {
     const { createPublicClient, http, parseAbi } = await import("viem");
     const { base } = await import("viem/chains");
@@ -181,16 +183,35 @@ async function main() {
       args: [payer],
     });
   } else {
-    const result = await rpc(process.env.BAW_SOLANA_RPC_URL, "getTokenAccountsByOwner", [
-      payer, { mint: chain.asset }, { encoding: "jsonParsed" },
+    const { TOKEN_PROGRAM_ADDRESS } = await import("@solana-program/token");
+    const { findAssociatedTokenPda } = await import("@solana-program/token-2022");
+    const [payerAta] = await findAssociatedTokenPda({
+      mint: chain.asset, owner: payer, tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    });
+    [recipientAta] = await findAssociatedTokenPda({
+      mint: chain.asset, owner: chain.collector, tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    });
+    const result = await rpc(process.env.BAW_SOLANA_RPC_URL, "getMultipleAccounts", [
+      [payerAta, recipientAta], { encoding: "jsonParsed" },
     ]);
-    if (!Array.isArray(result?.value)) fail("Solana RPC returned invalid token accounts");
-    balanceAtomic = result.value.reduce((total, entry) =>
-      total + BigInt(entry.account.data.parsed.info.tokenAmount.amount), 0n);
+    if (result?.value?.length !== 2) fail("Solana RPC returned invalid token account data");
+    const tokenInfo = (account, owner) => {
+      if (account?.owner !== TOKEN_PROGRAM_ADDRESS ||
+          account?.data?.parsed?.info?.owner !== owner ||
+          account?.data?.parsed?.info?.mint !== chain.asset) return null;
+      return account.data.parsed.info;
+    };
+    const source = tokenInfo(result.value[0], payer);
+    const destination = tokenInfo(result.value[1], chain.collector);
+    balanceAtomic = source ? BigInt(source.tokenAmount.amount) : 0n;
+    recipientReady = Boolean(destination);
   }
   console.log(`Payer: ${payer}`);
   console.log(`Payer USDC: ${Number(balanceAtomic) / 1e6}`);
   if (balanceAtomic < BigInt(AMOUNT)) fail("Test payer needs at least 0.01 USDC on the selected mainnet before signing");
+  if (!recipientReady) {
+    fail(`Collector USDC associated token account ${recipientAta} is missing or invalid. Create it before a paid attempt.`);
+  }
   if (mode === "--check-funds") return;
   console.log(`One attempt: pay $0.01 USDC on ${name} to ${chain.collector}.`);
   const prompt = createInterface({ input: stdin, output: stdout });

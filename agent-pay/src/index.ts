@@ -13,6 +13,13 @@ import { openapi, swaggerHtml } from "./openapi";
 import { publicPlans } from "./plans";
 
 export interface Env {
+  AI?: {
+    run(
+      model: string,
+      input: unknown,
+      options?: unknown
+    ): Promise<unknown>;
+  };
   BASE_RPC_URL?: string;
   SOLANA_RPC_URL?: string;
   REQUEST_RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
@@ -22,10 +29,153 @@ export interface Env {
 
 type Snapshot = Awaited<ReturnType<typeof walletSnapshot>> | Awaited<ReturnType<typeof solanaWalletSnapshot>>;
 const app = new Hono<{ Bindings: Env; Variables: { snapshot: Snapshot } }>();
+
 for (const [path, html] of Object.entries(pages.html)) {
   app.get(path, (c) => c.html(html, 200, { "Cache-Control": "no-store" }));
 }
 app.get("/app.js", (c) => c.body(pages.script, 200, { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store" }));
+app.get("/human.css", (c) => c.body(pages.style, 200, {
+  "Content-Type": "text/css; charset=utf-8",
+  "Cache-Control": "no-store",
+}));
+
+app.post("/machine/ai/chat", async (c) => {
+  if (!c.env?.AI) {
+    return c.json({ error: "AI service is not configured" }, 503);
+  }
+
+  if (c.env.REQUEST_RATE_LIMITER) {
+    const ip = c.req.header("CF-Connecting-IP") ?? "unknown";
+    const result = await c.env.REQUEST_RATE_LIMITER.limit({
+      key: `human-ai:${ip}`,
+    });
+
+    if (!result.success) {
+      return c.json(
+        { error: "AI request rate limit exceeded" },
+        429,
+        { "Retry-After": "60" },
+      );
+    }
+  }
+
+  let body: {
+    messages?: Array<{
+      role?: string;
+      content?: string;
+    }>;
+  };
+
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "valid JSON body required" }, 400);
+  }
+
+  const supplied = Array.isArray(body.messages)
+    ? body.messages
+    : [];
+
+  const cleaned = supplied
+    .slice(-10)
+    .map((message) => ({
+      role:
+        message.role === "assistant"
+          ? "assistant"
+          : "user",
+      content: String(message.content ?? "")
+        .trim()
+        .slice(0, 1400),
+    }))
+    .filter((message) => message.content);
+
+  if (!cleaned.length) {
+    return c.json({ error: "message required" }, 400);
+  }
+
+  const system = {
+    role: "system",
+    content:
+      "You are Build-a-Wallet's Wallet Architect AI. " +
+      "Help users DESIGN human-controlled cryptocurrency wallets. " +
+      "You are an architecture and product-design assistant, not a wallet signer or custodian. " +
+
+      "Be concise, practical, technically accurate and security-first. " +
+      "Discuss networks, custody models, hardware wallets, backups, recovery, authentication, privacy, UX and product features. " +
+
+      "NEVER ask for, accept, reconstruct, repeat or encourage sharing seed phrases, private keys, passwords, recovery secrets, API keys or authentication tokens. " +
+      "Never suggest pasting private keys or recovery phrases into a website, AI system or cloud service. " +
+
+      "Do not recommend exporting raw private keys as a normal wallet feature. " +
+      "Prefer standard mnemonic backup, hardware-wallet signing, watch-only architecture, descriptors and well-established recovery mechanisms when appropriate. " +
+      "Do not recommend Shamir Secret Sharing unless the user specifically asks for split-backup or advanced recovery. " +
+
+      "Do not invent blockchain privacy features. " +
+      "For example, do not claim Litecoin uses RingCT. " +
+      "Do not describe an authentication device such as a YubiKey as a Bitcoin or Litecoin transaction-signing hardware wallet unless discussing a separate authentication role. " +
+
+      "Distinguish clearly between a product IDEA, a recommended architecture and something that is actually implemented. " +
+      "Do not claim Build-a-Wallet has implemented custody, signing, swaps, bridges or transaction execution unless the current product explicitly provides it. " +
+
+      "When recommending Bitcoin-family wallet architecture, prefer widely adopted standards and interoperable approaches rather than custom cryptography. " +
+      "When suggesting hardware wallets, examples may include Ledger, Trezor, Coldcard or other chain-compatible signing devices, but avoid endorsements. " +
+
+      "If a request could create meaningful security risk, explain the safer architecture instead of maximizing convenience. " +
+
+      "When useful, end with a short proposed wallet blueprint containing: Networks, Custody, Security, Recovery and Features. " +
+      "You may suggest the guided builder at /human/build."
+  };
+  try {
+    const result = await c.env.AI.run(
+      "@cf/meta/llama-3.1-8b-instruct-fast",
+      {
+        messages: [system, ...cleaned],
+        max_tokens: 650,
+      },
+      {
+        gateway: {
+          id: "default",
+          skipCache: true,
+        },
+      },
+    );
+
+    const candidate = result as {
+      response?: unknown;
+      result?: {
+        response?: unknown;
+      };
+    };
+
+    const response =
+      typeof candidate?.response === "string"
+        ? candidate.response
+        : typeof candidate?.result?.response === "string"
+          ? candidate.result.response
+          : "";
+
+    if (!response.trim()) {
+      return c.json(
+        { error: "AI returned an empty response" },
+        502,
+      );
+    }
+
+    return c.json({
+      response: response.trim(),
+      model: "@cf/meta/llama-3.1-8b-instruct-fast",
+    });
+
+  } catch (error) {
+    console.error("Workers AI chat failed", error);
+
+    return c.json(
+      { error: "AI service temporarily unavailable" },
+      503,
+    );
+  }
+});
+
 app.get("/machine/openapi.json", (c) => c.json(openapi));
 app.get("/openapi.json", (c) => c.json(openapi));
 app.get("/api-docs", (c) => c.html(swaggerHtml));

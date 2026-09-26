@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const root = new URL("../../static/", import.meta.url);
 const html = Object.fromEntries([
+  ["/", "index.html"],
   ["/pay", "human-pay.html"],
   ["/human/pay", "human-pay.html"],
   ["/human", "human.html"],
@@ -15,5 +16,6 @@ const html = Object.fromEntries([
   ["/privacy", "privacy.html"],
 ].map(([route, filename]) => [route, readFileSync(fileURLToPath(new URL(filename, root)), "utf8")]));
 const script = readFileSync(fileURLToPath(new URL("app.js", root)), "utf8");
+const style = readFileSync(fileURLToPath(new URL("human.css", root)), "utf8");
 const output = fileURLToPath(new URL("../src/human-pages.ts", import.meta.url));
-writeFileSync(output, `// Generated from static/*.html and static/app.js. Do not edit.\nexport default ${JSON.stringify({ html, script })};\n`);
+writeFileSync(output, `// Generated from static/*.html and static/app.js. Do not edit.\nexport default ${JSON.stringify({ html, script, style })};\n`);

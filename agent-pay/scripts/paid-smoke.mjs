@@ -23,6 +23,7 @@ const SOLANA = {
 };
 const AMOUNT = "10000"; // USDC has six decimals: $0.01.
 const ORIGIN = "https://buildawallet.xyz";
+let paidRequestSent = false;
 
 function fail(message) {
   throw new Error(message);
@@ -30,6 +31,14 @@ function fail(message) {
 
 function sameAddress(chain, a, b) {
   return chain.name === "base" ? a?.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+function requireRpcUrl(value, variable) {
+  try {
+    const url = new URL(value);
+    if (url.protocol === "https:" && !url.username && !url.password) return url.toString();
+  } catch { /* Report a generic error so the entered value is not echoed. */ }
+  fail(`${variable} must be a full https:// mainnet URL. Enter only the URL at the hidden prompt, one command at a time.`);
 }
 
 async function rpc(url, method, params) {
@@ -100,8 +109,8 @@ async function verifySolana(transaction, payer, chain) {
 
 async function main() {
   const [name, mode = "--prepare"] = process.argv.slice(2);
-  if ((name !== "base" && name !== "solana") || !["--prepare", "--execute"].includes(mode)) {
-    fail("Usage: node scripts/paid-smoke.mjs <base|solana> [--prepare|--execute]");
+  if ((name !== "base" && name !== "solana") || !["--prepare", "--check-funds", "--execute"].includes(mode)) {
+    fail("Usage: node scripts/paid-smoke.mjs <base|solana> [--prepare|--check-funds|--execute]");
   }
   const chain = name === "base" ? BASE : SOLANA;
   const url = ORIGIN + chain.path;
@@ -124,7 +133,7 @@ async function main() {
   console.log(JSON.stringify({ mode, endpoint: url, network: selected.network,
     amountUSDC: "0.01", token: selected.asset, collector: selected.payTo }, null, 2));
   if (mode === "--prepare") return;
-  if (!stdin.isTTY) fail("Execute mode requires an interactive terminal");
+  if (mode === "--execute" && !stdin.isTTY) fail("Execute mode requires an interactive terminal");
 
   let payer;
   const client = new x402Client();
@@ -143,7 +152,8 @@ async function main() {
     if (!file || !process.env.BAW_SOLANA_RPC_URL) {
       fail("Set BAW_TEST_SOLANA_KEYPAIR_FILE and BAW_SOLANA_RPC_URL for the test payer");
     }
-    const genesis = await rpc(process.env.BAW_SOLANA_RPC_URL, "getGenesisHash", []);
+    const solanaRpcUrl = requireRpcUrl(process.env.BAW_SOLANA_RPC_URL, "BAW_SOLANA_RPC_URL");
+    const genesis = await rpc(solanaRpcUrl, "getGenesisHash", []);
     if (genesis !== "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d") {
       fail("The local Solana RPC is not connected to mainnet");
     }
@@ -154,10 +164,34 @@ async function main() {
     }
     const signer = await createKeyPairSignerFromBytes(new Uint8Array(bytes));
     payer = String(signer.address);
-    client.register(chain.network, new ExactSvmScheme(signer, { rpcUrl: process.env.BAW_SOLANA_RPC_URL }));
+    client.register(chain.network, new ExactSvmScheme(signer, { rpcUrl: solanaRpcUrl }));
   }
   if (sameAddress(chain, payer, chain.collector)) fail("Use a separate payer, not the collector wallet");
+  let balanceAtomic;
+  if (name === "base") {
+    const { createPublicClient, http, parseAbi } = await import("viem");
+    const { base } = await import("viem/chains");
+    const rpcUrl = requireRpcUrl(process.env.BAW_BASE_RPC_URL || "https://mainnet.base.org", "BAW_BASE_RPC_URL");
+    const publicClient = createPublicClient({ chain: base, transport: http(rpcUrl) });
+    if (await publicClient.getChainId() !== 8453) fail("The local Base RPC is not connected to mainnet");
+    balanceAtomic = await publicClient.readContract({
+      address: chain.asset,
+      abi: parseAbi(["function balanceOf(address) view returns (uint256)"]),
+      functionName: "balanceOf",
+      args: [payer],
+    });
+  } else {
+    const result = await rpc(process.env.BAW_SOLANA_RPC_URL, "getTokenAccountsByOwner", [
+      payer, { mint: chain.asset }, { encoding: "jsonParsed" },
+    ]);
+    if (!Array.isArray(result?.value)) fail("Solana RPC returned invalid token accounts");
+    balanceAtomic = result.value.reduce((total, entry) =>
+      total + BigInt(entry.account.data.parsed.info.tokenAmount.amount), 0n);
+  }
   console.log(`Payer: ${payer}`);
+  console.log(`Payer USDC: ${Number(balanceAtomic) / 1e6}`);
+  if (balanceAtomic < BigInt(AMOUNT)) fail("Test payer needs at least 0.01 USDC on the selected mainnet before signing");
+  if (mode === "--check-funds") return;
   console.log(`One attempt: pay $0.01 USDC on ${name} to ${chain.collector}.`);
   const prompt = createInterface({ input: stdin, output: stdout });
   const answer = await prompt.question(`Type PAY ${name.toUpperCase()} to sign and submit once: `);
@@ -170,6 +204,7 @@ async function main() {
     !sameAddress(chain, payload.accepted.payTo, chain.collector)) fail("Signed payload does not match the reviewed charge");
   const headers = httpClient.encodePaymentSignatureHeader(payload);
   // Do not retry if the request times out: it might have settled despite a lost HTTP response.
+  paidRequestSent = true;
   const paid = await fetch(url, { headers, signal: AbortSignal.timeout(90000) });
   const body = await paid.json();
   const outcome = httpClient.parsePaymentResult({
@@ -198,6 +233,6 @@ async function main() {
 
 main().catch((error) => {
   console.error(error.message);
-  console.error("If a paid attempt was sent, do not rerun until you check the payer and collector transactions.");
+  if (paidRequestSent) console.error("Do not rerun until you check the payer and collector transactions.");
   process.exitCode = 1;
 });

@@ -1,0 +1,15 @@
+.git
+.venv
+.pwb
+__pycache__
+*.pyc
+.seeio
+data/*.db
+data/*.db-*
+.env
+.env.*
+.dev.vars*
+**/.dev.vars*
+**/node_modules
+**/.venv
+**/.wrangler

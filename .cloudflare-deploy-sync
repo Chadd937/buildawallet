@@ -1,4 +1,4 @@
-buildawallet.xyz production source: SNOR-token/BuildAWallet
+buildawallet.xyz intended production source: Chadd937/buildawallet
 canonical branch: main
-deploy sync marker: 2026-09-23T16:32-04:00
+Cloudflare Pages Git integration: verify it points to this repository
 expected landing asset: /agentic-human-robot-hero.jpg?v=18

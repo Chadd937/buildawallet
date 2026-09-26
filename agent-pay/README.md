@@ -69,7 +69,11 @@ Use **separate, small-funded test payer wallets**, never the collector wallets.
 The Base payer needs Base USDC; the Solana payer needs Solana USDC and a Solana
 CLI-style 64-byte JSON keypair file with mode 0600. Use a keyed mainnet RPC for
 Solana and preferably for Base receipt verification. Keep private keys, keypair
-files and RPC keys out of Git and chat. In a trusted local interactive shell:
+files and RPC keys out of Git and chat. Store the Solana keypair file **outside**
+the Git checkout. Run these lines **one at a time** in a trusted local interactive
+shell: each hidden `read` waits for you to enter only the requested secret URL
+or key and press Enter. Pasting the entire block at once can put the next shell
+command into a secret variable.
 
 ```bash
 cd agent-pay
@@ -81,17 +85,21 @@ read -rsp 'Base test payer private key: ' BAW_TEST_EVM_PRIVATE_KEY; echo
 export BAW_TEST_EVM_PRIVATE_KEY
 read -rsp 'Base mainnet RPC URL: ' BAW_BASE_RPC_URL; echo
 export BAW_BASE_RPC_URL
+npm run smoke:paid -- base --check-funds
 npm run smoke:paid -- base --execute
 unset BAW_TEST_EVM_PRIVATE_KEY BAW_BASE_RPC_URL
 
 export BAW_TEST_SOLANA_KEYPAIR_FILE=/absolute/path/to/test-payer.json
 read -rsp 'Solana mainnet RPC URL: ' BAW_SOLANA_RPC_URL; echo
 export BAW_SOLANA_RPC_URL
+npm run smoke:paid -- solana --check-funds
 npm run smoke:paid -- solana --execute
 unset BAW_TEST_SOLANA_KEYPAIR_FILE BAW_SOLANA_RPC_URL
 ```
 
-The explicit `--execute` mode asks for `PAY BASE` or `PAY SOLANA` before signing,
+The `--check-funds` mode requires at least $0.01 USDC in the payer before it
+returns success; it never signs. The explicit `--execute` mode repeats that check,
+asks for `PAY BASE` or `PAY SOLANA` before signing,
 sends exactly one paid request, checks the x402 settlement header, and verifies
 the USDC transfer in the onchain transaction. It does not retry a paid request.
 If the HTTP response is lost or receipt verification fails, inspect the payer and

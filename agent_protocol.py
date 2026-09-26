@@ -118,7 +118,7 @@ def transaction(wallet_id:str,b:TxIn,authorization:str|None=Header(default=None)
   if "send" not in p["allowed_actions"]:s,r="denied","send_capability"
   elif b.asset.upper() not in {x.upper() for x in p["allowed_assets"]}:s,r="denied","asset_not_allowed"
   elif p["max_transaction_usd"] and amount_usd>p["max_transaction_usd"]:s,r="denied","max_transaction"
-  elif p["deny_unknown_destinations"] and p["allowed_destinations"] and b.destination not in set(p["allowed_destinations"]):s,r="denied","destination_not_allowed"
+  elif p["deny_unknown_destinations"] and b.destination not in set(p["allowed_destinations"]):s,r="denied","destination_not_allowed"
   else:
    spent=c.execute("SELECT COALESCE(SUM(amount_usd),0) FROM agent_transactions WHERE wallet_id=? AND status IN ('approval_required','ready_for_signing','executing','broadcast','confirmed') AND substr(created_at,1,10)=?",(wallet_id,now().date().isoformat())).fetchone()[0]
    if p["daily_spend_limit_usd"] and spent+amount_usd>p["daily_spend_limit_usd"]:s,r="denied","daily_spend_limit"

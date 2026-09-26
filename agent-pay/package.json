@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260926.1",
+    "swagger-ui-dist": "5.33.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.0",
     "wrangler": "^4.0.0"

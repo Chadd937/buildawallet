@@ -35,6 +35,19 @@ describe("subscription API and machine discovery", () => {
     expect((await app.request("/.well-known/agent.json")).status).toBe(200);
     expect((await app.request("/api-docs")).status).toBe(200);
   });
+  it("serves API documentation assets and legal pages from this origin", async () => {
+    const page = await (await app.request("/api-docs")).text();
+    expect(page).toContain('/api-docs/swagger-ui-bundle.js');
+    expect(page).not.toContain('unpkg.com');
+    const css = await app.request('/api-docs/swagger-ui.css');
+    const js = await app.request('/api-docs/swagger-ui-bundle.js');
+    expect(css.status).toBe(200);
+    expect(css.headers.get('content-type')).toContain('text/css');
+    expect(js.status).toBe(200);
+    expect(js.headers.get('content-type')).toContain('application/javascript');
+    expect((await (await app.request('/privacy')).text())).toContain('does not include advertising cookies');
+    expect((await (await app.request('/terms')).text())).toContain('Builder costs $12 USDC');
+  });
   it("rejects missing credentials and invalid addresses before RPC or metering", async () => {
     const env = environment();
     expect((await app.request(`/machine/v1/base/wallet/${wallet}`, {}, env)).status).toBe(401);

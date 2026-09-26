@@ -10,6 +10,7 @@ import pages from "./human-pages";
 import api from "./api";
 import { handleMcp } from "./mcp";
 import { openapi, swaggerHtml } from "./openapi";
+import * as swaggerAssets from "./swagger-assets";
 import { publicPlans } from "./plans";
 
 export interface Env {
@@ -30,6 +31,8 @@ app.get("/machine/openapi.json", (c) => c.json(openapi));
 app.get("/openapi.json", (c) => c.json(openapi));
 app.get("/api-docs", (c) => c.html(swaggerHtml));
 app.get("/docs/api", (c) => c.html(swaggerHtml));
+app.get("/api-docs/swagger-ui.css", (c) => c.body(swaggerAssets.css, 200, { "Content-Type": "text/css; charset=utf-8", "Cache-Control": "public, max-age=86400" }));
+app.get("/api-docs/swagger-ui-bundle.js", (c) => c.body(swaggerAssets.js, 200, { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "public, max-age=86400" }));
 app.get("/.well-known/agent.json", (c) => c.json({ name: "BuildAWallet", homepage: "https://buildawallet.xyz/",
   description: "Read-only Base and Solana mainnet wallet data; no signing or custody",
   openapi: "https://buildawallet.xyz/machine/openapi.json", mcp: "https://buildawallet.xyz/mcp",

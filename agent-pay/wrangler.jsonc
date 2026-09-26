@@ -14,6 +14,7 @@
     ,{ "pattern": "buildawallet.xyz/agent-offer.json", "zone_name": "buildawallet.xyz" }
     ,{ "pattern": "buildawallet.xyz/openapi.json", "zone_name": "buildawallet.xyz" }
     ,{ "pattern": "buildawallet.xyz/api-docs", "zone_name": "buildawallet.xyz" }
+    ,{ "pattern": "buildawallet.xyz/api-docs/*", "zone_name": "buildawallet.xyz" }
     ,{ "pattern": "buildawallet.xyz/docs/api", "zone_name": "buildawallet.xyz" }
     ,{ "pattern": "buildawallet.xyz/docs", "zone_name": "buildawallet.xyz" }
     ,{ "pattern": "buildawallet.xyz/pricing", "zone_name": "buildawallet.xyz" }

@@ -1,71 +1,22 @@
 {
-  "name": "Build-a-Wallet",
-  "canonical_url": "https://buildawallet.xyz",
-  "status": "preview",
-  "non_human_status": "Production agent wallet creation, signing and broadcasting are not deployed.",
-  "human_status": "Wallet design, blueprint JSON export and external wallet mainnet balance reads. Sending and downloadable fund-holding wallets are unavailable.",
-  "machine_payments": {
-    "status": "Check /machine/info for deployment availability. Wallet signing is separate and unavailable.",
-    "network_data": ["Base mainnet native balance", "Solana mainnet SOL balance"],
-    "price": "$0.01 USDC per successful call",
-    "payment_networks": ["Base mainnet", "Solana mainnet"],
-    "info": "https://buildawallet.xyz/machine/info"
-  },
-  "product_surfaces": {
-    "non_human": "https://buildawallet.xyz/",
-    "human": "https://buildawallet.xyz/human"
-  },
-  "interfaces": {
-    "homepage": "https://buildawallet.xyz/",
-    "human": "https://buildawallet.xyz/human",
-    "docs": "https://buildawallet.xyz/docs",
-    "agent_manifest": "https://buildawallet.xyz/.well-known/agent.json",
-    "llms_txt": "https://buildawallet.xyz/llms.txt",
-    "pricing": "https://buildawallet.xyz/pricing",
-    "privacy": "https://buildawallet.xyz/privacy",
-    "terms": "https://buildawallet.xyz/terms"
-  },
-  "planned_capabilities": {
-    "chains": [
-      "ethereum",
-      "base",
-      "arbitrum",
-      "optimism",
-      "polygon",
-      "bnb",
-      "avalanche",
-      "solana",
-      "bitcoin",
-      "litecoin"
-    ],
-    "controls": [
-      "scoped credentials",
-      "per-transaction limits",
-      "daily budgets",
-      "allowed assets",
-      "allowed destinations",
-      "human approval thresholds",
-      "wallet freeze",
-      "credential revocation",
-      "audit events",
-      "mainnet broadcast safety switch"
-    ],
-    "wallet_types": [
-      "persistent",
-      "task",
-      "session",
-      "budget",
-      "escrow",
-      "multisig"
-    ],
-    "execution": [
-      "EVM native",
-      "Solana native",
-      "Bitcoin native",
-      "Litecoin native"
-    ]
-  },
-  "transaction_signing": false,
-  "broadcast": false,
-  "funds_warning": "Do not fund wallet designs or treat this preview as a production signing service."
+  "name": "BuildAWallet",
+  "canonical_url": "https://buildawallet.xyz/",
+  "status": "read-only mainnet data",
+  "description": "HUMAN wallet design and metered Base and Solana mainnet data for people and agents",
+  "capabilities": ["public wallet balances", "USDC balances", "transaction status", "premium HUMAN blueprint"],
+  "plans": [
+    {"id":"builder", "priceUSDC":"12.00", "units":500, "days":30},
+    {"id":"pro", "priceUSDC":"39.00", "units":5000, "days":30, "batchLimit":10},
+    {"id":"scale", "priceUSDC":"99.00", "units":25000, "days":30, "batchLimit":50}
+  ],
+  "payment_networks": ["eip155:8453", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"],
+  "subscriptions": "https://buildawallet.xyz/machine/human/subscription",
+  "pay_per_call": ["https://buildawallet.xyz/machine/wallet", "https://buildawallet.xyz/machine/solana-wallet"],
+  "price_per_snapshot_usdc": "0.01",
+  "openapi": "https://buildawallet.xyz/machine/openapi.json",
+  "mcp": "https://buildawallet.xyz/mcp",
+  "service_info": "https://buildawallet.xyz/machine/info",
+  "custody": false,
+  "signing": false,
+  "transaction_submission": false
 }

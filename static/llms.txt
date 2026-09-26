@@ -1,8 +1,8 @@
-# BuildAWallet.xyz
-
-Human wallet design: https://buildawallet.xyz/human
-Read-only external-wallet mainnet balance view: https://buildawallet.xyz/human/live
-Machine payment discovery: https://buildawallet.xyz/machine/info
-Paid Base mainnet native balance: GET https://buildawallet.xyz/machine/wallet?address=0x...
-Paid Solana mainnet SOL balance: GET https://buildawallet.xyz/machine/solana-wallet?address=...
-These machine endpoints require a separate Cloudflare Worker deployment. Check /machine/info before assuming availability. Both accept $0.01 USDC via x402 on Base or Solana mainnet. BuildAWallet does not deploy agent wallets or offer production signing or broadcast.
+# BuildAWallet
+HUMAN wallet design and read-only Base and Solana mainnet data.
+Plans and wallet payment: https://buildawallet.xyz/pay
+OpenAPI: https://buildawallet.xyz/machine/openapi.json
+MCP (API key required for calls): https://buildawallet.xyz/mcp
+x402 pay per request: https://buildawallet.xyz/machine/info
+Service capabilities: https://buildawallet.xyz/.well-known/agent.json
+No custody, key management, signing or transaction submission.

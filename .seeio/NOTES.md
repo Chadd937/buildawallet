@@ -37,6 +37,10 @@ solely based on what the user wants, as many features as options."
 - The separate /machine/* Worker can charge $0.01 USDC for Base and Solana
   native balance snapshots after its own deployment and paid checks. It does
   not grant agent wallet authority.
+- The existing split landing page layout remains unchanged. Docs anchors lead
+  to the deployed API and MCP details. Terms and privacy describe the actual
+  read-only service, browser drafts, saved designs and paid access records.
+  The API reference serves its Swagger assets from BuildAWallet's Worker.
 
 ## Open questions for the owner
 - Any interest in a gallery of public builds on the home page?

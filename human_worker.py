@@ -79,7 +79,7 @@ async def healthz(request: Request):
     try:
         db = database(request)
         await db.prepare("SELECT 1 FROM wallets LIMIT 1").run()
-        return {"ok": True, "builder": "available", "agent_api": "not deployed"}
+        return {"ok": True, "builder": "available"}
     except Exception:
         raise HTTPException(503, "Builder storage is unavailable")
 

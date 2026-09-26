@@ -35,7 +35,7 @@ npm run deploy
 
 This script resolves the real D1 ID from Wrangler, applies pending shared migrations, verifies the plan schema, typechecks, runs the Worker tests using its own Vitest config, deploys `buildawallet-agent-pay`, and checks public machine info, HUMAN catalog, pages, plans, OpenAPI and discovery. It uses `--config wrangler.deploy.jsonc`, avoiding the stale `../../dist/server/wrangler.json` redirect. The generated config and D1 listing are ignored by Git.
 
-The Worker route list includes `/machine/*`, `/human`, `/human/*`, `/pay`, `/mcp`, `/api-docs` and machine-readable discovery. The service binding `HUMAN_API` calls the Python Worker directly, which bypasses the currently failing public `/api/*` route. D1 and both RPC secrets must be present for the subscription endpoint to report `available: true`. If the deploy script stops on a public check, inspect that result before inviting anyone to pay.
+The Worker route list includes `/machine/*`, `/human`, `/human/*`, `/pay`, `/mcp`, `/api-docs` and its same-origin Swagger assets, legal pages, and machine-readable discovery. The root landing page keeps its existing split HUMAN / NON-HUMAN layout and is served by the site origin. The service binding `HUMAN_API` calls the Python Worker directly, which bypasses the currently failing public `/api/*` route. D1 and both RPC secrets must be present for the subscription endpoint to report `available: true`. The deploy script checks the landing page, legal pages, API docs assets and docs links. If it stops on a public check, inspect that result before inviting anyone to pay.
 
 ## 4. Verify before promoting payment links
 
@@ -48,6 +48,10 @@ curl -fsS https://buildawallet.xyz/human/studio
 curl -fsS https://buildawallet.xyz/pay
 curl -fsS https://buildawallet.xyz/machine/openapi.json
 curl -fsS https://buildawallet.xyz/api-docs
+curl -fsS https://buildawallet.xyz/api-docs/swagger-ui.css >/dev/null
+curl -fsS https://buildawallet.xyz/api-docs/swagger-ui-bundle.js >/dev/null
+curl -fsS https://buildawallet.xyz/terms
+curl -fsS https://buildawallet.xyz/privacy
 ```
 
 Confirm `subscription.available` is `true`, and that `plans` lists Builder $12 / 500 units, Pro $39 / 5,000 units and Scale $99 / 25,000 units for 30 days. The Base and Solana collectors must match `0xBcCA6AED433d9020C50D44560F9679F1B5eB511d` and `Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC`. Test an unauthenticated premium export and subscribed API read return 401. Then use a separate funded payer wallet for **one** controlled plan purchase on a chosen chain, checking the explorer transaction, unlock, expiry, blueprint download, API key and a metered read. A transaction ID can only be redeemed once. If a response is lost, inspect the payment ledger and on-chain transfer before sending again.

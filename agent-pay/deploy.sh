@@ -34,6 +34,12 @@ curl --fail --silent --show-error https://buildawallet.xyz/pay > /dev/null
 curl --fail --silent --show-error https://buildawallet.xyz/machine/human/subscription | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["available"] is True and [(p["id"],p["priceUSDC"]) for p in d["plans"]] == [("builder","12.00"),("pro","39.00"),("scale","99.00")]'
 curl --fail --silent --show-error https://buildawallet.xyz/machine/openapi.json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["openapi"].startswith("3.1") and "/machine/v1/batch" in d["paths"]'
 curl --fail --silent --show-error https://buildawallet.xyz/api-docs > /dev/null
+curl --fail --silent --show-error https://buildawallet.xyz/api-docs/swagger-ui.css > /dev/null
+curl --fail --silent --show-error https://buildawallet.xyz/api-docs/swagger-ui-bundle.js > /dev/null
+curl --fail --silent --show-error https://buildawallet.xyz/terms | grep 'Plans, payment and renewal' > /dev/null
+curl --fail --silent --show-error https://buildawallet.xyz/privacy | grep 'Your designs and browser storage' > /dev/null
+curl --fail --silent --show-error https://buildawallet.xyz/docs | grep 'id="non-human"' > /dev/null
+curl --fail --silent --show-error https://buildawallet.xyz/ | grep 'ONE PLATFORM · TWO MODES' > /dev/null
 curl --fail --silent --show-error https://buildawallet.xyz/pricing > /dev/null
 curl --fail --silent --show-error https://buildawallet.xyz/.well-known/agent.json > /dev/null
 curl --fail --silent --show-error https://buildawallet.xyz/llms.txt > /dev/null

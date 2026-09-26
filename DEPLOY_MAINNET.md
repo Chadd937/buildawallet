@@ -19,7 +19,7 @@ Review the two USDC recipients against the owner's wallets, including network: B
 
 ## 2. Publish the HUMAN site and API
 
-Merge the reviewed changes to the Pages-connected branch and wait for the Pages deployment. Verify `/human`, `/human/build`, `/human/studio`, `/human/live`, `/docs`, `/pricing`, `/agent-offer.json` and `/.well-known/agent.json`. The `_redirects` file rewrites clean URLs to their HTML files. A separate see.io deployment may also be triggered by a main branch push; its Docker service still excludes the signer.
+The source is now in `Chadd937/buildawallet` on `main`. In the Cloudflare account that owns `buildawallet.xyz`, verify the Pages project's Git source points to that exact repository and branch. The imported GitHub repository may not inherit the old project's deployment connection. Set the project root to the repository root and build output to `static`, then wait for a successful Pages deployment. Keep the existing custom domain and Worker routes associated with the intended zone. Verify `/human`, `/human/build`, `/human/studio`, `/human/live`, `/docs`, `/pricing`, `/agent-offer.json` and `/.well-known/agent.json`. The `_redirects` file rewrites clean URLs to their HTML files. A separate see.io deployment may also be triggered by a main branch push; its Docker service still excludes the signer.
 
 From repository root, with the correct Cloudflare account selected:
 

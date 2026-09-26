@@ -16,6 +16,13 @@ if not identifier:
 Path('wrangler.deploy.jsonc').write_text(Path('wrangler.jsonc').read_text().replace('00000000-0000-4000-8000-000000000001', identifier))
 PY
 npx wrangler d1 migrations apply buildawallet --remote --config wrangler.deploy.jsonc
+# A declined migration can exit successfully. Do not ship a Worker against
+# an older schema if the operator answered "no" at the D1 prompt.
+if ! npx wrangler d1 execute buildawallet --remote --config wrangler.deploy.jsonc \
+  --command 'SELECT plan_id FROM human_entitlements LIMIT 0' > /dev/null; then
+  echo 'Shared-plan D1 migration is not applied. Deployment stopped; rerun and approve the D1 migration.' >&2
+  exit 1
+fi
 npm run typecheck
 npm test
 npx wrangler deploy --config wrangler.deploy.jsonc

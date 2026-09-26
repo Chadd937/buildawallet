@@ -7,7 +7,7 @@
     "pretest": "node scripts/sync-human-pages.mjs",
     "predev": "node scripts/sync-human-pages.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --config ./vitest.config.mts",
     "dev": "wrangler dev --config wrangler.jsonc",
     "deploy": "bash deploy.sh",
     "smoke:paid": "node scripts/paid-smoke.mjs"

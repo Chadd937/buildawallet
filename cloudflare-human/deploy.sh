@@ -38,6 +38,11 @@ PY
 
 ./prepare.sh
 npx --yes wrangler d1 migrations apply buildawallet --remote --config wrangler.deploy.jsonc
+if ! npx --yes wrangler d1 execute buildawallet --remote --config wrangler.deploy.jsonc \
+  --command 'SELECT plan_id FROM human_entitlements LIMIT 0' > /dev/null; then
+  echo 'Shared-plan D1 migration is not applied. Deployment stopped; rerun and approve the D1 migration.' >&2
+  exit 1
+fi
 uv run pywrangler deploy --config wrangler.deploy.jsonc
 
 if curl --fail --silent --show-error https://buildawallet.xyz/api/start > /dev/null && \

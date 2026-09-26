@@ -57,3 +57,42 @@ from the queried Base or Solana chain. PayAI is an external production facilitat
 This endpoint is a first real-payment capability; wallet balances themselves
 are public data. A broader business needs data whose value exceeds RPC and
 facilitator costs, plus rate controls and observability.
+
+## Controlled mainnet payment check
+
+`npm run smoke:paid -- base --prepare` and
+`npm run smoke:paid -- solana --prepare` fetch the live 402 challenges without
+signing. The script refuses to pay if the resource, network, USDC mint/contract,
+10,000 atomic units ($0.01), or collector differs from the expected value.
+
+Use **separate, small-funded test payer wallets**, never the collector wallets.
+The Base payer needs Base USDC; the Solana payer needs Solana USDC and a Solana
+CLI-style 64-byte JSON keypair file with mode 0600. Use a keyed mainnet RPC for
+Solana and preferably for Base receipt verification. Keep private keys, keypair
+files and RPC keys out of Git and chat. In a trusted local interactive shell:
+
+```bash
+cd agent-pay
+npm ci
+npm run smoke:paid -- base --prepare
+npm run smoke:paid -- solana --prepare
+
+read -rsp 'Base test payer private key: ' BAW_TEST_EVM_PRIVATE_KEY; echo
+export BAW_TEST_EVM_PRIVATE_KEY
+read -rsp 'Base mainnet RPC URL: ' BAW_BASE_RPC_URL; echo
+export BAW_BASE_RPC_URL
+npm run smoke:paid -- base --execute
+unset BAW_TEST_EVM_PRIVATE_KEY BAW_BASE_RPC_URL
+
+export BAW_TEST_SOLANA_KEYPAIR_FILE=/absolute/path/to/test-payer.json
+read -rsp 'Solana mainnet RPC URL: ' BAW_SOLANA_RPC_URL; echo
+export BAW_SOLANA_RPC_URL
+npm run smoke:paid -- solana --execute
+unset BAW_TEST_SOLANA_KEYPAIR_FILE BAW_SOLANA_RPC_URL
+```
+
+The explicit `--execute` mode asks for `PAY BASE` or `PAY SOLANA` before signing,
+sends exactly one paid request, checks the x402 settlement header, and verifies
+the USDC transfer in the onchain transaction. It does not retry a paid request.
+If the HTTP response is lost or receipt verification fails, inspect the payer and
+collector transactions before attempting another payment.

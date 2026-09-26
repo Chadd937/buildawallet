@@ -30,7 +30,7 @@ def test_all_protocol_paths(monkeypatch):
   agent=credential("agent","test-agent");operator=credential("operator","test-operator")
   ah={"Authorization":f"Bearer {agent['token']}"};oh={"Authorization":f"Bearer {operator['token']}"}
   assert "tx:approve" not in agent["scopes"] and "tx:approve" in operator["scopes"]
-  rw=client.post("/v1/wallets",headers=ah,json={"chain":"base","wallet_type":"task","purpose":"test","policy":{"allowed_actions":["balance","receive","send"],"allowed_assets":["ETH"],"max_transaction_usd":25,"daily_spend_limit_usd":50,"require_human_approval_above_usd":10,"expires_in_seconds":3600}});assert rw.status_code==201;wid=rw.json()["wallet_id"];assert rw.json()["address"].startswith("0x") and len(rw.json()["address"])==42
+  rw=client.post("/v1/wallets",headers=ah,json={"chain":"base","wallet_type":"task","purpose":"test","policy":{"allowed_actions":["balance","receive","send"],"allowed_assets":["ETH"],"allowed_destinations":["0x000000000000000000000000000000000000dEaD"],"max_transaction_usd":25,"daily_spend_limit_usd":50,"require_human_approval_above_usd":10,"expires_in_seconds":3600}});assert rw.status_code==201;wid=rw.json()["wallet_id"];assert rw.json()["address"].startswith("0x") and len(rw.json()["address"])==42
   th={**ah,"Idempotency-Key":"job-1"};body={"asset":"ETH","amount":0.0015,"destination":"0x000000000000000000000000000000000000dEaD"}
   a=client.post(f"/v1/wallets/{wid}/transactions",headers=th,json=body);assert a.status_code==202;assert a.json()["status"]=="approval_required";assert a.json()["amount_usd"]==15
   b=client.post(f"/v1/wallets/{wid}/transactions",headers=th,json=body);assert b.json()["id"]==a.json()["id"]
@@ -44,7 +44,7 @@ def test_all_protocol_paths(monkeypatch):
   ltc=client.post("/v1/wallets",headers=ah,json={"chain":"litecoin"});assert ltc.status_code==201;assert len(ltc.json()["address"])>=26
 
   r2=client.post("/v1/wallets",headers=ah,json={"chain":"base","policy":{"allowed_actions":["send"],"allowed_assets":["ETH"]}});assert r2.status_code==201;wid2=r2.json()["wallet_id"]
-  tx=client.post(f"/v1/wallets/{wid2}/transactions",headers={**ah,"Idempotency-Key":"no-broadcast"},json={"asset":"ETH","amount":0.0001,"destination":"0x000000000000000000000000000000000000dEaD"});assert tx.status_code==202
+  tx=client.post(f"/v1/wallets/{wid2}/transactions",headers={**ah,"Idempotency-Key":"no-broadcast"},json={"asset":"ETH","amount":0.0001,"destination":"0x000000000000000000000000000000000000dEaD"});assert tx.status_code==202;assert tx.json()["status"]=="denied" and tx.json()["reason"]=="destination_not_allowed"
   assert client.post(f"/v1/transactions/{tx.json()['id']}/execute",headers=oh).status_code==403
   assert client.post(f"/v1/wallets/{wid2}/freeze",headers=oh).json()["status"]=="frozen"
   assert client.post(f"/v1/credentials/{agent['credential_id']}/revoke",headers=oh).status_code==200

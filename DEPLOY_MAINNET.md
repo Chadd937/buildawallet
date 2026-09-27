@@ -1,6 +1,6 @@
 # BuildAWallet mainnet deployment
 
-The HUMAN Python Worker owns the builder brain and D1 database. The `agent-pay` Worker serves the HUMAN pages, a service-bound API proxy, three shared HUMAN blueprint and read-only API plans, MCP tools, and the existing $0.01 USDC x402 machine data routes. The static origin can also serve the pages from `static/`; the Worker routes make the HUMAN release independent of a pending static-site rebuild.
+The HUMAN Python Worker owns the builder brain and D1 database. The `agent-pay` Worker serves the free HUMAN pages and implementation plan, a service-bound API proxy, three paid read-only API plans, MCP tools, and the existing $0.01 USDC x402 machine data routes. The static origin can also serve the pages from `static/`; the Worker routes make the HUMAN release independent of a pending static-site rebuild.
 
 ## 0. Configure HUMAN sign-in
 
@@ -55,10 +55,10 @@ curl -fsS https://buildawallet.xyz/terms
 curl -fsS https://buildawallet.xyz/privacy
 ```
 
-Confirm `subscription.available` is `true`, and that `plans` lists Builder $12 / 500 units, Pro $39 / 5,000 units and Scale $99 / 25,000 units for 30 days. The Base and Solana collectors must match `0xBcCA6AED433d9020C50D44560F9679F1B5eB511d` and `Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC`. Test an unauthenticated premium export and subscribed API read return 401. Then use a separate funded payer wallet for **one** controlled plan purchase on a chosen chain, checking the explorer transaction, unlock, expiry, blueprint download, API key and a metered read. A transaction ID can only be redeemed once. If a response is lost, inspect the payment ledger and on-chain transfer before sending again.
+Confirm `subscription.available` is `true`, and that `plans` lists Starter $12 / 500 units, Pro $39 / 5,000 units and Scale $99 / 25,000 units for 30 days. The Base and Solana collectors must match `0xBcCA6AED433d9020C50D44560F9679F1B5eB511d` and `Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC`. An unauthenticated blueprint POST should redirect to Access at the edge; an authenticated visitor should be able to download a plan without wallet payment. A subscribed API read without a key should return 401. For plan purchase, use a separate funded payer wallet for **one** controlled payment on a chosen chain, checking the explorer transaction, expiry, API key and a metered read. A transaction ID can only be redeemed once. If a response is lost, inspect the payment ledger and on-chain transfer before sending again.
 
 The earlier $0.01 machine mainnet payments have already been settled and verified on both rails (Base transaction `0x3a5017d77b1e40b7154f77a6f8863e033acf3e1a84c32fdb929fb143396f9086`, Solana transaction `5CBKCF7ffHaZ8sRVdj2W5ihtsQGjfkHj5FQr7h1YGCEJNYwt4h9dhgH9KajMHHGZ6aoUorPzDGwigR86P1MiM4eF`). They do not test a purchase of one of the new plans.
 
 ## Scope
 
-The paid HUMAN feature is a detailed implementation blueprint export for a wallet design plus a shared, metered read-only mainnet API, with manual 30-day renewal. Free design and JSON export remain available. The public product does not create custody wallets, sign or send user transactions, or package an APK. The local `agent_protocol.py` signer and `/v1` routes remain unmounted.
+The HUMAN designer and its JSON and detailed implementation plan exports are free after Cloudflare Access sign-in. Paid plans meter the read-only mainnet API with manual 30-day renewal. The public product does not create custody wallets, sign or send user transactions, or package an APK. The local `agent_protocol.py` signer and `/v1` routes remain unmounted. [Android release work](ANDROID_RELEASE.md) is still required for a functional wallet APK.

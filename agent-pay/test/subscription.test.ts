@@ -90,10 +90,10 @@ describe("human subscription payment verification", () => {
     receipt.transaction.message.instructions[0].parsed.info.authority = SOLANA_COLLECTOR;
     await expect(verifySolanaReceipt("https://sol.example", txSol, solPayer, timestamp, PRICE_ATOMIC)).rejects.toThrow();
   });
-  it("requires wallet proof and an active entitlement before a premium export", async () => {
+  it("requires wallet proof for API payments while the blueprint has only Access and rate-limit gates", async () => {
     const env = { REQUEST_RATE_LIMITER: { limit: async () => ({ success: true }) } };
     expect((await app.request("/machine/human/confirm", { method: "POST", body: JSON.stringify({ tx: txBase }) }, env)).status).toBe(401);
-    expect((await app.request("/machine/human/blueprint", { method: "POST", body: "{}" }, env)).status).toBe(401);
+    expect((await app.request("/machine/human/blueprint", { method: "POST", body: "{}" }, env)).status).toBe(503);
     expect((await app.request("/machine/human/subscription", {}, {})).status).toBe(200);
     expect((await app.request("/pay", {}, {})).status).toBe(503);
     expect((await app.request("/human/studio", {}, {})).status).toBe(503);

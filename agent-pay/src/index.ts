@@ -45,7 +45,7 @@ const requireHumanSignIn = async (c: any, next: () => Promise<void>) => {
 app.use("/human", requireHumanSignIn);
 app.use("/human/*", requireHumanSignIn);
 app.use("/pay", requireHumanSignIn);
-for (const path of ["/machine/ai/chat", "/machine/human/chat", "/machine/human/save", "/machine/human/gallery", "/machine/human/wallet/*"]) {
+for (const path of ["/machine/ai/chat", "/machine/human/chat", "/machine/human/save", "/machine/human/gallery", "/machine/human/wallet/*", "/machine/human/blueprint"]) {
   app.use(path, requireHumanSignIn);
 }
 for (const [path, html] of Object.entries(pages.html)) {
@@ -203,14 +203,14 @@ app.get("/api-docs/swagger-ui-bundle.js", (c) => c.body(swaggerAssets.js, 200, {
 app.get("/.well-known/agent.json", (c) => c.json({ name: "BuildAWallet", homepage: "https://buildawallet.xyz/",
   description: "Read-only Base and Solana mainnet wallet data; no signing or custody",
   openapi: "https://buildawallet.xyz/machine/openapi.json", mcp: "https://buildawallet.xyz/mcp",
-  capabilities: ["wallet balances", "USDC balances", "transaction status", "premium wallet design blueprint"],
+  capabilities: ["wallet balances", "USDC balances", "transaction status", "free wallet design blueprint"],
   payments: { subscriptions: "https://buildawallet.xyz/machine/human/subscription", x402: "https://buildawallet.xyz/machine/info" } }));
 app.get("/agent-offer.json", (c) => c.json({ name: "BuildAWallet", version: "1.0.0", plans: publicPlans(),
   api: "https://buildawallet.xyz/machine/openapi.json", mcp: "https://buildawallet.xyz/mcp",
   payPerCall: ["https://buildawallet.xyz/machine/wallet", "https://buildawallet.xyz/machine/solana-wallet"],
   paymentProtocol: "x402", supportedPaymentNetworks: ["eip155:8453", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"],
   custody: false, signing: false }));
-app.get("/llms.txt", (c) => c.text(`# BuildAWallet\nRead-only Base and Solana mainnet wallet data and a premium HUMAN wallet design blueprint.\nOpenAPI: https://buildawallet.xyz/machine/openapi.json\nMCP (API key required for calls): https://buildawallet.xyz/mcp\nPlans and wallet payment: https://buildawallet.xyz/pay\nx402 pay-per-request: https://buildawallet.xyz/machine/info\nNo custody, key management, signing or transaction submission.\n`));
+app.get("/llms.txt", (c) => c.text(`# BuildAWallet\nFree HUMAN wallet design and implementation blueprint; paid read-only Base and Solana mainnet API data.\nOpenAPI: https://buildawallet.xyz/machine/openapi.json\nMCP (API key required for calls): https://buildawallet.xyz/mcp\nAPI plans and wallet payment: https://buildawallet.xyz/pay\nx402 pay-per-request: https://buildawallet.xyz/machine/info\nNo deployed custody wallet, key management, signing or transaction submission.\n`));
 app.all("/mcp", (c) => handleMcp(c.req.raw, c.env, async (request) => app.fetch(request, c.env)));
 export const SOLANA_COLLECTOR = "Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC";
 export const BASE_COLLECTOR = "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d";

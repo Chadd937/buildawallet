@@ -15,10 +15,10 @@ The optional Docker/see.io server in `main.py` serves the website and a read-onl
 
 1. `/human` introduces the designer.
 2. `/human/build` collects wallet preferences.
-3. `/human/studio` previews the blueprint and downloads its JSON configuration.
+3. `/human/studio` previews the blueprint and downloads its JSON configuration and detailed implementation plan for free.
 4. `/human/live` connects an existing injected wallet for free read-only Base or Solana mainnet balances.
 
-Sending and generated APK wallets are not released. Three shared HUMAN blueprint and read-only API plans are $12, $39 and $99 USDC for 30 days, payable on Base or Solana mainnet. Wallet ownership, confirmed payment receipts, one-time transaction accounting, subscription expiry and premium export authorization run in the machine Worker. The human pages and builder design API require Cloudflare Access sign-in; wallet proof and payment separately unlock premium access. See [the Access setup](CLOUDFLARE_ACCESS.md) and [deployment steps](DEPLOY_MAINNET.md).
+A functional Android wallet APK is not yet implemented or released. HUMAN design and both exports are free after Cloudflare Access sign-in. The three read-only API plans are $12, $39 and $99 USDC for 30 days, payable on Base or Solana mainnet. Wallet ownership, confirmed payment receipts, one-time transaction accounting and subscription expiry govern API access only. See [the Access setup](CLOUDFLARE_ACCESS.md), [deployment steps](DEPLOY_MAINNET.md), and [Android release gap](ANDROID_RELEASE.md).
 
 ## NON-HUMAN payment flow
 

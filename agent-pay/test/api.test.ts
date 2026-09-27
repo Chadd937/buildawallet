@@ -28,7 +28,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("subscription API and machine discovery", () => {
   it("gates HUMAN pages with a signed Cloudflare Access identity while machine discovery stays public", async () => {
     for (const path of ["/human", "/human/build", "/human/studio", "/human/live", "/human/pay", "/pay",
-      "/machine/ai/chat", "/machine/human/gallery", "/machine/human/wallet/abcdefghjkmnpqrstuvwxyz234"]) {
+      "/machine/ai/chat", "/machine/human/gallery", "/machine/human/blueprint", "/machine/human/wallet/abcdefghjkmnpqrstuvwxyz234"]) {
       expect((await app.request(path)).status).toBe(503);
     }
     const env = { CF_ACCESS_TEAM_DOMAIN: "https://baw-test.cloudflareaccess.com", CF_ACCESS_AUD: "test-human-app" };
@@ -48,6 +48,16 @@ describe("subscription API and machine discovery", () => {
     expect((await app.request("/human", { headers }, env)).status).toBe(200);
     expect((await app.request("/human/pay", { headers }, env)).status).toBe(200);
     expect((await app.request("/pay", { headers }, env)).status).toBe(200);
+    const plan = await app.request("/machine/human/blueprint", { method: "POST", headers: {
+      ...headers, "Content-Type": "application/json",
+    }, body: JSON.stringify({ spec: { name: "Free design", networks: ["n_base"], features: ["f_send"] } }) }, {
+      ...env, REQUEST_RATE_LIMITER: { limit: async () => ({ success: true }) },
+    });
+    expect(plan.status).toBe(200);
+    const exportBody = await plan.json() as any;
+    expect(exportBody.format).toBe("buildawallet-implementation-blueprint");
+    expect(exportBody.subscriptionExpiresAt).toBeUndefined();
+    expect(exportBody.implementationPlan.length).toBeGreaterThan(0);
     expect((await app.request("/human", { headers: { "Cf-Access-Jwt-Assertion": signed + "a" } }, env)).status).toBe(403);
   });
   it("advertises exactly three unified plans and a schema for the available routes", async () => {
@@ -57,6 +67,8 @@ describe("subscription API and machine discovery", () => {
     const spec = await (await app.request("/machine/openapi.json")).json() as any;
     expect(spec.openapi).toBe("3.1.0");
     expect(spec.paths["/machine/v1/solana/usdc/{address}"].get.security).toEqual([{ ApiKey: [] }]);
+    expect(spec.paths["/machine/human/blueprint"].post.security).toEqual([{ AccessSession: [] }]);
+    expect(publicPlans().every(p => !("humanBlueprint" in p))).toBe(true);
     expect((await app.request("/.well-known/agent.json")).status).toBe(200);
     expect((await app.request("/api-docs")).status).toBe(200);
   });
@@ -71,7 +83,7 @@ describe("subscription API and machine discovery", () => {
     expect(js.status).toBe(200);
     expect(js.headers.get('content-type')).toContain('application/javascript');
     expect((await (await app.request('/privacy')).text())).toContain('does not include advertising cookies');
-    expect((await (await app.request('/terms')).text())).toContain('Builder costs $12 USDC');
+    expect((await (await app.request('/terms')).text())).toContain('Starter costs $12 USDC');
   });
   it("rejects missing credentials and invalid addresses before RPC or metering", async () => {
     const env = environment();

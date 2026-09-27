@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>HUMAN wallet and API plans | BuildAWallet</title>
-<meta name="description" content="Three 30-day plans for the premium HUMAN wallet blueprint and read-only Base and Solana API. Pay USDC on Base or Solana mainnet.">
+<title>Read-only API plans | BuildAWallet</title>
+<meta name="description" content="Three API plans for metered Base and Solana mainnet data. Pay USDC on either chain.">
 <style>
 :root{color-scheme:dark;--bg:#071009;--panel:#101910;--line:#304235;--text:#f4ffe8;--muted:#a9bda3;--green:#82f27a}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top left,#1b2c1a,var(--bg) 45%);color:var(--text);font:16px/1.55 system-ui,sans-serif}
@@ -10,17 +10,17 @@ header,main,footer{max-width:850px;margin:auto;padding:22px}header{display:flex;
 button,.button{display:inline-block;border:0;border-radius:11px;background:var(--green);color:#071009;padding:12px 18px;margin:7px 7px 7px 0;font:700 15px system-ui;cursor:pointer;text-decoration:none}button:disabled{opacity:.5;cursor:wait}.secondary{background:#203923;color:var(--text);border:1px solid var(--line)}input{display:block;width:100%;padding:12px;border-radius:9px;border:1px solid var(--line);background:#071009;color:var(--text);font:inherit;margin:7px 0 14px}.address{overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:13px}.status{min-height:24px;color:#ffe291}.hidden{display:none}ol{padding-left:21px}
 .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}@media(max-width:650px){.plans{grid-template-columns:1fr}}.plan{border:1px solid var(--line);border-radius:12px;padding:16px;cursor:pointer}.plan:has(input:checked){border:2px solid var(--green);background:#19321b}.plan input{display:inline;width:auto;margin:0 7px 0 0}.plan b{display:block;font-size:23px}.plan em{font-style:normal;color:var(--green)}code{overflow-wrap:anywhere}
 </style></head><body>
-<header><strong><a href="/">BuildAWallet</a></strong><nav><a href="/human/studio">Studio</a> · <a href="/human/live">Live balances</a> · <a href="/api-docs">API reference</a></nav></header>
-<main><p class="muted">HUMAN WALLET + MAINNET API</p><h1>One plan for your wallet design and developer API.</h1>
-<p class="lead">Get the premium implementation blueprint and metered read-only Base and Solana mainnet data for 30 days. Pay native USDC on Base or Solana. Your wallet stays under your control. Cloudflare sign-in opens this page; your wallet signature and payment separately unlock the plan.</p>
-<section class="box"><h2>Choose your plan</h2><div id="plans" class="plans"><p>Loading current prices...</p></div><p>All plans include HUMAN blueprint exports, API key access and the six read-only wallet, USDC and transaction endpoints. Pro and Scale also include batch reads. No automatic renewal; another confirmed payment extends your access by 30 days.</p><p class="fine">Free wallet design, JSON export and read-only HUMAN balances remain available. Plans do not include executable wallet software, key custody, transaction submission, swaps, or signing.</p></section>
+<header><strong><a href="/">BuildAWallet</a></strong><nav><a href="/api-docs">API reference</a> · <a href="/pricing">Pricing</a></nav></header>
+<main><p class="muted">MAINNET DATA API</p><h1>Choose a read-only API plan.</h1>
+<p class="lead">These plans meter read-only Base and Solana mainnet data for developers and agents. Pay native USDC on Base or Solana for 30 days of API access.</p>
+<section class="box"><h2>Choose your API plan</h2><div id="plans" class="plans"><p>Loading current prices...</p></div><p>All plans include an API key, six read-only wallet, USDC and transaction endpoints, and MCP tools. Pro and Scale also include batch reads. No automatic renewal; another confirmed payment extends API access by 30 days.</p></section>
 <section class="box"><h2>1. Connect and prove control of your paying wallet</h2><p class="muted">Sign a login message in your own wallet. A message signature does not move funds. Use this same wallet for the USDC transfer.</p>
 <div class="grid"><button id="base" type="button">Connect Base wallet</button><button id="solana" type="button">Connect Solana wallet</button></div><p id="walletStatus" class="status" role="status"></p></section>
 <section class="box"><h2>2. Pay on the selected chain</h2><p id="paymentDetail" class="muted">Connect a wallet to see the exact payment details.</p>
 <div id="basePay" class="hidden"><button id="sendBase" type="button">Pay USDC on Base</button><p class="fine">Your wallet will show the USDC transfer and gas fee for approval. You need Base ETH for gas.</p></div>
 <div id="solPay" class="hidden"><a id="solLink" class="button" href="#">Open Solana payment in wallet</a><button id="copySol" type="button" class="secondary">Copy payment link</button><p class="fine">If your wallet does not open the payment link, send the exact amount shown above of native Solana USDC (mint <span class="address">EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v</span>) from the connected wallet to the collector shown above. Use SOL for network fees. Never send to the token account address directly.</p></div>
 <label for="tx">Transaction hash or signature</label><input id="tx" autocomplete="off" spellcheck="false" placeholder="Paste the confirmed payment transaction ID"><button id="confirm" type="button">Confirm payment and unlock</button><p id="payStatus" class="status" role="status"></p></section>
-<section class="box"><h2>3. Use your HUMAN blueprint and API</h2><p id="unlockStatus" class="muted">Confirm a payment to unlock. When returning, connect and sign with the same paying wallet to restore access until expiry.</p><button id="download" type="button" disabled>Download premium blueprint</button><button id="issueKey" type="button" disabled class="secondary">Create or rotate API key</button><p id="apiKeyStatus" class="fine">Your API key is displayed only once. Store it securely. Creating another revokes the old key.</p><p id="apiKeyValue" class="address hidden"></p><p class="fine">Your design stays in this browser until you export or save it. The payment service receives your selected design only when you request the premium export. <a href="/api-docs">Explore the full API reference</a>.</p></section>
+<section class="box"><h2>3. Create your API key</h2><p id="unlockStatus" class="muted">Confirm an API payment to unlock the selected quota. When returning, sign with the same paying wallet to restore API access until expiry.</p><button id="issueKey" type="button" disabled>Create or rotate API key</button><p id="apiKeyStatus" class="fine">Your API key is displayed only once. Store it securely. Creating another revokes the old key.</p><p id="apiKeyValue" class="address hidden"></p><p class="fine"><a href="/api-docs">Explore the full API reference</a>.</p></section>
 <p class="fine"><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · For payment support, keep your transaction ID and paying wallet address.</p></main><footer class="fine">BuildAWallet never asks for a seed phrase or private key.</footer>
 <script>
 (() => {
@@ -35,7 +35,7 @@ function renderPlans(data){
     card.append(radio,document.createTextNode(p.name));
     const price=document.createElement('b');price.textContent='$'+p.priceUSDC+' USDC';card.append(price);
     const units=document.createElement('em');units.textContent=p.units.toLocaleString()+' API calls / 30 days';card.append(units);
-    const batch=document.createElement('p');batch.className='fine';batch.textContent=p.batchLimit?`Up to ${p.batchLimit} queries per batch. Premium HUMAN blueprint included.`:'Individual calls. Premium HUMAN blueprint included.';card.append(batch);return card}));
+    const batch=document.createElement('p');batch.className='fine';batch.textContent=p.batchLimit?`Up to ${p.batchLimit} queries per batch. Read-only API and MCP access.`:'Individual API calls and MCP tools.';card.append(batch);return card}));
   document.querySelectorAll('input[name="plan"]').forEach(input=>input.addEventListener('change',showPayment));showPayment();
 }
 function showPayment(){const p=selected();if(!p||!chain||!details)return;const collector=details.chains[chain].collector;
@@ -72,9 +72,8 @@ async function solana(){
 }
 async function status(){
   const state=await api('/status',null,true);
-  $('download').disabled=!state.active;
   $('issueKey').disabled=!state.active;
-  $('unlockStatus').textContent=state.active?`${state.plan} plan is active through ${new Date(state.expiresAt*1000).toLocaleString()}. Download your blueprint and issue an API key.`:'This wallet has no active plan. Pay once to unlock 30 days.';
+  $('unlockStatus').textContent=state.active?`${state.plan} API plan is active through ${new Date(state.expiresAt*1000).toLocaleString()}. Issue an API key to use your quota.`:'This wallet has no active API plan. Pay once to unlock 30 days of API access.';
   if(state.apiKeyCreated)$('apiKeyStatus').textContent='An API key exists for this wallet. Creating another revokes it immediately.';
 }
 async function connect(which){
@@ -111,27 +110,18 @@ $('confirm').onclick=async()=>{
   catch(e){$('payStatus').textContent=textError(e)}
 };
 $('issueKey').onclick=async()=>{try{const data=await api('/api-key',{},true);$('apiKeyValue').textContent=data.apiKey;$('apiKeyValue').classList.remove('hidden');$('apiKeyStatus').textContent='Copy this key now and keep it private. It cannot be shown again.';}catch(e){$('apiKeyStatus').textContent=textError(e)}};
-$('download').onclick=async()=>{
-  try{
-    const spec=JSON.parse(localStorage.getItem('baw_human_spec_v1')||'{}');
-    if(!Object.keys(spec).length)throw Error('Design a wallet in the studio before exporting');
-    const report=await api('/blueprint',{spec},true);
-    const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));
-    const link=document.createElement('a');link.href=url;link.download='buildawallet-premium-blueprint.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  }catch(e){$('unlockStatus').textContent=textError(e)}
-};
 try{
   const stored=JSON.parse(sessionStorage.getItem('baw_human_subscription_session')||'null');
   if(stored?.accessToken&&/^[0-9a-f]{64}$/.test(stored.accessToken)){
     chain=stored.chain;address=stored.address;accessToken=stored.accessToken;
-    $('walletStatus').textContent=`Signed in as ${address}. You can confirm a payment or download your blueprint.`;
+    $('walletStatus').textContent=`Signed in as ${address}. You can confirm an API payment or manage your key.`;
     api('/subscription').then(detail=>{
       if(!detail.available)throw Error('Subscription payments unavailable. Do not send funds.');
       renderPlans(detail);
       $('basePay').classList.toggle('hidden',chain!=='base');$('solPay').classList.toggle('hidden',chain!=='solana');
       showPayment();
     }).catch(e=>{$('walletStatus').textContent=textError(e)});
-    status().catch(()=>{$('download').disabled=true});
+    status().catch(()=>{$('issueKey').disabled=true});
   }
 }catch(e){}
 api('/subscription').then(detail=>{renderPlans(detail);

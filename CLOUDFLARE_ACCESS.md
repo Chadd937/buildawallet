@@ -1,6 +1,6 @@
 # Cloudflare Access for the HUMAN site
 
-The landing page, pricing, docs, OpenAPI, MCP and machine API remain public. Cloudflare Access prompts for sign-in only on HUMAN pages, the payment page, saved designs, and the HUMAN builder's design endpoints. A Cloudflare identity login does not grant a paid plan: a customer still signs with the paying wallet and confirms a USDC payment.
+The landing page, pricing, docs, OpenAPI, MCP and metered machine API remain public. Cloudflare Access prompts for sign-in on HUMAN pages, their design endpoints, and the API subscription checkout. HUMAN design and blueprint downloads are free after sign-in. API subscribers separately sign with a paying wallet and confirm a USDC payment.
 
 ## Create one Access application
 
@@ -16,6 +16,7 @@ On the Cloudflare account that owns `buildawallet.xyz`, open **Zero Trust > Acce
 | `/machine/human/save` | Save design |
 | `/machine/human/gallery` | Gallery |
 | `/machine/human/wallet/*` | Saved design lookup |
+| `/machine/human/blueprint` | Free detailed design plan download |
 | `/machine/ai/chat` | HUMAN architect AI chat |
 | `/api/*` | Direct HUMAN API, including chat, saved designs and catalog |
 | `/human*.html` | Direct static page URLs, including the payment page |
@@ -43,6 +44,6 @@ npm run deploy
 
 The deploy script checks that both values are present and that an anonymous request is redirected to Access on every protected path, while the landing page and machine discovery remain HTTP 200 without a login. It stops before uploading if Access has not been scoped correctly. After deployment, visit `/human` and `/pay` in a private browsing window to complete a Cloudflare sign-in. Verify `/` and `/machine/info` still load without one.
 
-The programmatic subscription, API-key and premium blueprint endpoints under `/machine/human/*` keep their existing wallet signature, payment and bearer-session checks, so agents can subscribe without a browser-based Cloudflare login. The builder's chat, save, gallery and saved-design endpoints require Access. Direct `/api/*` access requires a login; the `HUMAN_API` service binding remains available for the public machine subscription routes. A saved design URL is now available to anyone with the link **after** Access sign-in.
+The programmatic subscription and API-key endpoints under `/machine/human/*` keep their existing wallet signature, payment and bearer-session checks, so agents can subscribe without a browser-based Cloudflare login. The free blueprint, builder chat, save, gallery and saved-design endpoints require Access. Direct `/api/*` access requires a login; the `HUMAN_API` service binding remains available for the public machine subscription routes. A saved design URL is available to anyone with the link **after** Access sign-in.
 
 Cloudflare Access is enforced on the `buildawallet.xyz` host at the edge. The page and payment Worker also verifies the signed Access JWT for its protected routes. Both Workers disable their `workers.dev` and preview URLs in this release. The known see.io alternate site URL redirects HUMAN pages and direct HUMAN API paths to `buildawallet.xyz`; check any other origin hostname before treating it as private.

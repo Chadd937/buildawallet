@@ -5,8 +5,10 @@
   "workers_dev": false,
   "preview_urls": false,
   "routes": [
+    { "pattern": "buildawallet.xyz/", "zone_name": "buildawallet.xyz" },
     { "pattern": "buildawallet.xyz/machine/*", "zone_name": "buildawallet.xyz" },
     { "pattern": "buildawallet.xyz/human", "zone_name": "buildawallet.xyz" },
+    { "pattern": "buildawallet.xyz/human.css", "zone_name": "buildawallet.xyz" },
     { "pattern": "buildawallet.xyz/human/*", "zone_name": "buildawallet.xyz" },
     { "pattern": "buildawallet.xyz/app.js", "zone_name": "buildawallet.xyz" },
     { "pattern": "buildawallet.xyz/pay", "zone_name": "buildawallet.xyz" }
@@ -23,6 +25,7 @@
     ,{ "pattern": "buildawallet.xyz/terms", "zone_name": "buildawallet.xyz" }
     ,{ "pattern": "buildawallet.xyz/privacy", "zone_name": "buildawallet.xyz" }
   ],
+  "ai": { "binding": "AI" },
   "services": [
     { "binding": "HUMAN_API", "service": "buildawallet-human-api" }
   ],

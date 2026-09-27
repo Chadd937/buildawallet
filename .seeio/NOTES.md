@@ -45,6 +45,9 @@ solely based on what the user wants, as many features as options."
   design endpoints require Cloudflare Access sign-in. The landing, pricing,
   docs and non-human machine routes remain public. The Worker validates
   Access JWTs on its protected paths; wallet payment remains a separate gate.
+- The HUMAN home and studio AI chat call Cloudflare Workers AI through the
+  protected /machine/ai/chat route. The original guided architect still uses
+  the self-contained conversation engine above.
 - The known see.io site URL redirects HUMAN pages and direct HUMAN API paths
   to the Cloudflare-protected canonical hostname, while its landing and agent
   discovery remain open.

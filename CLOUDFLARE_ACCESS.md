@@ -16,6 +16,7 @@ On the Cloudflare account that owns `buildawallet.xyz`, open **Zero Trust > Acce
 | `/machine/human/save` | Save design |
 | `/machine/human/gallery` | Gallery |
 | `/machine/human/wallet/*` | Saved design lookup |
+| `/machine/ai/chat` | HUMAN architect AI chat |
 | `/api/*` | Direct HUMAN API, including chat, saved designs and catalog |
 | `/human*.html` | Direct static page URLs, including the payment page |
 | `/static/human*.html` | Static origin page aliases |

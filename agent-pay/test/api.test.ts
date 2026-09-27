@@ -28,7 +28,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("subscription API and machine discovery", () => {
   it("gates HUMAN pages with a signed Cloudflare Access identity while machine discovery stays public", async () => {
     for (const path of ["/human", "/human/build", "/human/studio", "/human/live", "/human/pay", "/pay",
-      "/machine/human/gallery", "/machine/human/wallet/abcdefghjkmnpqrstuvwxyz234"]) {
+      "/machine/ai/chat", "/machine/human/gallery", "/machine/human/wallet/abcdefghjkmnpqrstuvwxyz234"]) {
       expect((await app.request(path)).status).toBe(503);
     }
     const env = { CF_ACCESS_TEAM_DOMAIN: "https://baw-test.cloudflareaccess.com", CF_ACCESS_AUD: "test-human-app" };

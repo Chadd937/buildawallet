@@ -1,7 +1,7 @@
 const base = 'https://buildawallet.xyz';
 const protectedPaths = [
   '/human', '/human/build', '/human/studio', '/human/live', '/human/pay', '/pay',
-  '/w/access-check', '/machine/human/chat', '/machine/human/save',
+  '/w/access-check', '/machine/ai/chat', '/machine/human/chat', '/machine/human/save',
   '/machine/human/gallery', '/machine/human/wallet/access-check',
   '/api/start', '/api/chat', '/api/save', '/api/gallery', '/api/wallet/access-check',
   '/human.html', '/human-build.html', '/human-studio.html', '/human-live.html', '/human-pay.html',

@@ -39,3 +39,9 @@ const script = readFileSync(fileURLToPath(new URL("app.js", root)), "utf8");
 const style = readFileSync(fileURLToPath(new URL("human.css", root)), "utf8");
 const output = fileURLToPath(new URL("../src/human-pages.ts", import.meta.url));
 writeFileSync(output, `// Generated from static/*.html and static/app.js. Do not edit.\nexport default ${JSON.stringify({ html, script, style })};\n`);
+
+const swaggerRoot = new URL("../node_modules/swagger-ui-dist/", import.meta.url);
+const swaggerCss = readFileSync(fileURLToPath(new URL("swagger-ui.css", swaggerRoot)), "utf8");
+const swaggerJs = readFileSync(fileURLToPath(new URL("swagger-ui-bundle.js", swaggerRoot)), "utf8");
+writeFileSync(fileURLToPath(new URL("../src/swagger-assets.ts", import.meta.url)),
+  `// Generated from the pinned swagger-ui-dist package. Do not edit.\nexport const css = ${JSON.stringify(swaggerCss)};\nexport const js = ${JSON.stringify(swaggerJs)};\n`);

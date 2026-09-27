@@ -8,3 +8,4 @@ test-payer.json
 wrangler.deploy.jsonc
 .d1-list.json
 src/human-pages.ts
+src/swagger-assets.ts

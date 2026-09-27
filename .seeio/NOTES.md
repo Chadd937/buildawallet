@@ -37,6 +37,20 @@ solely based on what the user wants, as many features as options."
 - The separate /machine/* Worker can charge $0.01 USDC for Base and Solana
   native balance snapshots after its own deployment and paid checks. It does
   not grant agent wallet authority.
+- The existing split landing page layout remains unchanged. Docs anchors lead
+  to the deployed API and MCP details. Terms and privacy describe the actual
+  read-only service, browser drafts, saved designs and paid access records.
+  The API reference serves its Swagger assets from BuildAWallet's Worker.
+- The customer-facing HUMAN pages, payment page, saved builds and builder
+  design endpoints require Cloudflare Access sign-in. The landing, pricing,
+  docs and non-human machine routes remain public. The Worker validates
+  Access JWTs on its protected paths; wallet payment remains a separate gate.
+- The HUMAN home and studio AI chat call Cloudflare Workers AI through the
+  protected /machine/ai/chat route. The original guided architect still uses
+  the self-contained conversation engine above.
+- The known see.io site URL redirects HUMAN pages and direct HUMAN API paths
+  to the Cloudflare-protected canonical hostname, while its landing and agent
+  discovery remain open.
 
 ## Open questions for the owner
 - Any interest in a gallery of public builds on the home page?

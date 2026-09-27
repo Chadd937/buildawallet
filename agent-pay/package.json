@@ -24,11 +24,13 @@
     "@x402/svm": "2.27.0",
     "agents": "^0.24.0",
     "hono": "4.13.9",
+    "jose": "6.2.12",
     "viem": "2.56.9",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260926.1",
+    "swagger-ui-dist": "5.33.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.0",
     "wrangler": "^4.0.0"

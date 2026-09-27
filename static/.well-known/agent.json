@@ -1,16 +1,11 @@
 {
-  "name": "BuildAWallet.xyz",
+  "name": "BuildAWallet",
   "homepage": "https://buildawallet.xyz/",
-  "status": "wallet design preview and machine-paid read-only chain data",
-  "transaction_signing": false,
-  "broadcast_enabled": false,
-  "machine_info": "https://buildawallet.xyz/machine/info",
-  "machine_status": "check endpoint availability",
-  "paid_http_endpoints": [
-    "https://buildawallet.xyz/machine/wallet?address=0x...",
-    "https://buildawallet.xyz/machine/solana-wallet?address=..."
-  ],
-  "human_live": "https://buildawallet.xyz/human/live",
-  "offer": "https://buildawallet.xyz/agent-offer.json",
-  "docs": "https://buildawallet.xyz/docs"
+  "description": "HUMAN wallet design and read-only Base and Solana mainnet data",
+  "openapi": "https://buildawallet.xyz/machine/openapi.json",
+  "mcp": "https://buildawallet.xyz/mcp",
+  "capabilities": ["public wallet balances", "USDC balances", "transaction status", "premium wallet design blueprint"],
+  "payments": {"subscriptions":"https://buildawallet.xyz/machine/human/subscription", "x402":"https://buildawallet.xyz/machine/info"},
+  "custody": false,
+  "signing": false
 }

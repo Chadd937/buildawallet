@@ -25,7 +25,7 @@ def test_all_protocol_paths(monkeypatch):
  monkeypatch.setattr(agent_protocol,"value_usd",fake_value)
  with client:
   r=client.get("/v1/chains");assert r.status_code==200;ids={x["id"] for x in r.json()["chains"]};assert {"ethereum","base","arbitrum","optimism","avalanche","solana","bitcoin","litecoin","bnb","polygon"}<=ids;assert r.json()["network"]=="mainnet"
-  m=TestClient(public_app).get("/.well-known/agent.json");assert m.status_code==200;assert m.json()["agent_api"]=="not deployed"
+  m=TestClient(public_app).get("/.well-known/agent.json");assert m.status_code==200;assert m.json()["status"]=="mainnet read API" and m.json()["transaction_signing"] is False
 
   agent=credential("agent","test-agent");operator=credential("operator","test-operator")
   ah={"Authorization":f"Bearer {agent['token']}"};oh={"Authorization":f"Bearer {operator['token']}"}

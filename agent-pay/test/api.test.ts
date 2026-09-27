@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import app from "../src/index";
 import { publicPlans } from "../src/plans";
+import { exportJWK, generateKeyPair, SignJWT } from "jose";
 
 const wallet = "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d";
 const key = `baw_live_${"a".repeat(64)}`;
@@ -25,6 +26,30 @@ function environment(used = 0) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("subscription API and machine discovery", () => {
+  it("gates HUMAN pages with a signed Cloudflare Access identity while machine discovery stays public", async () => {
+    for (const path of ["/human", "/human/build", "/human/studio", "/human/live", "/human/pay", "/pay",
+      "/machine/ai/chat", "/machine/human/gallery", "/machine/human/wallet/abcdefghjkmnpqrstuvwxyz234"]) {
+      expect((await app.request(path)).status).toBe(503);
+    }
+    const env = { CF_ACCESS_TEAM_DOMAIN: "https://baw-test.cloudflareaccess.com", CF_ACCESS_AUD: "test-human-app" };
+    expect((await app.request("/human", {}, env)).status).toBe(403);
+    expect((await app.request("/machine/info", {}, env)).status).toBe(200);
+    expect((await app.request("/.well-known/agent.json", {}, env)).status).toBe(200);
+
+    const { publicKey, privateKey } = await generateKeyPair("RS256");
+    const jwk = { ...await exportJWK(publicKey), kid: "test-key", alg: "RS256", use: "sig" };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ keys: [jwk] }),
+      { status: 200, headers: { "Content-Type": "application/json" } })));
+    const signed = await new SignJWT({ type: "app", email: "visitor@example.com" })
+      .setProtectedHeader({ alg: "RS256", kid: "test-key" })
+      .setIssuer(env.CF_ACCESS_TEAM_DOMAIN).setAudience(env.CF_ACCESS_AUD)
+      .setIssuedAt().setExpirationTime("5m").sign(privateKey);
+    const headers = { "Cf-Access-Jwt-Assertion": signed };
+    expect((await app.request("/human", { headers }, env)).status).toBe(200);
+    expect((await app.request("/human/pay", { headers }, env)).status).toBe(200);
+    expect((await app.request("/pay", { headers }, env)).status).toBe(200);
+    expect((await app.request("/human", { headers: { "Cf-Access-Jwt-Assertion": signed + "a" } }, env)).status).toBe(403);
+  });
   it("advertises exactly three unified plans and a schema for the available routes", async () => {
     expect(publicPlans().map(p => [p.id, p.priceUSDC, p.units])).toEqual([
       ["builder", "12.00", 500], ["pro", "39.00", 5000], ["scale", "99.00", 25000],
@@ -34,6 +59,19 @@ describe("subscription API and machine discovery", () => {
     expect(spec.paths["/machine/v1/solana/usdc/{address}"].get.security).toEqual([{ ApiKey: [] }]);
     expect((await app.request("/.well-known/agent.json")).status).toBe(200);
     expect((await app.request("/api-docs")).status).toBe(200);
+  });
+  it("serves API documentation assets and legal pages from this origin", async () => {
+    const page = await (await app.request("/api-docs")).text();
+    expect(page).toContain('/api-docs/swagger-ui-bundle.js');
+    expect(page).not.toContain('unpkg.com');
+    const css = await app.request('/api-docs/swagger-ui.css');
+    const js = await app.request('/api-docs/swagger-ui-bundle.js');
+    expect(css.status).toBe(200);
+    expect(css.headers.get('content-type')).toContain('text/css');
+    expect(js.status).toBe(200);
+    expect(js.headers.get('content-type')).toContain('application/javascript');
+    expect((await (await app.request('/privacy')).text())).toContain('does not include advertising cookies');
+    expect((await (await app.request('/terms')).text())).toContain('Builder costs $12 USDC');
   });
   it("rejects missing credentials and invalid addresses before RPC or metering", async () => {
     const env = environment();

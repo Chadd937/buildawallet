@@ -1,3 +1,5 @@
+/human /human.html 200
+/human/ /human.html 200
 /human/build /human-build.html 200
 /human/studio /human-studio.html 200
 /human/live /human-live.html 200

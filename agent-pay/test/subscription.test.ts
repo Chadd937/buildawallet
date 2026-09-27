@@ -97,7 +97,22 @@ describe("human subscription payment verification", () => {
     expect((await app.request("/machine/human/subscription", {}, {})).status).toBe(200);
     expect((await app.request("/pay", {}, {})).status).toBe(503);
     expect((await app.request("/human/studio", {}, {})).status).toBe(503);
+    expect((await app.request("/machine/human/payments", {}, {})).status).toBe(401);
     expect((await app.request("/app.js", {}, {})).status).toBe(200);
+  });
+  it("returns only the authenticated wallet's verified subscription payments", async () => {
+    const sessionToken = "a".repeat(64), observed: { sql?: string; args?: unknown[] } = {};
+    const DB = { prepare: (sql: string) => ({ bind: (...args: unknown[]) => ({
+      first: async () => ({ chain: "base", wallet: basePayer, issued_at: timestamp }),
+      all: async () => { observed.sql = sql; observed.args = args;
+        return { results: [{ tx: txBase, amount_atomic: "39000000", paid_at: timestamp, plan_id: "pro" }] }; },
+    }) }) };
+    const response = await app.request("/machine/human/payments",
+      { headers: { Authorization: `Bearer ${sessionToken}` } }, { DB });
+    expect(response.status).toBe(200);
+    expect(observed.sql).toContain("WHERE chain=? AND wallet=?");
+    expect(observed.args).toEqual(["base", basePayer]);
+    expect(await response.json()).toMatchObject({ payments: [{ tx: txBase, plan_id: "pro" }] });
   });
   it("normalizes wallet identity and binds challenges to the domain", () => {
     expect(normalizedWallet("base", basePayer.toUpperCase().replace("0X", "0x"))).toBe(basePayer);

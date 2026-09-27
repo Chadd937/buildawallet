@@ -1,7 +1,6 @@
-import { BASE_COLLECTOR, SOLANA_COLLECTOR } from "./index";
+import { BASE_COLLECTOR, SOLANA_COLLECTOR, BASE_USDC, SOLANA_USDC } from "./offer";
 
-export const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-export const SOLANA_USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+export { BASE_USDC, SOLANA_USDC } from "./offer";
 export const SOLANA_COLLECTOR_ATA = "Hp6uUt3RmYYVmeSYyf6LpimgddHbL9QJ1LG9TbK5pJiQ";
 const SOLANA_GENESIS = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
 const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";

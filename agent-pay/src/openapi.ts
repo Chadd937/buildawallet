@@ -29,11 +29,17 @@ for (const chain of ["base", "solana"]) {
   apiPaths[`/machine/v1/${chain}/transaction/{tx}`] = { get: secured(`${chain} transaction status`,
     `Public receipt or signature status. An unknown transaction returns found=false; no submission occurs.`,
     [pathParam("tx", `${chain} transaction hash or signature`)]) };
+  apiPaths[`/machine/v1/${chain}/snapshot/{address}`] = { get: { tags: ["Subscription API"],
+    summary: `${chain} native and USDC snapshot`,
+    description: "Two API units on every plan, including Starter. Native balance and USDC balance are separate RPC reads. The context reports a Base block or Solana slots where available; the result is not an atomic chain snapshot. Failed reads are not metered.",
+    security: [{ ApiKey: [] }], parameters: [pathParam("address", `${chain} public wallet address`)],
+    responses: { "200": response("Composite snapshot; two API units consumed", { $ref: "#/components/schemas/CompositeSnapshot" }),
+      ...errorResponses } } };
 }
 
 export const openapi = {
   openapi: "3.1.0",
-  info: { title: "BuildAWallet mainnet read API", version: "1.0.0",
+  info: { title: "BuildAWallet mainnet read API", version: "1.1.0",
     description: `Free HUMAN wallet design and implementation blueprint, plus paid read-only Base and Solana mainnet data for people and agents. The three manual 30-day plans cover only API usage. Subscribe with a wallet signature and exact USDC transfer, then issue a bearer API key. The per-request x402 endpoints remain available separately. No deployed private-key wallet, custody, transaction submission, swap, or signing service is offered.`,
     contact: { url: "https://buildawallet.xyz/pay" } },
   servers: [{ url: "https://buildawallet.xyz", description: "Mainnet production" }],
@@ -49,6 +55,11 @@ export const openapi = {
   paths: {
     "/machine/info": { get: { tags: ["Discovery"], summary: "Capabilities and configured networks",
       responses: { "200": response("Service information") } } },
+    "/machine/quote": { get: { tags: ["Discovery"], summary: "Free read price and API-unit quote",
+      description: "Choose chain=base|solana, kind=wallet|usdc|transaction|snapshot, access=x402|subscription. x402 supports wallet only. A quote never authorizes payment or reserves a price. Fetch the live 402 challenge before signing.",
+      parameters: ["chain", "kind", "access"].map(name => ({ name, in: "query", required: true, schema: { type: "string" } })),
+      responses: { "200": response("Supported resource, price or units, payment networks and MCP tool"),
+        "400": errorResponses["400"] } } },
     "/machine/human/subscription": { get: { tags: ["Wallet subscription"], summary: "Prices and collector details",
       description: "Always check available=true and read current collectors before paying. Prices are exact native USDC on the chosen network; renewals are manual.",
       responses: { "200": response("Plans, token mints/contracts and official collector wallets") } } },
@@ -69,6 +80,10 @@ export const openapi = {
       responses: { "200": response("Paid plan and expiration"), ...errorResponses } } },
     "/machine/human/status": { get: { tags: ["Wallet subscription"], summary: "Wallet plan status",
       security: [{ WalletSession: [] }], responses: { "200": response("Plan, expiry and API key existence"), ...errorResponses } } },
+    "/machine/human/payments": { get: { tags: ["Wallet subscription"], summary: "Verified subscription payment history",
+      description: "Returns up to 50 verified subscription transfers for the authenticated paying wallet, newest first. Per-call x402 receipts are returned with each paid response and are not included here.",
+      security: [{ WalletSession: [] }], responses: { "200": response("Wallet-scoped subscription payments"),
+        ...errorResponses } } },
     "/machine/human/api-key": { post: { tags: ["Wallet subscription"], summary: "Issue or rotate API key",
       description: "Requires an active plan. The key is returned once; save it securely. Rotating immediately revokes the previous key. API keys are stored as SHA-256 hashes.",
       security: [{ WalletSession: [] }], responses: { "200": response("One-time API key; never returned again"), ...errorResponses } },
@@ -113,7 +128,15 @@ export const openapi = {
     TransactionStatus: { type: "object", properties: { chain: { enum: ["base", "solana"] }, tx: { type: "string" },
       found: { type: "boolean" }, success: { type: "boolean" }, blockNumber: { type: "integer" },
       slot: { type: "integer" }, confirmationStatus: { type: "string" }, explorer: { type: "string", format: "uri" } } },
+    CompositeSnapshot: { type: "object", required: ["chain", "address", "native", "usdc", "units", "observedAt", "context"],
+      properties: { chain: { enum: ["base", "solana"] }, address: { type: "string" },
+        native: { $ref: "#/components/schemas/WalletSnapshot" },
+        usdc: { $ref: "#/components/schemas/UsdcBalance" }, units: { const: 2 },
+        observedAt: { type: "string", format: "date-time" },
+        context: { type: "object", properties: { nativeBlock: { type: ["integer", "null"] },
+          nativeSlot: { type: ["integer", "null"] }, usdcSlot: { type: ["integer", "null"] },
+          consistency: { const: "independent confirmed or latest RPC reads" } } } } },
   } },
 } as const;
 
-export const swaggerHtml = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BuildAWallet API reference</title><link rel="stylesheet" href="/api-docs/swagger-ui.css"><style>body{margin:0;background:#f7fbf7;color:#12231a;font:16px system-ui}header{background:#092113;color:#e7ffdd;padding:20px 5%}header a{color:#9cf391;margin-right:20px}header h1{margin:10px 0 0}main{max-width:1100px;margin:20px auto;padding:0 20px}.intro{padding:24px;background:#e8f7e4;border-radius:16px}.intro code{word-break:break-all}#swagger-ui{margin-top:24px}</style></head><body><header><a href="/">BuildAWallet</a><a href="/pay">API plans</a><a href="/machine/openapi.json">OpenAPI JSON</a><h1>Mainnet API reference</h1></header><main><div class="intro"><p>The HUMAN builder and detailed design plan are free after Cloudflare sign-in. Paid plans cover read-only Base and Solana API access only: Starter $12 / 500 calls, Pro $39 / 5,000, Scale $99 / 25,000, each for 30 days. Pay USDC on either chain, confirm the receipt, issue an API key, then use the endpoints below. x402 pay-per-request remains $0.01 for native wallet snapshots.</p><p>Example: <code>curl -H &quot;Authorization: Bearer $BAW_API_KEY&quot; https://buildawallet.xyz/machine/v1/base/usdc/0xBcCA6AED433d9020C50D44560F9679F1B5eB511d</code></p><p>MCP endpoint: <code>https://buildawallet.xyz/mcp</code> (same API key). The API observes public chain state. It does not sign or submit transactions.</p></div><div id="swagger-ui"><p>Loading Swagger UI... You can also read the <a href="/machine/openapi.json">OpenAPI JSON</a>.</p></div></main><script src="/api-docs/swagger-ui-bundle.js"></script><script>if(window.SwaggerUIBundle)SwaggerUIBundle({url:'/machine/openapi.json',dom_id:'#swagger-ui',deepLinking:true,displayRequestDuration:true,persistAuthorization:false});</script></body></html>`;
+export const swaggerHtml = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BuildAWallet API reference</title><link rel="stylesheet" href="/api-docs/swagger-ui.css"><style>body{margin:0;background:#f7fbf7;color:#12231a;font:16px system-ui}header{background:#092113;color:#e7ffdd;padding:20px 5%}header a{color:#9cf391;margin-right:20px}header h1{margin:10px 0 0}main{max-width:1100px;margin:20px auto;padding:0 20px}.intro{padding:24px;background:#e8f7e4;border-radius:16px}.intro code{word-break:break-all}#swagger-ui{margin-top:24px}</style></head><body><header><a href="/">BuildAWallet</a><a href="/pay">API plans</a><a href="/machine/openapi.json">OpenAPI JSON</a><h1>Mainnet API reference</h1></header><main><div class="intro"><p>The HUMAN builder and detailed design plan are free after Cloudflare sign-in. Paid plans cover read-only Base and Solana API access only: Starter $12 / 500 units, Pro $39 / 5,000, Scale $99 / 25,000, each for 30 days. Pay USDC on either chain, confirm the receipt, issue an API key, then use the endpoints below. Single reads cost one unit; a composite native and USDC snapshot costs two. Reads are not atomic. x402 pay-per-request remains $0.01 for native wallet snapshots.</p><p>Example: <code>curl -H &quot;Authorization: Bearer $BAW_API_KEY&quot; https://buildawallet.xyz/machine/v1/base/snapshot/0xBcCA6AED433d9020C50D44560F9679F1B5eB511d</code></p><p>Free quote: <code>/machine/quote?chain=base&amp;kind=wallet&amp;access=x402</code>. MCP endpoint: <code>https://buildawallet.xyz/mcp</code> with a subscriber key for metered tools, or x402 on the pay-per-call wallet tools. Payers sign locally. The API observes public chain state and does not sign or submit transactions.</p></div><div id="swagger-ui"><p>Loading Swagger UI... You can also read the <a href="/machine/openapi.json">OpenAPI JSON</a>.</p></div></main><script src="/api-docs/swagger-ui-bundle.js"></script><script>if(window.SwaggerUIBundle)SwaggerUIBundle({url:'/machine/openapi.json',dom_id:'#swagger-ui',deepLinking:true,displayRequestDuration:true,persistAuthorization:false});</script></body></html>`;

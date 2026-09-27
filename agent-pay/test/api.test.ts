@@ -107,6 +107,28 @@ describe("subscription API and machine discovery", () => {
     expect((await app.request(`/machine/v1/base/wallet/${wallet}`, { headers: { Authorization: `Bearer ${key}` } }, env)).status).toBe(503);
     expect(env.getSpent()).toBe(1);
   });
+  it("meters a composite snapshot as two units on Starter and identifies independent reads", async () => {
+    const env = environment();
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      const method = JSON.parse(init.body as string).method;
+      const value: Record<string, string> = { eth_chainId: "0x2105", eth_getBalance: "0x10",
+        eth_getTransactionCount: "0x2", eth_blockNumber: "0x21", eth_call: "0x2710" };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: value[method] }));
+    }));
+    const res = await app.request(`/machine/v1/base/snapshot/${wallet}`,
+      { headers: { Authorization: `Bearer ${key}` } }, env);
+    expect(res.status, await res.clone().text()).toBe(200);
+    expect(res.headers.get("X-Units-Charged")).toBe("2");
+    expect(env.getSpent()).toBe(2);
+    expect(await res.json()).toMatchObject({ chain: "base", units: 2,
+      context: { nativeBlock: 33, consistency: "independent confirmed or latest RPC reads" },
+      usdc: { balanceAtomic: "10000" } });
+    const exhausted = environment(499);
+    const failed = await app.request(`/machine/v1/base/snapshot/${wallet}`,
+      { headers: { Authorization: `Bearer ${key}` } }, exhausted);
+    expect(failed.status).toBe(429);
+    expect(exhausted.getSpent()).toBe(499);
+  });
   it("rejects exhausted quotas before RPC and Builder batches", async () => {
     const env = environment(500);
     const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
@@ -128,11 +150,25 @@ describe("subscription API and machine discovery", () => {
       body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }) }, environment());
     expect(list.status, await list.clone().text()).toBe(200);
     expect(await list.text()).toContain("base_wallet");
+    const tools = await (await app.request("/mcp", { method: "POST", headers: req.headers,
+      body: JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/list", params: {} }) }, environment())).text();
+    expect(tools).toContain("solana_wallet_payg");
+    expect(tools).toContain("base_snapshot");
+    expect(tools).toContain("service_quote");
     const call = await app.request("/mcp", { method: "POST", headers: req.headers,
       body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: {
         name: "base_wallet", arguments: { address: wallet },
       } }) }, environment());
     expect(call.status, await call.clone().text()).toBe(200);
     expect(await call.text()).toContain("Active plan and API key required");
+    const quote = await app.request("/mcp", { method: "POST", headers: req.headers,
+      body: JSON.stringify({ jsonrpc: "2.0", id: 5, method: "tools/call", params: {
+        name: "service_quote", arguments: { chain: "base", kind: "wallet", access: "x402" },
+      } }) }, environment());
+    expect(quote.status).toBe(200);
+    const quoteText = await quote.text();
+    const quotePayload = JSON.parse(quoteText.startsWith("event:") ? quoteText.split("data: ")[1] : quoteText);
+    expect(quotePayload).toMatchObject({ result: {
+      structuredContent: { price: { amountAtomic: "10000" } } } });
   });
 });

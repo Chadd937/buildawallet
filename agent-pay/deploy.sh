@@ -30,9 +30,11 @@ npm test
 npx wrangler deploy --config wrangler.deploy.jsonc
 node scripts/check-human-access.mjs
 curl --fail --silent --show-error https://buildawallet.xyz/machine/info > /dev/null
+curl --fail --silent --show-error 'https://buildawallet.xyz/machine/quote?chain=base&kind=wallet&access=x402' | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["price"]["amountAtomic"] == "10000" and len(d["paymentOptions"]) == 2'
+curl --fail --silent --show-error 'https://buildawallet.xyz/machine/quote?chain=solana&kind=snapshot&access=subscription' | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["units"] == 2 and d["mcpTool"] == "solana_snapshot"'
 curl --fail --silent --show-error https://buildawallet.xyz/machine/human/catalog > /dev/null
 curl --fail --silent --show-error https://buildawallet.xyz/machine/human/subscription | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["available"] is True and [(p["id"],p["priceUSDC"]) for p in d["plans"]] == [("builder","12.00"),("pro","39.00"),("scale","99.00")]'
-curl --fail --silent --show-error https://buildawallet.xyz/machine/openapi.json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["openapi"].startswith("3.1") and "/machine/v1/batch" in d["paths"]'
+curl --fail --silent --show-error https://buildawallet.xyz/machine/openapi.json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["openapi"].startswith("3.1") and all(p in d["paths"] for p in ["/machine/v1/batch","/machine/quote","/machine/v1/base/snapshot/{address}","/machine/human/payments"])'
 curl --fail --silent --show-error https://buildawallet.xyz/api-docs > /dev/null
 curl --fail --silent --show-error https://buildawallet.xyz/api-docs/swagger-ui.css > /dev/null
 curl --fail --silent --show-error https://buildawallet.xyz/api-docs/swagger-ui-bundle.js > /dev/null

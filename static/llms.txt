@@ -2,7 +2,9 @@
 Free HUMAN wallet design and implementation plan; paid read-only Base and Solana mainnet API data.
 API plans and wallet payment: https://buildawallet.xyz/pay
 OpenAPI: https://buildawallet.xyz/machine/openapi.json
-MCP (API key required for calls): https://buildawallet.xyz/mcp
+MCP (API key for subscribed reads; x402 for pay-per-call wallet reads): https://buildawallet.xyz/mcp
+Free quote: https://buildawallet.xyz/machine/quote?chain=base&kind=wallet&access=x402
 x402 pay per request: https://buildawallet.xyz/machine/info
+Composite native and USDC snapshot: two subscription units; independent RPC reads are not atomic.
 Service capabilities: https://buildawallet.xyz/.well-known/agent.json
 No custody, key management, signing or transaction submission.

@@ -58,7 +58,7 @@ api.get("/usage", async (c) => {
   } catch { return c.json({ error: "API usage unavailable" }, 503); }
 });
 
-async function execute(c: any, queries: ReadQuery[], transaction?: { chain: "base" | "solana"; tx: string }) {
+async function execute(c: any, queries: ReadQuery[], transaction?: { chain: "base" | "solana"; tx: string }, composite = false) {
   if (!c.env.BASE_RPC_URL?.startsWith("https://") || !c.env.SOLANA_RPC_URL?.startsWith("https://"))
     return c.json({ error: "Mainnet RPC unavailable" }, 503);
   try {
@@ -67,7 +67,7 @@ async function execute(c: any, queries: ReadQuery[], transaction?: { chain: "bas
     const state = await usage(c, user);
     if (!state) return c.json({ error: "Unknown plan" }, 503);
     const cost = queries.length + (transaction ? 1 : 0);
-    if (cost > 1 && (!state.plan.batchLimit || cost > state.plan.batchLimit))
+    if (!composite && cost > 1 && (!state.plan.batchLimit || cost > state.plan.batchLimit))
       return c.json({ error: `This plan allows batches of at most ${state.plan.batchLimit} queries` }, 403);
     if (state.used + cost > state.plan.units) return c.json({ error: "API quota exhausted", remaining: 0 }, 429);
     // Resolve first. No usage is charged for an invalid address or upstream failure.
@@ -79,7 +79,16 @@ async function execute(c: any, queries: ReadQuery[], transaction?: { chain: "bas
     if (used === null) return c.json({ error: "API quota exhausted", remaining: 0 }, 429);
     c.header("X-RateLimit-Limit", String(state.plan.units));
     c.header("X-RateLimit-Remaining", String(state.plan.units - used));
+    c.header("X-Units-Charged", String(cost));
     c.header("Cache-Control", "no-store");
+    if (composite) {
+      const native = results[0] as Record<string, any>;
+      const usdc = results[1] as Record<string, any>;
+      return c.json({ chain: native.chain, address: native.address, native, usdc, units: cost,
+        observedAt: new Date().toISOString(),
+        context: { nativeBlock: native.blockNumber ?? null, nativeSlot: native.slot ?? null,
+          usdcSlot: usdc.slot ?? null, consistency: "independent confirmed or latest RPC reads" } });
+    }
     return c.json(cost === 1 ? results[0] : { results, units: cost });
   } catch { return c.json({ error: "Mainnet RPC or API usage unavailable" }, 503); }
 }
@@ -91,6 +100,13 @@ api.get("/:chain/wallet/:address", (c) => {
 api.get("/:chain/usdc/:address", (c) => {
   const q = { chain: c.req.param("chain"), kind: "usdc", address: c.req.param("address") };
   return validQuery(q) ? execute(c, [q]) : c.json({ error: "Valid chain and address required" }, 400);
+});
+api.get("/:chain/snapshot/:address", (c) => {
+  const chain = c.req.param("chain"), address = c.req.param("address");
+  const native = { chain, kind: "wallet", address };
+  const usdc = { chain, kind: "usdc", address };
+  return validQuery(native) && validQuery(usdc) ? execute(c, [native, usdc], undefined, true) :
+    c.json({ error: "Valid chain and address required" }, 400);
 });
 api.get("/:chain/transaction/:tx", (c) => {
   const chain = c.req.param("chain"), tx = c.req.param("tx");

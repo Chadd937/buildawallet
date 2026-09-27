@@ -34,13 +34,37 @@ the Cloudflare Access identity and a rate-limited POST of the design spec. This
 is a design document; no functional Android APK is produced by this repository.
 
 The subscribed read API is under `/machine/v1` and covers native wallet balance,
-native USDC balance, and transaction status on Base and Solana. `GET /usage` is
-free. Pro and Scale also have `POST /batch`; successful items consume one unit
-each. An upstream failure or invalid input does not consume units. The MCP
-HTTP endpoint `/mcp` exposes the same six reads using the same API key and
-meter. Agent discovery lives at `/.well-known/agent.json`, `/agent-offer.json`
+native USDC balance, transaction status, and a composite native plus USDC snapshot
+on Base and Solana. Six individual reads consume one unit each; the two
+composite snapshot endpoints consume two units per successful call on all
+three plans, including Starter. The underlying RPC reads are independent,
+not atomic; the response includes its observation time and block or slot
+context where available. `GET /usage` is free. Pro and Scale also have
+`POST /batch`; successful items consume one unit each. An upstream failure
+or invalid input does not consume units.
+
+The MCP HTTP endpoint `/mcp` offers those eight subscriber reads as structured
+tools with the same API key and meter. `api_usage` and `service_quote` are free.
+`base_wallet_payg` and `solana_wallet_payg` bridge the existing two-chain
+HTTP x402 rail into MCP: an unpaid call returns the live payment challenge,
+and a compatible client signs a USDC payment locally before retrying. No
+private key is uploaded or stored by this Worker. The paid snapshot comes
+from the requested chain even if the payment uses the other chain. A client
+should enforce its own allowlist and spending cap before signing. The
+`scripts/paid-smoke.mjs` local payer is an operator-controlled one-attempt
+example, not an unattended agent wallet. Agent discovery lives at
+`/.well-known/agent.json`, `/agent-offer.json`
 and `/llms.txt`. The interactive Swagger reference is `/api-docs` and the
 OpenAPI 3.1 document is `/machine/openapi.json`.
+
+`GET /machine/quote?chain=base&kind=wallet&access=x402` gives a free
+preflight for each supported read, its payment network options or subscriber
+unit cost, and its MCP tool. The quote does not reserve a price or authorize
+payment; the live 402 challenge is authoritative. For a subscription read,
+set `access=subscription` and choose `wallet`, `usdc`, `transaction`, or
+`snapshot`. `GET /machine/human/payments` returns up to 50 verified
+subscription payments for the authenticated paying wallet; per-call x402
+receipts are returned with each paid response and are not in that history.
 
 The existing x402 paid snapshots stay separate, with $0.01 USDC per call.
 Cloudflare's Machine Payments Protocol is a separate evolving protocol; this
@@ -63,7 +87,8 @@ must point to Solana mainnet. Do not place a
 private key in this Worker. `.dev.vars` is ignored. The receiving addresses
 are public and were supplied by the owner for Base and Solana respectively.
 
-Call the free discovery endpoint at `/machine/info`. A valid unpaid request to
+Call the free discovery endpoint at `/machine/info` or the quote endpoint.
+A valid unpaid request to
 `/machine/wallet?address=...` returns HTTP 402 with an x402 payment challenge.
 A compatible client with Base or Solana mainnet USDC can pay and retry. Invalid addresses return
 400 before payment. Missing deployment configuration returns 503. The Worker

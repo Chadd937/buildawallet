@@ -3,20 +3,74 @@
   "canonical_url": "https://buildawallet.xyz/",
   "status": "read-only mainnet data",
   "description": "Free HUMAN wallet design and paid read-only Base and Solana mainnet API data",
-  "capabilities": ["public wallet balances", "USDC balances", "transaction status", "free HUMAN implementation blueprint"],
-  "plans": [
-    {"id":"builder", "priceUSDC":"12.00", "units":500, "days":30},
-    {"id":"pro", "priceUSDC":"39.00", "units":5000, "days":30, "batchLimit":10},
-    {"id":"scale", "priceUSDC":"99.00", "units":25000, "days":30, "batchLimit":50}
+  "capabilities": [
+    "public native balances",
+    "native USDC balances",
+    "transaction status",
+    "composite snapshots",
+    "free price and API-unit quotes",
+    "free HUMAN implementation blueprint"
   ],
-  "payment_networks": ["eip155:8453", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"],
+  "plans": [
+    {
+      "id": "builder",
+      "priceUSDC": "12.00",
+      "units": 500,
+      "days": 30
+    },
+    {
+      "id": "pro",
+      "priceUSDC": "39.00",
+      "units": 5000,
+      "days": 30,
+      "batchLimit": 10
+    },
+    {
+      "id": "scale",
+      "priceUSDC": "99.00",
+      "units": 25000,
+      "days": 30,
+      "batchLimit": 50
+    }
+  ],
+  "payment_networks": [
+    "eip155:8453",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+  ],
   "subscriptions": "https://buildawallet.xyz/machine/human/subscription",
-  "pay_per_call": ["https://buildawallet.xyz/machine/wallet", "https://buildawallet.xyz/machine/solana-wallet"],
+  "pay_per_call": [
+    "https://buildawallet.xyz/machine/wallet",
+    "https://buildawallet.xyz/machine/solana-wallet"
+  ],
   "price_per_snapshot_usdc": "0.01",
   "openapi": "https://buildawallet.xyz/machine/openapi.json",
   "mcp": "https://buildawallet.xyz/mcp",
   "service_info": "https://buildawallet.xyz/machine/info",
   "custody": false,
   "signing": false,
-  "transaction_submission": false
+  "transaction_submission": false,
+  "quote": "https://buildawallet.xyz/machine/quote?chain={chain}&kind={kind}&access={access}",
+  "subscribed_reads": [
+    "wallet",
+    "usdc",
+    "transaction",
+    "snapshot"
+  ],
+  "composite_snapshot_units": 2,
+  "subscription_payment_history": "https://buildawallet.xyz/machine/human/payments",
+  "mcp_tools": [
+    "service_quote",
+    "api_usage",
+    "base_wallet",
+    "base_usdc",
+    "base_transaction",
+    "base_snapshot",
+    "base_wallet_payg",
+    "solana_wallet",
+    "solana_usdc",
+    "solana_transaction",
+    "solana_snapshot",
+    "solana_wallet_payg"
+  ],
+  "mcp_pay_per_call": "x402 wallet tools support Base or Solana USDC; payer signs locally"
 }

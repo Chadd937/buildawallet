@@ -1,10 +1,10 @@
 # Android wallet release status
 
 The HUMAN website currently produces a wallet **design**, a JSON export and a
-detailed implementation plan for free. It does not produce an APK. The root
-`build.gradle` and `settings.gradle` are Gradle init placeholders, not an
-Android application: there is no Android module, manifest, Kotlin or Java app
-source, release signing configuration, or packaged wallet.
+detailed implementation plan for free. It does not produce a wallet APK. The
+old root Gradle init placeholders and unverified Gradle 4.4.1 wrapper have been
+removed. The separate `android-studio/` project is an offline design preview,
+not a funded wallet or production release.
 
 The requested deliverable is a **functional, noncustodial Android wallet APK**.
 The existing website's `/human/live` page is an optional read-only viewer of an
@@ -38,3 +38,17 @@ no bundled wallet implementation, key handling, signing, or transaction logic.
 It must not be offered as a functional wallet release. The Studio finalization
 screen therefore provides the design JSON and implementation plan and reports
 the Android wallet release as pending.
+
+## Android Studio preview source
+
+`android-studio/` is a separate native Android project that imports HUMAN
+Studio design JSON and renders a local concept preview. It has no Internet
+permission, private key handling or wallet signing. CI builds its debug APK
+as `buildawallet-studio-preview-not-a-wallet` for device testing. This design
+companion is not the requested wallet release, and the website must continue
+to report that release as pending. See `android-studio/README.md`.
+
+The later uploaded 3.4 MB APK (`buildawallet_a1ccfe16-299e-4a99-bf0d-f1838998c047 (1).apk`)
+is a stock Apache Cordova Hello World app with the placeholder package
+`com.example.buildawallet`. Its bundled HTML and JavaScript contain no wallet
+UI or cryptographic implementation. We did not re-sign or publish it.

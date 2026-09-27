@@ -52,3 +52,30 @@ jobs:
         run: npm run typecheck && npm test
       - name: Check Wrangler bundle
         run: npx wrangler deploy --config wrangler.jsonc --dry-run
+  android-studio-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Install Android SDK platform
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Build offline design preview
+        working-directory: android-studio
+        run: gradle :app:assembleDebug --no-daemon
+      - name: Upload preview APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildawallet-studio-preview-not-a-wallet
+          path: android-studio/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

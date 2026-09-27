@@ -64,6 +64,10 @@ solely based on what the user wants, as many features as options."
   and features into the Studio. Studio shows an illustrative interactive phone
   concept and final blueprint exports. The uploaded Android APK is only a
   WebView wrapper and is not presented as a functional wallet download.
+- A later 3.4 MB uploaded APK is an unmodified Cordova Hello World template.
+  The independent `android-studio/` project imports Studio JSON and draws an
+  offline design preview; CI labels its debug APK as a preview. It cannot
+  store funds or sign transactions and is not the wallet release.
 
 ## Open questions for the owner
 - Any interest in a gallery of public builds on the home page?

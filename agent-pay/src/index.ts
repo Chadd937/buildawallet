@@ -12,6 +12,7 @@ import { handleMcp } from "./mcp";
 import { openapi, swaggerHtml } from "./openapi";
 import * as swaggerAssets from "./swagger-assets";
 import { publicPlans } from "./plans";
+import { humanAccessAllowed } from "./access";
 
 export interface Env {
   BASE_RPC_URL?: string;
@@ -19,10 +20,27 @@ export interface Env {
   REQUEST_RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
   DB?: D1Database;
   HUMAN_API?: { fetch(request: Request): Promise<Response> };
+  CF_ACCESS_TEAM_DOMAIN?: string;
+  CF_ACCESS_AUD?: string;
 }
 
 type Snapshot = Awaited<ReturnType<typeof walletSnapshot>> | Awaited<ReturnType<typeof solanaWalletSnapshot>>;
 const app = new Hono<{ Bindings: Env; Variables: { snapshot: Snapshot } }>();
+const requireHumanSignIn = async (c: any, next: () => Promise<void>) => {
+  if (!c.env?.CF_ACCESS_TEAM_DOMAIN || !c.env?.CF_ACCESS_AUD) {
+    return c.text("HUMAN sign-in is not configured", 503, { "Cache-Control": "no-store" });
+  }
+  if (!await humanAccessAllowed(c.req.header("Cf-Access-Jwt-Assertion"), c.env)) {
+    return c.text("Cloudflare Access sign-in required", 403, { "Cache-Control": "no-store" });
+  }
+  await next();
+};
+app.use("/human", requireHumanSignIn);
+app.use("/human/*", requireHumanSignIn);
+app.use("/pay", requireHumanSignIn);
+for (const path of ["/machine/human/chat", "/machine/human/save", "/machine/human/gallery", "/machine/human/wallet/*"]) {
+  app.use(path, requireHumanSignIn);
+}
 for (const [path, html] of Object.entries(pages.html)) {
   app.get(path, (c) => c.html(html, 200, { "Cache-Control": "no-store" }));
 }

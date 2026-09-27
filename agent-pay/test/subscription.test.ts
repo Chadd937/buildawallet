@@ -95,8 +95,8 @@ describe("human subscription payment verification", () => {
     expect((await app.request("/machine/human/confirm", { method: "POST", body: JSON.stringify({ tx: txBase }) }, env)).status).toBe(401);
     expect((await app.request("/machine/human/blueprint", { method: "POST", body: "{}" }, env)).status).toBe(401);
     expect((await app.request("/machine/human/subscription", {}, {})).status).toBe(200);
-    expect((await app.request("/pay", {}, {})).status).toBe(200);
-    expect((await app.request("/human/studio", {}, {})).status).toBe(200);
+    expect((await app.request("/pay", {}, {})).status).toBe(503);
+    expect((await app.request("/human/studio", {}, {})).status).toBe(503);
     expect((await app.request("/app.js", {}, {})).status).toBe(200);
   });
   it("normalizes wallet identity and binds challenges to the domain", () => {
@@ -111,7 +111,6 @@ describe("human subscription payment verification", () => {
     expect(result.status).toBe(200);
     expect((await result.json() as { url: string }).url).toBe("https://buildawallet.xyz/api/catalog");
     const wallet = await app.request("/machine/human/wallet/abcdefghjkmnpqrstuvwxyz234", {}, { HUMAN_API: { fetch } });
-    expect(wallet.status).toBe(200);
-    expect((await wallet.json() as { url: string }).url).toContain("/api/wallet/");
+    expect(wallet.status).toBe(503);
   });
 });

@@ -15,6 +15,8 @@ if not identifier:
     raise SystemExit('D1 database ID missing')
 Path('wrangler.deploy.jsonc').write_text(Path('wrangler.jsonc').read_text().replace('00000000-0000-4000-8000-000000000001', identifier))
 PY
+npx wrangler secret list --format json --config wrangler.deploy.jsonc | python3 -c 'import json,sys; names={s["name"] for s in json.load(sys.stdin)}; missing={"CF_ACCESS_TEAM_DOMAIN","CF_ACCESS_AUD"}-names; assert not missing, "Set Cloudflare Access secrets first: "+", ".join(sorted(missing))'
+node scripts/check-human-access.mjs
 npx wrangler d1 migrations apply buildawallet --remote --config wrangler.deploy.jsonc
 # A declined migration can exit successfully. Do not ship a Worker against
 # an older schema if the operator answered "no" at the D1 prompt.
@@ -26,11 +28,9 @@ fi
 npm run typecheck
 npm test
 npx wrangler deploy --config wrangler.deploy.jsonc
+node scripts/check-human-access.mjs
 curl --fail --silent --show-error https://buildawallet.xyz/machine/info > /dev/null
 curl --fail --silent --show-error https://buildawallet.xyz/machine/human/catalog > /dev/null
-curl --fail --silent --show-error https://buildawallet.xyz/human > /dev/null
-curl --fail --silent --show-error https://buildawallet.xyz/human/studio > /dev/null
-curl --fail --silent --show-error https://buildawallet.xyz/pay > /dev/null
 curl --fail --silent --show-error https://buildawallet.xyz/machine/human/subscription | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["available"] is True and [(p["id"],p["priceUSDC"]) for p in d["plans"]] == [("builder","12.00"),("pro","39.00"),("scale","99.00")]'
 curl --fail --silent --show-error https://buildawallet.xyz/machine/openapi.json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["openapi"].startswith("3.1") and "/machine/v1/batch" in d["paths"]'
 curl --fail --silent --show-error https://buildawallet.xyz/api-docs > /dev/null

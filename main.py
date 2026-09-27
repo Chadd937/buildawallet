@@ -3,8 +3,8 @@ from __future__ import annotations
 import base64, json, os, secrets, sqlite3, sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from app import brain
@@ -27,6 +27,20 @@ async def lifespan(app:FastAPI):
   yield
 # The legacy local signer must never be mounted by the public website.
 app=FastAPI(title="BuildAWallet.xyz",version=VERSION,lifespan=lifespan,docs_url="/docs/api",redoc_url=None,openapi_url="/openapi.json")
+SEEIO_HOST="lucky-badger-51.s3.seeiousercontent.com"
+@app.middleware("http")
+async def redirect_alternate_human_host(request:Request,call_next):
+ # Direct see.io URLs must not expose HUMAN pages or saved designs around Access.
+ path=request.url.path
+ if request.url.hostname == SEEIO_HOST and (
+  path in {"/human","/pay","/human.html"}
+  or path.startswith(("/human/","/api/","/w/"))
+  or (path.startswith(("/human-","/static/human")) and path.endswith(".html"))
+ ):
+  target=f"{PUBLIC_BASE_URL}{path}"
+  if request.url.query:target+=f"?{request.url.query}"
+  return RedirectResponse(target,status_code=307)
+ return await call_next(request)
 LIST_FIELDS=("assets","networks","security","features","platforms","privacy"); SINGLE_FIELDS={"custody":"custody","style":"style","theme":"theme","accent":"accent"}; GROUP_OF=brain.GROUP_OF
 def clean_spec(raw):
  s=brain.blank_spec()

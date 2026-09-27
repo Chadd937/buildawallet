@@ -45,10 +45,8 @@ if ! npx --yes wrangler d1 execute buildawallet --remote --config wrangler.deplo
 fi
 uv run pywrangler deploy --config wrangler.deploy.jsonc
 
-if curl --fail --silent --show-error https://buildawallet.xyz/api/start > /dev/null && \
-   curl --fail --silent --show-error https://buildawallet.xyz/healthz > /dev/null && \
-   curl --fail --silent --show-error https://buildawallet.xyz/api/stats > /dev/null; then
-  echo 'Human public API routes responded successfully.'
+if curl --fail --silent --show-error https://buildawallet.xyz/healthz > /dev/null; then
+  echo 'HUMAN Worker health responded. The service binding is checked during agent-pay deployment.'
 else
-  echo 'Public /api route is not dispatching. Continue with agent-pay deployment and check /machine/human/catalog through its service binding.' >&2
+  echo 'HUMAN Worker health is unavailable. Check deployment and /machine/human/catalog through the service binding.' >&2
 fi

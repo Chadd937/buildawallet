@@ -4,7 +4,7 @@ BuildAWallet has a HUMAN wallet designer and a NON-HUMAN read-only machine data 
 
 | Surface | Current capability | Deployment |
 | --- | --- | --- |
-| HUMAN Pages site | Guided wallet blueprint, JSON export, external wallet connection and read-only Base/Solana native balance | Cloudflare Pages serves `static/` |
+| HUMAN Pages site | Guided wallet blueprint, JSON export, external wallet connection and read-only Base/Solana native balance | Cloudflare Access guards `/human`, `/human/*`, `/pay` and saved designs; the Worker serves HUMAN pages |
 | HUMAN API | Architect chat, saved designs, gallery and stats | `cloudflare-human/` Python Worker with D1, routes `/api/*` and `/healthz` |
 | NON-HUMAN data | Paid Base and Solana native balance snapshots, $0.01 USDC per request through x402 | `agent-pay/` Worker, route `/machine/*` |
 | Agent wallet signer | Local prototype only | Not mounted on the public container or Cloudflare |
@@ -18,7 +18,7 @@ The optional Docker/see.io server in `main.py` serves the website and a read-onl
 3. `/human/studio` previews the blueprint and downloads its JSON configuration.
 4. `/human/live` connects an existing injected wallet for free read-only Base or Solana mainnet balances.
 
-Sending and generated APK wallets are not released. Three shared HUMAN blueprint and read-only API plans are $12, $39 and $99 USDC for 30 days, payable on Base or Solana mainnet. Wallet ownership, confirmed payment receipts, one-time transaction accounting, subscription expiry and premium export authorization run in the machine Worker. The human pages and builder API require the Cloudflare deployment steps in DEPLOY_MAINNET.md before the plan is available.
+Sending and generated APK wallets are not released. Three shared HUMAN blueprint and read-only API plans are $12, $39 and $99 USDC for 30 days, payable on Base or Solana mainnet. Wallet ownership, confirmed payment receipts, one-time transaction accounting, subscription expiry and premium export authorization run in the machine Worker. The human pages and builder design API require Cloudflare Access sign-in; wallet proof and payment separately unlock premium access. See [the Access setup](CLOUDFLARE_ACCESS.md) and [deployment steps](DEPLOY_MAINNET.md).
 
 ## NON-HUMAN payment flow
 

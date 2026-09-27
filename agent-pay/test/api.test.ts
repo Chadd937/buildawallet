@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import app from "../src/index";
 import { publicPlans } from "../src/plans";
+import { exportJWK, generateKeyPair, SignJWT } from "jose";
 
 const wallet = "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d";
 const key = `baw_live_${"a".repeat(64)}`;
@@ -25,6 +26,30 @@ function environment(used = 0) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("subscription API and machine discovery", () => {
+  it("gates HUMAN pages with a signed Cloudflare Access identity while machine discovery stays public", async () => {
+    for (const path of ["/human", "/human/build", "/human/studio", "/human/live", "/human/pay", "/pay",
+      "/machine/human/gallery", "/machine/human/wallet/abcdefghjkmnpqrstuvwxyz234"]) {
+      expect((await app.request(path)).status).toBe(503);
+    }
+    const env = { CF_ACCESS_TEAM_DOMAIN: "https://baw-test.cloudflareaccess.com", CF_ACCESS_AUD: "test-human-app" };
+    expect((await app.request("/human", {}, env)).status).toBe(403);
+    expect((await app.request("/machine/info", {}, env)).status).toBe(200);
+    expect((await app.request("/.well-known/agent.json", {}, env)).status).toBe(200);
+
+    const { publicKey, privateKey } = await generateKeyPair("RS256");
+    const jwk = { ...await exportJWK(publicKey), kid: "test-key", alg: "RS256", use: "sig" };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ keys: [jwk] }),
+      { status: 200, headers: { "Content-Type": "application/json" } })));
+    const signed = await new SignJWT({ type: "app", email: "visitor@example.com" })
+      .setProtectedHeader({ alg: "RS256", kid: "test-key" })
+      .setIssuer(env.CF_ACCESS_TEAM_DOMAIN).setAudience(env.CF_ACCESS_AUD)
+      .setIssuedAt().setExpirationTime("5m").sign(privateKey);
+    const headers = { "Cf-Access-Jwt-Assertion": signed };
+    expect((await app.request("/human", { headers }, env)).status).toBe(200);
+    expect((await app.request("/human/pay", { headers }, env)).status).toBe(200);
+    expect((await app.request("/pay", { headers }, env)).status).toBe(200);
+    expect((await app.request("/human", { headers: { "Cf-Access-Jwt-Assertion": signed + "a" } }, env)).status).toBe(403);
+  });
   it("advertises exactly three unified plans and a schema for the available routes", async () => {
     expect(publicPlans().map(p => [p.id, p.priceUSDC, p.units])).toEqual([
       ["builder", "12.00", 500], ["pro", "39.00", 5000], ["scale", "99.00", 25000],

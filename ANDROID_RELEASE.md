@@ -31,3 +31,10 @@ existing external wallet, not a substitute for the Android app. The local
 
 No current API plan purchases an APK. The HUMAN design remains free while the
 Android implementation is outstanding.
+
+The previously shared `BuildAWallet-1.0.0.apk` is a 9.8 KB signed Android
+WebView wrapper. Its bytecode loads `https://buildawallet.xyz/wallet`; it has
+no bundled wallet implementation, key handling, signing, or transaction logic.
+It must not be offered as a functional wallet release. The Studio finalization
+screen therefore provides the design JSON and implementation plan and reports
+the Android wallet release as pending.

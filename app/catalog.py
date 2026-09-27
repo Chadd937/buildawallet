@@ -108,6 +108,12 @@ ASSETS = [
 
 # --------------------------------------------------------------- networks ---
 NETWORKS = [
+    opt("n_btc", "Bitcoin mainnet", ["bitcoin network", "bitcoin mainnet", "btc mainnet"],
+        "Bitcoin on its own chain, with UTXO addresses, fees and confirmation handling."),
+    opt("n_ltc", "Litecoin mainnet", ["litecoin network", "litecoin mainnet", "ltc mainnet"],
+        "Litecoin's own UTXO chain, separate from Bitcoin and EVM networks."),
+    opt("n_sol", "Solana mainnet", ["solana network", "solana mainnet", "solana chain"],
+        "SOL and SPL assets use Solana addresses, fees and signing."),
     opt("n_eth", "Ethereum mainnet", ["ethereum mainnet", "mainnet", "l1"],
         "Settlement layer. Expensive, so most wallets pair it with an L2."),
     opt("n_base", "Base", ["base network", "base chain", "base"],

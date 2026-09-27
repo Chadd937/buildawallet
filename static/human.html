@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Build-a-Wallet — HUMAN</title>
+<title>Build-a-Wallet : HUMAN</title>
 <meta name="description" content="Design a human-controlled crypto wallet with Build-a-Wallet.">
 <link rel="canonical" href="https://buildawallet.xyz/human">
 <link rel="stylesheet" href="/human.css?v=20">
+<link rel="stylesheet" href="/human/onboarding.css?v=1">
 </head>
 
 <body>
@@ -42,7 +43,7 @@
     </p>
 
     <div class="actions">
-      <a class="primary" href="/human/build">Start guided builder</a>
+      <a class="primary" href="/human" id="startOnboarding">Start guided builder</a>
       <a href="/human/studio">Open studio</a>
       <a href="/human/live">Live balances</a>
       <a href="/human/studio">Free design export</a>
@@ -173,6 +174,35 @@
 </footer>
 
 
+
+<section class="onboardBackdrop" id="onboard" role="dialog" aria-modal="true" aria-label="BuildAWallet HUMAN setup">
+  <div class="onboardCard">
+    <div class="onboardProgress"><span id="onboardProgress">VERIFYING YOUR ACCOUNT</span><div><i id="onboardBar"></i></div></div>
+    <div class="onboardHeader"><span class="onboardMark">W</span><div><strong>BuildAWallet HUMAN</strong><small id="onboardEmail">Checking your verified email...</small></div></div>
+    <div class="onboardPage" id="onboardLoading"><h2 id="onboardTitle">Welcome to your build.</h2><p id="onboardWelcome">Cloudflare is confirming your email and preparing your private design workspace.</p><p class="onboardError" id="onboardError" role="alert"></p><button id="onboardRetry" class="onboardButton" type="button" hidden>Retry account setup</button><button id="onboardContinue" class="onboardButton secondary" type="button" hidden>Continue my saved Studio →</button></div>
+    <form class="onboardPage" id="onboardOne" hidden>
+      <span class="onboardKicker">01 / YOUR WALLET IDENTITY</span>
+      <h2>Make it yours.</h2>
+      <p>Your email signs you into the design studio. Your wallet choices are a blueprint, not a live key or funded wallet.</p>
+      <label for="onboardName">Name your wallet</label><input id="onboardName" maxlength="40" autocomplete="off" placeholder="Example: Midnight Vault" required>
+      <fieldset><legend>Which chains should it be designed for?</legend><div class="onboardChoices" id="onboardNetworks"></div></fieldset>
+      <fieldset><legend>Choose a visual direction</legend><div class="onboardChoices" id="onboardStyles"></div></fieldset>
+      <p class="onboardError" id="onboardOneError" role="alert"></p>
+      <div class="onboardActions"><button class="onboardButton" type="submit">Next: give it character →</button></div>
+    </form>
+    <form class="onboardPage" id="onboardTwo" hidden>
+      <span class="onboardKicker">02 / CONTROL AND CAPABILITIES</span>
+      <h2>How should it work?</h2>
+      <p>Pick a custody design and a few starting traits. Everything remains editable in Studio.</p>
+      <fieldset><legend>Who controls the keys?</legend><div class="onboardChoices" id="onboardCustody"></div></fieldset>
+      <fieldset><legend>Which assets matter most?</legend><div class="onboardChoices" id="onboardAssets"></div></fieldset>
+      <fieldset><legend>What should it do?</legend><div class="onboardChoices" id="onboardFeatures"></div></fieldset>
+      <p class="onboardError" id="onboardTwoError" role="alert"></p>
+      <div class="onboardActions"><button id="onboardBack" class="onboardButton secondary" type="button">← Back</button><button class="onboardButton" type="submit">Open my Studio →</button></div>
+    </form>
+    <div class="onboardFoot">No seed phrase, private key, or payment is needed to design a wallet.</div>
+  </div>
+</section>
 
 <!-- AI WALLET ARCHITECT -->
 <button id="walletAiFab" class="walletAiFab" type="button" aria-label="Open Wallet Architect">
@@ -379,10 +409,11 @@
       });
     });
 
-  openChat();
+  closeChat();
 })();
 </script>
 
+<script src="/human/onboarding.js?v=1" defer></script>
 
 </body>
 </html>

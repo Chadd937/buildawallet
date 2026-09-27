@@ -37,8 +37,10 @@ const html = Object.fromEntries([
 
 const script = readFileSync(fileURLToPath(new URL("app.js", root)), "utf8");
 const style = readFileSync(fileURLToPath(new URL("human.css", root)), "utf8");
+const onboardingScript = readFileSync(fileURLToPath(new URL("human-onboarding.js", root)), "utf8");
+const onboardingStyle = readFileSync(fileURLToPath(new URL("human-onboarding.css", root)), "utf8");
 const output = fileURLToPath(new URL("../src/human-pages.ts", import.meta.url));
-writeFileSync(output, `// Generated from static/*.html and static/app.js. Do not edit.\nexport default ${JSON.stringify({ html, script, style })};\n`);
+writeFileSync(output, `// Generated from static/*.html and static/app.js. Do not edit.\nexport default ${JSON.stringify({ html, script, style, onboardingScript, onboardingStyle })};\n`);
 
 const swaggerRoot = new URL("../node_modules/swagger-ui-dist/", import.meta.url);
 const swaggerCss = readFileSync(fileURLToPath(new URL("swagger-ui.css", swaggerRoot)), "utf8");

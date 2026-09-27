@@ -225,6 +225,9 @@ human.post("/blueprint", async (c) => {
     spec[group].filter((value: unknown) => typeof value === "string" && /^[a-z0-9_-]{1,64}$/i.test(value)).slice(0, 200) : [];
   const name = typeof spec.name === "string" ? spec.name.slice(0, 40) : "Untitled wallet";
   const networkTasks: Record<string, string> = {
+    n_btc: "Bitcoin mainnet: implement UTXO discovery, fee selection, change handling and transaction signing on device",
+    n_ltc: "Litecoin mainnet: implement Litecoin-specific UTXO discovery, fees, addresses and on-device signing",
+    n_sol: "Solana mainnet: implement Ed25519 key handling, SPL token accounts, fee display and on-device signing",
     n_base: "Base: require chain ID 8453, validate EVM destinations, and display ETH gas before approval",
     n_eth: "Ethereum: require chain ID 1, estimate gas, and handle replacement and failed transactions",
     n_test: "Test networks: keep keys, RPC endpoints and balances separate from mainnet",

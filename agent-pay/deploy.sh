@@ -25,6 +25,11 @@ if ! npx wrangler d1 execute buildawallet --remote --config wrangler.deploy.json
   echo 'Shared-plan D1 migration is not applied. Deployment stopped; rerun and approve the D1 migration.' >&2
   exit 1
 fi
+if ! npx wrangler d1 execute buildawallet --remote --config wrangler.deploy.jsonc \
+  --command 'SELECT subject_hash FROM human_accounts LIMIT 0' > /dev/null; then
+  echo 'HUMAN account migration is not applied. Deployment stopped.' >&2
+  exit 1
+fi
 npm run typecheck
 npm test
 npx wrangler deploy --config wrangler.deploy.jsonc
@@ -32,7 +37,7 @@ node scripts/check-human-access.mjs
 curl --fail --silent --show-error https://buildawallet.xyz/machine/info > /dev/null
 curl --fail --silent --show-error 'https://buildawallet.xyz/machine/quote?chain=base&kind=wallet&access=x402' | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["price"]["amountAtomic"] == "10000" and len(d["paymentOptions"]) == 2'
 curl --fail --silent --show-error 'https://buildawallet.xyz/machine/quote?chain=solana&kind=snapshot&access=subscription' | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["units"] == 2 and d["mcpTool"] == "solana_snapshot"'
-curl --fail --silent --show-error https://buildawallet.xyz/machine/human/catalog > /dev/null
+curl --fail --silent --show-error https://buildawallet.xyz/machine/human/catalog | python3 -c 'import json,sys; d=json.load(sys.stdin); networks=next(g["items"] for g in d["groups"] if g["key"]=="networks"); assert {"n_base","n_sol","n_btc","n_ltc"}.issubset({i["id"] for i in networks}), "Deploy cloudflare-human first"'
 curl --fail --silent --show-error https://buildawallet.xyz/machine/human/subscription | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["available"] is True and [(p["id"],p["priceUSDC"]) for p in d["plans"]] == [("builder","12.00"),("pro","39.00"),("scale","99.00")]'
 curl --fail --silent --show-error https://buildawallet.xyz/machine/openapi.json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["openapi"].startswith("3.1") and all(p in d["paths"] for p in ["/machine/v1/batch","/machine/quote","/machine/v1/base/snapshot/{address}","/machine/human/payments"])'
 curl --fail --silent --show-error https://buildawallet.xyz/api-docs > /dev/null

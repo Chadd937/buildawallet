@@ -94,6 +94,11 @@ export const openapi = {
       security: [{ AccessSession: [] }], requestBody: { required: true, content: { "application/json": {
         schema: { type: "object", properties: { spec: { type: "object", additionalProperties: true } }, required: ["spec"] } } } },
       responses: { "200": response("Implementation blueprint"), ...errorResponses } } },
+    "/human/account": { get: { tags: ["HUMAN design"], summary: "Verified HUMAN account bootstrap",
+      description: "Cloudflare Access email verification precedes this route. Creates or revisits a pseudonymous D1 account keyed by the hashed Access identity. Returns the verified email to the active browser; raw email is not saved in D1.",
+      security: [{ AccessSession: [] }],
+      responses: { "200": response("Verified account and creation time"), "403": response("Cloudflare Access sign-in required"),
+        "503": response("Account storage unavailable") } } },
     "/machine/v1/usage": { get: { tags: ["Subscription API"], summary: "Quota and renewal window",
       security: [{ ApiKey: [] }], responses: { "200": response("Used and remaining units; no unit charged"), ...errorResponses } } },
     ...apiPaths,

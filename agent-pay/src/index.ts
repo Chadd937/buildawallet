@@ -12,7 +12,7 @@ import { handleMcp } from "./mcp";
 import { openapi, swaggerHtml } from "./openapi";
 import * as swaggerAssets from "./swagger-assets";
 import { publicPlans } from "./plans";
-import { humanAccessAllowed } from "./access";
+import { humanAccessIdentity } from "./access";
 import { BASE_COLLECTOR, SOLANA_COLLECTOR, BASE_MAINNET, SOLANA_MAINNET, quote, type Chain, type ReadKind, type AccessMode } from "./offer";
 export { BASE_COLLECTOR, SOLANA_COLLECTOR, BASE_MAINNET, SOLANA_MAINNET } from "./offer";
 
@@ -34,19 +34,39 @@ export interface Env {
 }
 
 type Snapshot = Awaited<ReturnType<typeof walletSnapshot>> | Awaited<ReturnType<typeof solanaWalletSnapshot>>;
-const app = new Hono<{ Bindings: Env; Variables: { snapshot: Snapshot } }>();
+const app = new Hono<{ Bindings: Env; Variables: { snapshot: Snapshot; humanIdentity: { email: string; subject: string } } }>();
 const requireHumanSignIn = async (c: any, next: () => Promise<void>) => {
   if (!c.env?.CF_ACCESS_TEAM_DOMAIN || !c.env?.CF_ACCESS_AUD) {
     return c.text("HUMAN sign-in is not configured", 503, { "Cache-Control": "no-store" });
   }
-  if (!await humanAccessAllowed(c.req.header("Cf-Access-Jwt-Assertion"), c.env)) {
+  const identity = await humanAccessIdentity(c.req.header("Cf-Access-Jwt-Assertion"), c.env);
+  if (!identity) {
     return c.text("Cloudflare Access sign-in required", 403, { "Cache-Control": "no-store" });
   }
+  c.set("humanIdentity", identity);
   await next();
 };
 app.use("/human", requireHumanSignIn);
 app.use("/human/*", requireHumanSignIn);
 app.use("/pay", requireHumanSignIn);
+app.get("/human/account", async (c) => {
+  if (!c.env.DB) return c.json({ error: "HUMAN accounts unavailable" }, 503, { "Cache-Control": "no-store" });
+  const identity = c.get("humanIdentity");
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(
+    `buildawallet-human-v1:${c.env.CF_ACCESS_TEAM_DOMAIN}:${identity.subject}`));
+  const id = Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, "0")).join("");
+  const time = Math.floor(Date.now() / 1000);
+  try {
+    const previous = await c.env.DB.prepare("SELECT created_at FROM human_accounts WHERE subject_hash=?")
+      .bind(id).first<{ created_at: number }>();
+    await c.env.DB.prepare(`INSERT INTO human_accounts(subject_hash,created_at,last_seen_at) VALUES(?,?,?)
+      ON CONFLICT(subject_hash) DO UPDATE SET last_seen_at=excluded.last_seen_at`).bind(id, time, time).run();
+    return c.json({ email: identity.email, createdAt: previous?.created_at ?? time,
+      newAccount: !previous }, 200, { "Cache-Control": "no-store" });
+  } catch {
+    return c.json({ error: "HUMAN account storage unavailable" }, 503, { "Cache-Control": "no-store" });
+  }
+});
 for (const path of ["/machine/ai/chat", "/machine/human/chat", "/machine/human/save", "/machine/human/gallery", "/machine/human/wallet/*", "/machine/human/blueprint"]) {
   app.use(path, requireHumanSignIn);
 }
@@ -57,6 +77,12 @@ app.get("/app.js", (c) => c.body(pages.script, 200, { "Content-Type": "applicati
 app.get("/human.css", (c) => c.body(pages.style, 200, {
   "Content-Type": "text/css; charset=utf-8",
   "Cache-Control": "no-store",
+}));
+app.get("/human/onboarding.js", (c) => c.body(pages.onboardingScript, 200, {
+  "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store",
+}));
+app.get("/human/onboarding.css", (c) => c.body(pages.onboardingStyle, 200, {
+  "Content-Type": "text/css; charset=utf-8", "Cache-Control": "no-store",
 }));
 
 app.post("/machine/ai/chat", async (c) => {

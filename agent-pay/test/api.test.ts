@@ -43,9 +43,24 @@ describe("subscription API and machine discovery", () => {
     const signed = await new SignJWT({ type: "app", email: "visitor@example.com" })
       .setProtectedHeader({ alg: "RS256", kid: "test-key" })
       .setIssuer(env.CF_ACCESS_TEAM_DOMAIN).setAudience(env.CF_ACCESS_AUD)
+      .setSubject("verified-user")
       .setIssuedAt().setExpirationTime("5m").sign(privateKey);
     const headers = { "Cf-Access-Jwt-Assertion": signed };
     expect((await app.request("/human", { headers }, env)).status).toBe(200);
+    const bound: unknown[][] = [];
+    let createdAt: number | null = null;
+    const DB = { prepare: (sql: string) => ({ bind: (...args: unknown[]) => ({
+      first: async () => sql.includes("SELECT created_at FROM human_accounts") &&
+        createdAt !== null ? { created_at: createdAt } : null,
+      run: async () => { bound.push(args); createdAt ??= args[1] as number; return { success: true }; },
+    }) }) };
+    const first = await app.request("/human/account", { headers }, { ...env, DB });
+    expect(first.status).toBe(200);
+    expect(await first.json()).toMatchObject({ email: "visitor@example.com", newAccount: true });
+    const again = await app.request("/human/account", { headers }, { ...env, DB });
+    expect(await again.json()).toMatchObject({ newAccount: false });
+    expect(JSON.stringify(bound)).not.toContain("visitor@example.com");
+    expect((await app.request("/human/account", {}, { ...env, DB })).status).toBe(403);
     expect((await app.request("/human/pay", { headers }, env)).status).toBe(200);
     expect((await app.request("/pay", { headers }, env)).status).toBe(200);
     const plan = await app.request("/machine/human/blueprint", { method: "POST", headers: {
@@ -68,6 +83,7 @@ describe("subscription API and machine discovery", () => {
     expect(spec.openapi).toBe("3.1.0");
     expect(spec.paths["/machine/v1/solana/usdc/{address}"].get.security).toEqual([{ ApiKey: [] }]);
     expect(spec.paths["/machine/human/blueprint"].post.security).toEqual([{ AccessSession: [] }]);
+    expect(spec.paths["/human/account"].get.security).toEqual([{ AccessSession: [] }]);
     expect(publicPlans().every(p => !("humanBlueprint" in p))).toBe(true);
     expect((await app.request("/.well-known/agent.json")).status).toBe(200);
     expect((await app.request("/api-docs")).status).toBe(200);

@@ -1,0 +1,21 @@
+.onboardBackdrop{position:fixed;inset:0;z-index:400;display:grid;place-items:center;padding:18px;background:rgba(2,6,6,.76);backdrop-filter:blur(16px)}
+.onboardBackdrop[hidden],.onboardPage[hidden]{display:none!important}
+.onboardCard{width:min(760px,100%);max-height:min(860px,calc(100dvh - 36px));overflow:auto;border:1px solid rgba(150,255,196,.22);border-radius:28px;background:radial-gradient(circle at 100% 0,rgba(114,255,151,.15),transparent 36%),radial-gradient(circle at 0 100%,rgba(157,107,255,.18),transparent 36%),#08110f;box-shadow:0 32px 110px rgba(0,0,0,.65);padding:clamp(22px,4vw,38px)}
+.onboardProgress{display:flex;align-items:center;gap:16px;color:#93bbb0;font-size:10px;font-weight:900;letter-spacing:.16em}
+.onboardProgress>div{flex:1;height:5px;border-radius:20px;background:#20362e;overflow:hidden}
+.onboardProgress i{display:block;width:8%;height:100%;background:linear-gradient(90deg,#72ff97,#22d3ee,#a06bff);transition:width .35s}
+.onboardHeader{display:flex;align-items:center;gap:11px;margin:24px 0 30px}
+.onboardMark{display:grid;place-items:center;width:43px;height:43px;border-radius:13px;background:linear-gradient(135deg,#72ff97,#22d3ee);color:#06100d;font-weight:1000;font-size:22px}
+.onboardHeader strong,.onboardHeader small{display:block}.onboardHeader small{color:#8eaba3;font-size:12px;overflow-wrap:anywhere}
+.onboardPage h2{margin:0 0 10px;font-size:clamp(32px,5vw,54px);letter-spacing:-.055em;line-height:1}
+.onboardPage p{color:#a6bbb3;line-height:1.55;max-width:620px}.onboardKicker{display:block;margin-bottom:11px;color:#22d3ee;font-size:10px;font-weight:900;letter-spacing:.18em}
+.onboardPage label,.onboardPage legend{display:block;margin:18px 0 10px;color:#eaf9ee;font-size:13px;font-weight:850}
+.onboardPage input{width:100%;padding:14px 16px;border:1px solid #44615a;border-radius:13px;background:#06100e;color:#fff;font:inherit;font-size:16px;outline:none}.onboardPage input:focus{border-color:#72ff97}
+.onboardPage fieldset{border:0;margin:16px 0 0;padding:0}.onboardChoices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.onboardChoice{min-height:72px;text-align:left;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:rgba(255,255,255,.035);color:#edf8ef;cursor:pointer;font:inherit}
+.onboardChoice:hover,.onboardChoice:focus-visible{border-color:#22d3ee}.onboardChoice[aria-pressed=true]{border-color:#72ff97;background:linear-gradient(120deg,rgba(114,255,151,.16),rgba(34,211,238,.08));box-shadow:inset 0 0 0 1px rgba(114,255,151,.23)}
+.onboardChoice strong,.onboardChoice small{display:block}.onboardChoice strong{font-size:12px}.onboardChoice small{margin-top:4px;color:#9aada8;font-size:10px;line-height:1.35}
+.onboardActions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}.onboardButton{border:0;border-radius:12px;background:linear-gradient(110deg,#72ff97,#22d3ee);color:#06100d;padding:13px 18px;font:800 13px system-ui;cursor:pointer}.onboardButton.secondary{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:#eaf8ef}
+.onboardError{min-height:20px;color:#ffb0b9!important;font-size:12px}.onboardFoot{margin-top:25px;padding-top:16px;border-top:1px solid rgba(255,255,255,.09);color:#859e93;font-size:11px}
+body:has(.onboardBackdrop:not([hidden])){overflow:hidden}
+@media(max-width:620px){.onboardBackdrop{padding:0;align-items:end}.onboardCard{width:100%;max-height:93dvh;border-radius:24px 24px 0 0;padding:22px}.onboardChoices{grid-template-columns:repeat(2,minmax(0,1fr))}.onboardPage h2{font-size:36px}}

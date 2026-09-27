@@ -4,7 +4,7 @@ BuildAWallet has a HUMAN wallet designer and a NON-HUMAN read-only machine data 
 
 | Surface | Current capability | Deployment |
 | --- | --- | --- |
-| HUMAN Pages site | Guided wallet blueprint, JSON export, external wallet connection and read-only Base/Solana native balance | Cloudflare Access guards `/human`, `/human/*`, `/pay` and saved designs; the Worker serves HUMAN pages |
+| HUMAN Pages site | Email-verified account, two-step onboarding, interactive Studio blueprint, JSON export, external wallet connection and read-only Base/Solana native balance | Cloudflare Access guards `/human`, `/human/*`, `/pay` and saved designs; the Worker serves HUMAN pages |
 | HUMAN API | Architect chat, saved designs, gallery and stats | `cloudflare-human/` Python Worker with D1, routes `/api/*` and `/healthz` |
 | NON-HUMAN data | Base and Solana read-only API, composite snapshots, MCP tools, and $0.01 USDC native snapshots through x402 | `agent-pay/` Worker, route `/machine/*` and `/mcp` |
 | Agent wallet signer | Local prototype only | Not mounted on the public container or Cloudflare |
@@ -13,12 +13,12 @@ The optional Docker/see.io server in `main.py` serves the website and a read-onl
 
 ## HUMAN flow
 
-1. `/human` introduces the designer.
-2. `/human/build` collects wallet preferences.
-3. `/human/studio` previews the blueprint and downloads its JSON configuration and detailed implementation plan for free.
+1. Pressing HUMAN reaches Cloudflare Access email verification. The verified session opens `/human`, where `/human/account` creates a pseudonymous D1 account record without storing the raw email.
+2. Two onboarding screens collect a name, mainnet chains, appearance, custody, assets and features. Choices persist locally and open `/human/studio`.
+3. Studio exposes the full catalog, an interactive phone concept and free design JSON and implementation-plan exports. `/human/build` remains an alternate guided path.
 4. `/human/live` connects an existing injected wallet for free read-only Base or Solana mainnet balances.
 
-A functional Android wallet APK is not yet implemented or released. HUMAN design and both exports are free after Cloudflare Access sign-in. The three read-only API plans are $12, $39 and $99 USDC for 30 days, payable on Base or Solana mainnet. Wallet ownership, confirmed payment receipts, one-time transaction accounting and subscription expiry govern API access only. See [the Access setup](CLOUDFLARE_ACCESS.md), [deployment steps](DEPLOY_MAINNET.md), and [Android release gap](ANDROID_RELEASE.md).
+The previously shared APK is a WebView wrapper, not a functional Android wallet. Studio does not present it as a deployable wallet. A functional Android wallet APK is not yet implemented or released. HUMAN design and both exports are free after Cloudflare Access sign-in. The three read-only API plans are $12, $39 and $99 USDC for 30 days, payable on Base or Solana mainnet. Wallet ownership, confirmed payment receipts, one-time transaction accounting and subscription expiry govern API access only. See [the Access setup](CLOUDFLARE_ACCESS.md), [deployment steps](DEPLOY_MAINNET.md), and [Android release gap](ANDROID_RELEASE.md).
 
 ## NON-HUMAN payment flow
 

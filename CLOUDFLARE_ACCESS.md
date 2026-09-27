@@ -9,7 +9,7 @@ On the Cloudflare account that owns `buildawallet.xyz`, open **Zero Trust > Acce
 | Path | Purpose |
 | --- | --- |
 | `/human` | HUMAN entry |
-| `/human/*` | Builder, studio, live balances and alternate pay URL |
+| `/human/*` | Verified account endpoint, onboarding assets, builder, studio, live balances and alternate pay URL |
 | `/pay` | Subscription payment page |
 | `/w/*` | Saved HUMAN designs |
 | `/machine/human/chat` | Builder conversation |
@@ -26,14 +26,14 @@ Add each table row as its own path entry, including the leading slash. The separ
 
 Add an **Allow** policy with **Include: Everyone**. For a customer-facing login, select **One-time PIN** as the login method so any visitor with a verified email address can enter. A policy restricted to selected emails would make the public HUMAN offer inaccessible to other customers. Use a short application session such as 24 hours. Access must not use a Bypass policy for these paths. If you deliberately want Cloudflare account holders only, select the Cloudflare identity provider instead of One-time PIN and communicate that requirement to customers.
 
-In the saved application's **Additional settings**, copy the **Application Audience (AUD) Tag**. Also copy your team's Access domain, in the form `https://your-team.cloudflareaccess.com`. These two values are used to verify Access signatures at the HUMAN Worker. The Worker rejects unsigned requests, expired or wrong-audience JWTs, and machine service tokens on protected pages.
+In the saved application's **Additional settings**, copy the **Application Audience (AUD) Tag**. Also copy your team's Access domain, in the form `https://your-team.cloudflareaccess.com`. These two values are used to verify Access signatures at the HUMAN Worker. The Worker rejects unsigned requests, expired or wrong-audience JWTs, and machine service tokens on protected pages. After email verification, /human/account stores a hash of the Access identity and returns the verified email to the active browser session; it does not store raw email in D1.
 
 ## Set the Worker configuration and deploy
 
 Use the authenticated machine with the cloned repository. Enter the actual AUD and full team URL at the hidden prompts, one command at a time; do not paste them into Git or chat.
 
 ```bash
-cd ~/buildawallet-paid-test
+cd ~/buildawallet
 git pull --ff-only origin main
 cd agent-pay
 npm ci

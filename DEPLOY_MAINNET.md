@@ -9,7 +9,7 @@ Follow the complete path table in [CLOUDFLARE_ACCESS.md](CLOUDFLARE_ACCESS.md) t
 ## 1. Get the release on the authenticated machine
 
 ```bash
-cd ~/buildawallet-paid-test
+cd ~/buildawallet
 git pull --ff-only origin main
 cd agent-pay
 npm ci
@@ -24,16 +24,16 @@ If `wrangler d1 list` returns Cloudflare authentication error 10000, run `npx wr
 ## 2. Deploy the human backend and shared D1 database
 
 ```bash
-cd ~/buildawallet-paid-test
+cd ~/buildawallet
 ./cloudflare-human/deploy.sh
 ```
 
-The script finds or creates the `buildawallet` D1 database, applies migrations including the one-time payment ledger, three plan tiers and API key tables, deploys `buildawallet-human-api`, and checks `/healthz`. When Wrangler asks to apply pending migrations, approve the changes after reviewing them. Declining now stops the deploy before upload. Direct `/api/*` routes require Access sign-in; the service binding at `/machine/human/catalog` is checked in step 3. Do not accept payments unless that check and subscription readiness both pass.
+The script finds or creates the `buildawallet` D1 database, applies migrations including the one-time payment ledger, API key tables and pseudonymous HUMAN account records, deploys `buildawallet-human-api`, and checks `/healthz`. When Wrangler asks to apply pending migrations, approve the changes after reviewing them. Declining now stops the deploy before upload. Direct `/api/*` routes require Access sign-in; the service binding at `/machine/human/catalog` is checked in step 3. Do not accept payments unless that check and subscription readiness both pass.
 
 ## 3. Deploy the HUMAN pages and payment Worker
 
 ```bash
-cd ~/buildawallet-paid-test/agent-pay
+cd ~/buildawallet/agent-pay
 npm run deploy
 ```
 
@@ -46,7 +46,7 @@ The Worker route list includes `/`, `/machine/*`, `/human`, `/human/*`, `/pay`, 
 ```bash
 curl -fsS https://buildawallet.xyz/machine/human/catalog
 curl -fsS https://buildawallet.xyz/machine/human/subscription
-cd ~/buildawallet-paid-test/agent-pay && node scripts/check-human-access.mjs
+cd ~/buildawallet/agent-pay && node scripts/check-human-access.mjs
 curl -fsS https://buildawallet.xyz/machine/openapi.json
 curl -fsS https://buildawallet.xyz/api-docs
 curl -fsS https://buildawallet.xyz/api-docs/swagger-ui.css >/dev/null
@@ -61,4 +61,4 @@ The earlier $0.01 machine mainnet payments have already been settled and verifie
 
 ## Scope
 
-The HUMAN designer and its JSON and detailed implementation plan exports are free after Cloudflare Access sign-in. Paid plans meter the read-only mainnet API with manual 30-day renewal. The public product does not create custody wallets, sign or send user transactions, or package an APK. The local `agent_protocol.py` signer and `/v1` routes remain unmounted. [Android release work](ANDROID_RELEASE.md) is still required for a functional wallet APK.
+Cloudflare Access verifies the email, then /human/account creates a pseudonymous HUMAN account. Two onboarding steps carry the wallet name, networks, style and custody choices into Studio. The HUMAN designer and its JSON and detailed implementation plan exports are free after Cloudflare Access sign-in. Paid plans meter the read-only mainnet API with manual 30-day renewal. The public product does not create custody wallets, sign or send user transactions, or package an APK. The local `agent_protocol.py` signer and `/v1` routes remain unmounted. [Android release work](ANDROID_RELEASE.md) is still required for a functional wallet APK.

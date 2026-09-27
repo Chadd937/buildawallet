@@ -58,6 +58,12 @@ solely based on what the user wants, as many features as options."
 - The known see.io site URL redirects HUMAN pages and direct HUMAN API paths
   to the Cloudflare-protected canonical hostname, while its landing and agent
   discovery remain open.
+- Cloudflare Access verifies HUMAN email before entry. The Worker creates a
+  pseudonymous D1 account record on /human/account without storing the raw
+  email. Two onboarding screens feed the name, chains, style, custody, assets
+  and features into the Studio. Studio shows an illustrative interactive phone
+  concept and final blueprint exports. The uploaded Android APK is only a
+  WebView wrapper and is not presented as a functional wallet download.
 
 ## Open questions for the owner
 - Any interest in a gallery of public builds on the home page?

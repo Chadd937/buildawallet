@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { verifyMessage } from "viem";
 import { PendingReceipt, verifyBaseReceipt, verifySolanaReceipt } from "./receipts";
-import { BASE_COLLECTOR, SOLANA_COLLECTOR } from "./index";
+import { BASE_COLLECTOR, SOLANA_COLLECTOR } from "./offer";
 import { PERIOD_SECONDS, planById, publicPlans, type PlanId } from "./plans";
 
 type Chain = "base" | "solana";
@@ -141,6 +141,18 @@ human.get("/status", async (c) => {
     .bind(user.chain, user.wallet).first();
   return json(c, { chain: user.chain, wallet: user.wallet, active: Boolean(row && row.expires_at > now()),
     expiresAt: row?.expires_at ?? null, plan: row?.plan_id ?? null, apiKeyCreated: Boolean(key) });
+});
+
+human.get("/payments", async (c) => {
+  const user = await session(c);
+  if (!user) return json(c, { error: "Connect and sign with your paying wallet" }, 401);
+  try {
+    const payments = await c.env.DB!.prepare(`SELECT tx,amount_atomic,paid_at,plan_id
+      FROM human_payments WHERE chain=? AND wallet=? ORDER BY paid_at DESC LIMIT 50`)
+      .bind(user.chain, user.wallet).all();
+    return json(c, { chain: user.chain, wallet: user.wallet, payments: payments.results ?? [],
+      note: "Verified API subscription payments only. x402 pay-per-call receipts are returned with each paid response." });
+  } catch { return json(c, { error: "Payment history unavailable" }, 503); }
 });
 
 human.post("/confirm", async (c) => {

@@ -14,6 +14,19 @@ const env = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("machine payment boundary", () => {
+  it("quotes the exact public payment options and rejects unsupported paid kinds", async () => {
+    const quote = await app.request("/machine/quote?chain=solana&kind=wallet&access=x402", {}, env);
+    expect(quote.status).toBe(200);
+    const body = await quote.json() as any;
+    expect(body).toMatchObject({ chain: "solana", mcpTool: "solana_wallet_payg",
+      price: { amountAtomic: "10000" }, paymentOptions: [
+        { network: BASE_MAINNET, collector: BASE_COLLECTOR },
+        { network: SOLANA_MAINNET, collector: SOLANA_COLLECTOR },
+      ] });
+    expect(JSON.stringify(body)).not.toContain(env.SOLANA_RPC_URL);
+    expect((await app.request("/machine/quote?chain=base&kind=snapshot&access=x402", {}, env)).status).toBe(400);
+    expect((await app.request("/machine/quote?chain=base&kind=snapshot&access=subscription", {}, env)).status).toBe(200);
+  });
   it("reports deployment configuration without exposing RPC secrets", async () => {
     const info = await app.request("/machine/info", {}, env);
     expect(info.status).toBe(200);
@@ -66,6 +79,30 @@ describe("machine payment boundary", () => {
     expect(fetchMock.mock.calls.some(([url]) => url.endsWith("/supported"))).toBe(true);
     expect(fetchMock.mock.calls.some(([, init]) => String(init?.body ?? "").includes("eth_getBalance"))).toBe(true);
     expect(await res.text()).not.toContain("balanceWei");
+  });
+
+  it("bridges the live HTTP x402 challenge into the MCP paid tool without releasing data", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => new Response(JSON.stringify(
+      url.endsWith("/supported") ? { kinds: [
+        { x402Version: 2, scheme: "exact", network: BASE_MAINNET },
+        { x402Version: 2, scheme: "exact", network: SOLANA_MAINNET },
+      ] } : { jsonrpc: "2.0", id: 1, result: "0x2105" },
+    ), { status: 200 })));
+    const res = await app.request("/mcp", { method: "POST", headers: {
+      "Content-Type": "application/json", Accept: "application/json, text/event-stream", Host: "buildawallet.xyz",
+    }, body: JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/call", params: {
+      name: "base_wallet_payg", arguments: { address },
+    } }) }, env);
+    expect(res.status, await res.clone().text()).toBe(200);
+    const raw = await res.text();
+    const payload = JSON.parse(raw.startsWith("event:") ? raw.split("data: ")[1] : raw);
+    expect(payload.result).toMatchObject({ isError: true, _meta: { "x402/error": {
+      accepts: expect.arrayContaining([
+        expect.objectContaining({ network: BASE_MAINNET, payTo: BASE_COLLECTOR }),
+        expect.objectContaining({ network: SOLANA_MAINNET, payTo: SOLANA_COLLECTOR }),
+      ]),
+    } } });
+    expect(raw).not.toContain("balanceWei");
   });
 
   it("does not issue a payable challenge when the RPC fails", async () => {

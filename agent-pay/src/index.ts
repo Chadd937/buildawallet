@@ -13,6 +13,8 @@ import { openapi, swaggerHtml } from "./openapi";
 import * as swaggerAssets from "./swagger-assets";
 import { publicPlans } from "./plans";
 import { humanAccessAllowed } from "./access";
+import { BASE_COLLECTOR, SOLANA_COLLECTOR, BASE_MAINNET, SOLANA_MAINNET, quote, type Chain, type ReadKind, type AccessMode } from "./offer";
+export { BASE_COLLECTOR, SOLANA_COLLECTOR, BASE_MAINNET, SOLANA_MAINNET } from "./offer";
 
 export interface Env {
   AI?: {
@@ -203,19 +205,19 @@ app.get("/api-docs/swagger-ui-bundle.js", (c) => c.body(swaggerAssets.js, 200, {
 app.get("/.well-known/agent.json", (c) => c.json({ name: "BuildAWallet", homepage: "https://buildawallet.xyz/",
   description: "Read-only Base and Solana mainnet wallet data; no signing or custody",
   openapi: "https://buildawallet.xyz/machine/openapi.json", mcp: "https://buildawallet.xyz/mcp",
-  capabilities: ["wallet balances", "USDC balances", "transaction status", "free wallet design blueprint"],
-  payments: { subscriptions: "https://buildawallet.xyz/machine/human/subscription", x402: "https://buildawallet.xyz/machine/info" } }));
-app.get("/agent-offer.json", (c) => c.json({ name: "BuildAWallet", version: "1.0.0", plans: publicPlans(),
+  capabilities: ["native balances", "USDC balances", "transaction status", "composite snapshots", "free quotes", "free wallet design blueprint"],
+  payments: { subscriptions: "https://buildawallet.xyz/machine/human/subscription", x402: "https://buildawallet.xyz/machine/quote?chain=base&kind=wallet&access=x402" } }));
+app.get("/agent-offer.json", (c) => c.json({ name: "BuildAWallet", version: "1.1.0", plans: publicPlans(),
   api: "https://buildawallet.xyz/machine/openapi.json", mcp: "https://buildawallet.xyz/mcp",
   payPerCall: ["https://buildawallet.xyz/machine/wallet", "https://buildawallet.xyz/machine/solana-wallet"],
+  quote: "https://buildawallet.xyz/machine/quote?chain={chain}&kind={kind}&access={access}",
+  subscribed: ["wallet", "usdc", "transaction", "snapshot"], snapshotUnits: 2,
+  mcpTools: ["service_quote", "api_usage", "base_wallet", "base_usdc", "base_transaction", "base_snapshot",
+    "base_wallet_payg", "solana_wallet", "solana_usdc", "solana_transaction", "solana_snapshot", "solana_wallet_payg"],
   paymentProtocol: "x402", supportedPaymentNetworks: ["eip155:8453", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"],
   custody: false, signing: false }));
-app.get("/llms.txt", (c) => c.text(`# BuildAWallet\nFree HUMAN wallet design and implementation blueprint; paid read-only Base and Solana mainnet API data.\nOpenAPI: https://buildawallet.xyz/machine/openapi.json\nMCP (API key required for calls): https://buildawallet.xyz/mcp\nAPI plans and wallet payment: https://buildawallet.xyz/pay\nx402 pay-per-request: https://buildawallet.xyz/machine/info\nNo deployed custody wallet, key management, signing or transaction submission.\n`));
+app.get("/llms.txt", (c) => c.text(`# BuildAWallet\nFree HUMAN wallet design and implementation blueprint; paid read-only Base and Solana mainnet API data.\nOpenAPI: https://buildawallet.xyz/machine/openapi.json\nMCP: https://buildawallet.xyz/mcp (subscriber key for metered reads; x402 challenge for wallet pay-per-call)\nAPI plans and wallet payment: https://buildawallet.xyz/pay\nFree quote: https://buildawallet.xyz/machine/quote?chain=base&kind=wallet&access=x402\nService: https://buildawallet.xyz/machine/info\nComposite native and USDC snapshot costs two subscription units; independent RPC reads are not atomic.\nNo deployed custody wallet, key management, signing or transaction submission.\n`));
 app.all("/mcp", (c) => handleMcp(c.req.raw, c.env, async (request) => app.fetch(request, c.env)));
-export const SOLANA_COLLECTOR = "Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC";
-export const BASE_COLLECTOR = "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d";
-export const SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
-export const BASE_MAINNET = "eip155:8453";
 const facilitator = new HTTPFacilitatorClient({ url: "https://facilitator.payai.network" });
 const resourceServer = new x402ResourceServer(facilitator);
 resourceServer.register(SOLANA_MAINNET, new ExactSvmScheme());
@@ -229,7 +231,9 @@ app.get("/machine/info", (c) => c.json({
     solana: Boolean(c.env?.SOLANA_RPC_URL && c.env?.REQUEST_RATE_LIMITER),
   },
   paidEndpoints: ["/machine/wallet?address=0x...", "/machine/solana-wallet?address=..."],
-  subscriptionApi: "/machine/v1/usage",
+  subscriptionApi: "/machine/v1/usage", quote: "/machine/quote?chain=base&kind=wallet&access=x402",
+  subscriptionReads: ["wallet", "usdc", "transaction", "snapshot"],
+  snapshotUnits: 2, paymentHistory: "/machine/human/payments",
   documentation: "/machine/openapi.json",
   mcp: "/mcp",
   plans: publicPlans(),
@@ -238,9 +242,22 @@ app.get("/machine/info", (c) => c.json({
     { network: "base", collector: BASE_COLLECTOR },
     { network: "solana", collector: SOLANA_COLLECTOR },
   ],
-  capabilities: ["read-only Base native balance and transaction count", "read-only Solana SOL balance"],
+  capabilities: ["read-only Base native balance and transaction count", "read-only Solana SOL balance",
+    "USDC balance", "transaction status", "native and USDC composite snapshot", "MCP tools with structured results"],
   custody: false,
 }));
+
+app.get("/machine/quote", (c) => {
+  const chain = c.req.query("chain"), kind = c.req.query("kind"), access = c.req.query("access");
+  if ((chain !== "base" && chain !== "solana") ||
+      !["wallet", "usdc", "transaction", "snapshot"].includes(kind ?? "") ||
+      (access !== "x402" && access !== "subscription")) {
+    return c.json({ error: "Specify chain=base|solana, kind=wallet|usdc|transaction|snapshot and access=x402|subscription" }, 400);
+  }
+  const result = quote(chain as Chain, kind as ReadKind, access as AccessMode);
+  if (!result) return c.json({ error: "This resource is available through an API subscription only" }, 400);
+  return c.json(result, 200, { "Cache-Control": "no-store" });
+});
 
 const routeConfig: Parameters<typeof paymentMiddleware>[0] = {
   "GET /machine/wallet": {

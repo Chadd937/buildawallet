@@ -13,7 +13,7 @@ button,.button{display:inline-block;border:0;border-radius:11px;background:var(-
 <header><strong><a href="/">BuildAWallet</a></strong><nav><a href="/api-docs">API reference</a> · <a href="/pricing">Pricing</a></nav></header>
 <main><p class="muted">MAINNET DATA API</p><h1>Choose a read-only API plan.</h1>
 <p class="lead">These plans meter read-only Base and Solana mainnet data for developers and agents. Pay native USDC on Base or Solana for 30 days of API access.</p>
-<section class="box"><h2>Choose your API plan</h2><div id="plans" class="plans"><p>Loading current prices...</p></div><p>All plans include an API key, six read-only wallet, USDC and transaction endpoints, and MCP tools. Pro and Scale also include batch reads. No automatic renewal; another confirmed payment extends API access by 30 days.</p></section>
+<section class="box"><h2>Choose your API plan</h2><div id="plans" class="plans"><p>Loading current prices...</p></div><p>All plans include an API key, eight read-only wallet, USDC, transaction and composite snapshot endpoints, and MCP tools. Single reads use one unit; composite native and USDC snapshots use two units, including on Starter. Pro and Scale also include batch reads. No automatic renewal; another confirmed payment extends API access by 30 days.</p></section>
 <section class="box"><h2>1. Connect and prove control of your paying wallet</h2><p class="muted">Sign a login message in your own wallet. A message signature does not move funds. Use this same wallet for the USDC transfer.</p>
 <div class="grid"><button id="base" type="button">Connect Base wallet</button><button id="solana" type="button">Connect Solana wallet</button></div><p id="walletStatus" class="status" role="status"></p></section>
 <section class="box"><h2>2. Pay on the selected chain</h2><p id="paymentDetail" class="muted">Connect a wallet to see the exact payment details.</p>
@@ -34,8 +34,8 @@ function renderPlans(data){
     const radio=document.createElement('input');radio.type='radio';radio.name='plan';radio.value=p.id;radio.checked=p.id===prior;
     card.append(radio,document.createTextNode(p.name));
     const price=document.createElement('b');price.textContent='$'+p.priceUSDC+' USDC';card.append(price);
-    const units=document.createElement('em');units.textContent=p.units.toLocaleString()+' API calls / 30 days';card.append(units);
-    const batch=document.createElement('p');batch.className='fine';batch.textContent=p.batchLimit?`Up to ${p.batchLimit} queries per batch. Read-only API and MCP access.`:'Individual API calls and MCP tools.';card.append(batch);return card}));
+    const units=document.createElement('em');units.textContent=p.units.toLocaleString()+' API units / 30 days';card.append(units);
+    const batch=document.createElement('p');batch.className='fine';batch.textContent=p.batchLimit?`Up to ${p.batchLimit} queries per batch. Read-only API and MCP access.`:'Individual API reads and MCP tools.';card.append(batch);return card}));
   document.querySelectorAll('input[name="plan"]').forEach(input=>input.addEventListener('change',showPayment));showPayment();
 }
 function showPayment(){const p=selected();if(!p||!chain||!details)return;const collector=details.chains[chain].collector;

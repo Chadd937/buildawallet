@@ -30,10 +30,11 @@ solely based on what the user wants, as many features as options."
 - Owner supplied separate USDC collectors for Base
   (0xBcCA6AED433d9020C50D44560F9679F1B5eB511d) and Solana
   (Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC).
-- The shared HUMAN blueprint and read-only API plans are $12, $39, and $99 USDC for 30 days, manually renewable
-  on Base or Solana after wallet ownership and on-chain receipt checks. The
-  live view still reads existing external wallet balances only. Studio exports
-  JSON designs; the premium export is a detailed design document, not an APK.
+- The HUMAN designer, JSON design export and detailed implementation plan are free
+  after Cloudflare Access sign-in. The read-only API plans are $12, $39 and $99
+  USDC for 30 days, manually renewable on Base or Solana after wallet ownership
+  and on-chain receipt checks. The live view still reads existing external wallet
+  balances only. There is no functional Android APK in the repository yet.
 - The separate /machine/* Worker can charge $0.01 USDC for Base and Solana
   native balance snapshots after its own deployment and paid checks. It does
   not grant agent wallet authority.
@@ -44,7 +45,7 @@ solely based on what the user wants, as many features as options."
 - The customer-facing HUMAN pages, payment page, saved builds and builder
   design endpoints require Cloudflare Access sign-in. The landing, pricing,
   docs and non-human machine routes remain public. The Worker validates
-  Access JWTs on its protected paths; wallet payment remains a separate gate.
+  Access JWTs on its protected paths; wallet payment only gates subscribed API calls.
 - The HUMAN home and studio AI chat call Cloudflare Workers AI through the
   protected /machine/ai/chat route. The original guided architect still uses
   the self-contained conversation engine above.

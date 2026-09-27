@@ -2,8 +2,8 @@
   "name": "BuildAWallet",
   "canonical_url": "https://buildawallet.xyz/",
   "status": "read-only mainnet data",
-  "description": "HUMAN wallet design and metered Base and Solana mainnet data for people and agents",
-  "capabilities": ["public wallet balances", "USDC balances", "transaction status", "premium HUMAN blueprint"],
+  "description": "Free HUMAN wallet design and paid read-only Base and Solana mainnet API data",
+  "capabilities": ["public wallet balances", "USDC balances", "transaction status", "free HUMAN implementation blueprint"],
   "plans": [
     {"id":"builder", "priceUSDC":"12.00", "units":500, "days":30},
     {"id":"pro", "priceUSDC":"39.00", "units":5000, "days":30, "batchLimit":10},

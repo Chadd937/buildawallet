@@ -1,7 +1,7 @@
 # BuildAWallet mainnet read API and machine payments
 
 This is an isolated Cloudflare Worker in the existing BuildAWallet repository. It uses
-the `/machine/*` route on `buildawallet.xyz`; it does not mount the local signing prototype or handle private keys. It also serves the HUMAN pages and forwards builder calls through a service binding to the Python Worker. Shared HUMAN blueprint and read-only API plans cost $12, $39 and $99 USDC per 30 days for 500, 5,000 and 25,000 units. Pro and Scale support batches of 10 and 50. API keys are issued after payment verification; MCP calls use the same key and quota.
+the `/machine/*` route on `buildawallet.xyz`; it does not mount the local signing prototype or handle private keys. It also serves the HUMAN pages and forwards builder calls through a service binding to the Python Worker. HUMAN designs and implementation plan downloads are free after Cloudflare Access sign-in. The read-only API plans cost $12, $39 and $99 USDC per 30 days for 500, 5,000 and 25,000 units. Pro and Scale support batches of 10 and 50. API keys are issued after payment verification; MCP calls use the same key and quota.
 
 Paid capabilities are `GET /machine/wallet?address=0x...` for Base mainnet
 native balance, transaction count and block, and
@@ -17,16 +17,21 @@ payment to the designated collector on the selected network:
 | Solana | `Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC` |
 The public API also reads native USDC holdings and transaction status with a subscribed API key. No claim of wallet custody, transaction signing, or risk analysis is made.
 
-## Shared HUMAN and API plans
+## Read-only API plans
 
-The payment page at `/pay` offers Builder ($12 for 500 units), Pro ($39 for 5,000 units,
+The payment page at `/pay` offers Starter ($12 for 500 units), Pro ($39 for 5,000 units,
 10 items per batch), and Scale ($99 for 25,000 units, 50 items per batch), each for
-30 days. All plans include the premium HUMAN design blueprint. A paying wallet
+30 days. These plans purchase API calls only. A paying wallet
 signs a one-use login challenge, pays the selected exact native USDC amount on
 its chosen network, then confirms the onchain transaction. The Worker verifies
 token, payer, collector, amount and confirmation, and prevents receipt reuse.
 The wallet can then issue or rotate a one-time-display `baw_live_` API key.
 Access and quota remain tied to that wallet and expire with the plan.
+
+The HUMAN Studio can download its JSON design and a detailed implementation plan
+without wallet payment or an API subscription. `/machine/human/blueprint` requires
+the Cloudflare Access identity and a rate-limited POST of the design spec. This
+is a design document; no functional Android APK is produced by this repository.
 
 The subscribed read API is under `/machine/v1` and covers native wallet balance,
 native USDC balance, and transaction status on Base and Solana. `GET /usage` is

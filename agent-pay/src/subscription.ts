@@ -41,7 +41,7 @@ export function normalizedWallet(chain: unknown, address: unknown): string | nul
 }
 
 export function challengeMessage(chain: Chain, wallet: string, nonce: string, issued: number): string {
-  return `BuildAWallet.xyz premium blueprint login\nChain: ${chain}\nWallet: ${wallet}\nNonce: ${nonce}\nIssued: ${issued}\n\nSigning proves wallet control. It does not authorize a payment or transaction.`;
+  return `BuildAWallet.xyz API subscription login\nChain: ${chain}\nWallet: ${wallet}\nNonce: ${nonce}\nIssued: ${issued}\n\nSigning proves wallet control. It does not authorize a payment or transaction.`;
 }
 
 async function verifySignature(chain: Chain, wallet: string, message: string, signature: string): Promise<boolean> {
@@ -64,7 +64,7 @@ async function session(c: any): Promise<{ chain: Chain; wallet: string; issued_a
 }
 
 human.use("/*", async (c, next) => {
-  // All write paths and premium exports fail closed if the rate limiter or D1 is absent.
+  // All write paths require the rate limiter; the free blueprint does not require D1.
   if (c.req.method !== "GET" && c.req.header("Origin") && c.req.header("Origin") !== "https://buildawallet.xyz") {
     return json(c, { error: "Invalid origin" }, 403);
   }
@@ -83,7 +83,7 @@ human.get("/subscription", async (c) => {
     try { await c.env.DB.prepare("SELECT 1 FROM human_api_keys LIMIT 1").run(); schemaReady = true; } catch { /* migration missing */ }
   }
   return json(c, {
-  plans: publicPlans(), durationDays: 30, renewal: "manual", feature: "shared HUMAN blueprint and read-only API access",
+  plans: publicPlans(), durationDays: 30, renewal: "manual", feature: "metered read-only API access",
   chains: { base: { collector: BASE_COLLECTOR, token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" },
     solana: { collector: SOLANA_COLLECTOR, token: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", collectorTokenAccount: "Hp6uUt3RmYYVmeSYyf6LpimgddHbL9QJ1LG9TbK5pJiQ" } },
   available: Boolean(schemaReady && c.env.BASE_RPC_URL?.startsWith("https://") &&
@@ -202,11 +202,6 @@ human.delete("/api-key", async (c) => {
 });
 
 human.post("/blueprint", async (c) => {
-  const user = await session(c);
-  if (!user) return json(c, { error: "Connect and sign with your wallet" }, 401);
-  const entitlement = await c.env.DB!.prepare("SELECT expires_at FROM human_entitlements WHERE chain=? AND wallet=? AND expires_at>?")
-    .bind(user.chain, user.wallet, now()).first();
-  if (!entitlement) return json(c, { error: "An active subscription is required" }, 402);
   const body: any = await c.req.json().catch(() => ({}));
   const spec = body.spec;
   if (!spec || typeof spec !== "object" || Array.isArray(spec) || JSON.stringify(spec).length > 12_000) {
@@ -245,8 +240,8 @@ human.post("/blueprint", async (c) => {
     custody === "c_aa" ? "Review smart account validation, bundler and paymaster failure cases" :
     "Document who holds each key and how users recover access";
   return json(c, {
-    format: "buildawallet-premium-implementation-blueprint", version: 1,
-    name, generatedAt: new Date().toISOString(), subscriptionExpiresAt: entitlement.expires_at,
+    format: "buildawallet-implementation-blueprint", version: 1,
+    name, generatedAt: new Date().toISOString(),
     design: { ...selected, custody, style: String(spec.style ?? "").slice(0, 64) },
     implementationPlan: [
       { stage: "Scope", tasks: ["Review selected networks, assets and custody model with the intended users", "Document recovery, access and fee expectations"] },

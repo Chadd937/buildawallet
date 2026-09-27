@@ -34,11 +34,12 @@ for (const chain of ["base", "solana"]) {
 export const openapi = {
   openapi: "3.1.0",
   info: { title: "BuildAWallet mainnet read API", version: "1.0.0",
-    description: `Read-only Base and Solana mainnet data for people and agents. Three manual 30-day plans include the premium HUMAN wallet blueprint and a shared API quota. Subscribe with a wallet signature and exact USDC transfer, then issue a bearer API key. The per-request x402 endpoints remain available separately. No private keys, wallet custody, transaction submission, swap, or signing service is offered.`,
+    description: `Free HUMAN wallet design and implementation blueprint, plus paid read-only Base and Solana mainnet data for people and agents. The three manual 30-day plans cover only API usage. Subscribe with a wallet signature and exact USDC transfer, then issue a bearer API key. The per-request x402 endpoints remain available separately. No deployed private-key wallet, custody, transaction submission, swap, or signing service is offered.`,
     contact: { url: "https://buildawallet.xyz/pay" } },
   servers: [{ url: "https://buildawallet.xyz", description: "Mainnet production" }],
   tags: [
     { name: "Discovery", description: "Public machine-readable service information" },
+    { name: "HUMAN design", description: "Free design plan after Cloudflare Access sign-in; no wallet payment" },
     { name: "Wallet subscription", description: "Sign a wallet message, pay exact USDC, verify onchain receipt, manage API key" },
     { name: "Subscription API", description: "Bearer key and metered, read-only mainnet data" },
     { name: "Pay per request", description: "x402 HTTP 402 USDC challenge on either Base or Solana" },
@@ -73,9 +74,9 @@ export const openapi = {
       security: [{ WalletSession: [] }], responses: { "200": response("One-time API key; never returned again"), ...errorResponses } },
       delete: { tags: ["Wallet subscription"], summary: "Revoke API key", security: [{ WalletSession: [] }],
         responses: { "200": response("Revoked"), ...errorResponses } } },
-    "/machine/human/blueprint": { post: { tags: ["Wallet subscription"], summary: "Premium HUMAN design blueprint",
-      description: "Returns a staged implementation design based on your saved spec. It is a planning document, not wallet code.",
-      security: [{ WalletSession: [] }], requestBody: { required: true, content: { "application/json": {
+    "/machine/human/blueprint": { post: { tags: ["HUMAN design"], summary: "Free HUMAN implementation blueprint",
+      description: "Returns a staged implementation design from your spec after Cloudflare Access sign-in. No wallet payment or API subscription is required. It is a planning document, not a functional Android wallet or APK.",
+      security: [{ AccessSession: [] }], requestBody: { required: true, content: { "application/json": {
         schema: { type: "object", properties: { spec: { type: "object", additionalProperties: true } }, required: ["spec"] } } } },
       responses: { "200": response("Implementation blueprint"), ...errorResponses } } },
     "/machine/v1/usage": { get: { tags: ["Subscription API"], summary: "Quota and renewal window",
@@ -101,6 +102,7 @@ export const openapi = {
   components: { securitySchemes: {
     ApiKey: { type: "http", scheme: "bearer", bearerFormat: "baw_live_ API key", description: "Issue via wallet session after payment" },
     WalletSession: { type: "http", scheme: "bearer", description: "One-use wallet signature login session" },
+    AccessSession: { type: "apiKey", in: "cookie", name: "CF_Authorization", description: "Cloudflare Access verified-email session for HUMAN design routes" },
   }, schemas: {
     WalletSnapshot: { type: "object", properties: { chain: { type: "string" }, address: { type: "string" },
       balanceWei: { type: "string" }, balanceEth: { type: "string" }, balanceLamports: { type: "string" },
@@ -114,4 +116,4 @@ export const openapi = {
   } },
 } as const;
 
-export const swaggerHtml = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BuildAWallet API reference</title><link rel="stylesheet" href="/api-docs/swagger-ui.css"><style>body{margin:0;background:#f7fbf7;color:#12231a;font:16px system-ui}header{background:#092113;color:#e7ffdd;padding:20px 5%}header a{color:#9cf391;margin-right:20px}header h1{margin:10px 0 0}main{max-width:1100px;margin:20px auto;padding:0 20px}.intro{padding:24px;background:#e8f7e4;border-radius:16px}.intro code{word-break:break-all}#swagger-ui{margin-top:24px}</style></head><body><header><a href="/">BuildAWallet</a><a href="/pay">Plans</a><a href="/machine/openapi.json">OpenAPI JSON</a><h1>Mainnet API reference</h1></header><main><div class="intro"><p>Read-only Base and Solana wallet data. Builder $12 / 500 calls, Pro $39 / 5,000, Scale $99 / 25,000, each for 30 days with the premium HUMAN blueprint. Pay USDC on either chain, confirm the receipt, issue an API key, then use the endpoints below. x402 pay-per-request remains $0.01 for native wallet snapshots.</p><p>Example: <code>curl -H &quot;Authorization: Bearer $BAW_API_KEY&quot; https://buildawallet.xyz/machine/v1/base/usdc/0xBcCA6AED433d9020C50D44560F9679F1B5eB511d</code></p><p>MCP endpoint: <code>https://buildawallet.xyz/mcp</code> (same API key). The API observes public chain state. It does not sign or submit transactions.</p></div><div id="swagger-ui"><p>Loading Swagger UI... You can also read the <a href="/machine/openapi.json">OpenAPI JSON</a>.</p></div></main><script src="/api-docs/swagger-ui-bundle.js"></script><script>if(window.SwaggerUIBundle)SwaggerUIBundle({url:'/machine/openapi.json',dom_id:'#swagger-ui',deepLinking:true,displayRequestDuration:true,persistAuthorization:false});</script></body></html>`;
+export const swaggerHtml = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BuildAWallet API reference</title><link rel="stylesheet" href="/api-docs/swagger-ui.css"><style>body{margin:0;background:#f7fbf7;color:#12231a;font:16px system-ui}header{background:#092113;color:#e7ffdd;padding:20px 5%}header a{color:#9cf391;margin-right:20px}header h1{margin:10px 0 0}main{max-width:1100px;margin:20px auto;padding:0 20px}.intro{padding:24px;background:#e8f7e4;border-radius:16px}.intro code{word-break:break-all}#swagger-ui{margin-top:24px}</style></head><body><header><a href="/">BuildAWallet</a><a href="/pay">API plans</a><a href="/machine/openapi.json">OpenAPI JSON</a><h1>Mainnet API reference</h1></header><main><div class="intro"><p>The HUMAN builder and detailed design plan are free after Cloudflare sign-in. Paid plans cover read-only Base and Solana API access only: Starter $12 / 500 calls, Pro $39 / 5,000, Scale $99 / 25,000, each for 30 days. Pay USDC on either chain, confirm the receipt, issue an API key, then use the endpoints below. x402 pay-per-request remains $0.01 for native wallet snapshots.</p><p>Example: <code>curl -H &quot;Authorization: Bearer $BAW_API_KEY&quot; https://buildawallet.xyz/machine/v1/base/usdc/0xBcCA6AED433d9020C50D44560F9679F1B5eB511d</code></p><p>MCP endpoint: <code>https://buildawallet.xyz/mcp</code> (same API key). The API observes public chain state. It does not sign or submit transactions.</p></div><div id="swagger-ui"><p>Loading Swagger UI... You can also read the <a href="/machine/openapi.json">OpenAPI JSON</a>.</p></div></main><script src="/api-docs/swagger-ui-bundle.js"></script><script>if(window.SwaggerUIBundle)SwaggerUIBundle({url:'/machine/openapi.json',dom_id:'#swagger-ui',deepLinking:true,displayRequestDuration:true,persistAuthorization:false});</script></body></html>`;

@@ -7,7 +7,7 @@
 <meta name="description" content="Design a human-controlled crypto wallet with Build-a-Wallet.">
 <link rel="canonical" href="https://buildawallet.xyz/human">
 <link rel="stylesheet" href="/human.css?v=20">
-<link rel="stylesheet" href="/human/onboarding.css?v=1">
+<link rel="stylesheet" href="/human-onboarding.css?v=2">
 </head>
 
 <body>
@@ -77,343 +77,57 @@
 
 </section>
 
-
 <section class="steps">
-
-  <article>
-    <b>01</b>
-    <div class="stepIcon">◈</div>
-    <h2>Choose what it holds</h2>
-    <p>
-      Bitcoin, Litecoin, Ethereum, stablecoins, Solana assets and other
-      supported options.
-    </p>
-  </article>
-
-  <article>
-    <b>02</b>
-    <div class="stepIcon">⌾</div>
-    <h2>Choose who controls it</h2>
-    <p>
-      Define custody, backup, authentication, approval and recovery
-      preferences.
-    </p>
-  </article>
-
-  <article>
-    <b>03</b>
-    <div class="stepIcon">⌁</div>
-    <h2>Choose how it behaves</h2>
-    <p>
-      Pick payments, swaps, security, privacy and interface preferences.
-    </p>
-  </article>
-
+  <article><b>01</b><div class="stepIcon">◈</div><h2>Choose what it holds</h2><p>Bitcoin, Litecoin, Ethereum, stablecoins, Solana assets and other supported options.</p></article>
+  <article><b>02</b><div class="stepIcon">⌾</div><h2>Choose who controls it</h2><p>Define custody, backup, authentication, approval and recovery preferences.</p></article>
+  <article><b>03</b><div class="stepIcon">⌁</div><h2>Choose how it behaves</h2><p>Pick payments, swaps, security, privacy and interface preferences.</p></article>
 </section>
-
 
 <section class="humanShowcase">
-
   <div class="showcaseCopy">
     <div class="eyebrow">DESIGN WITH AI</div>
-
-    <h2>
-      You don't need to know every wallet feature before you begin.
-    </h2>
-
-    <p>
-      Tell the Wallet Architect what you're trying to build. It can help
-      translate an idea into networks, custody choices, security controls and
-      product features.
-    </p>
-
-    <div class="safetyLine">
-      <span>●</span>
-      Never enter a seed phrase, private key or recovery secret into AI chat.
-    </div>
+    <h2>You don't need to know every wallet feature before you begin.</h2>
+    <p>Tell the Wallet Architect what you're trying to build. It can help translate an idea into networks, custody choices, security controls and product features.</p>
+    <div class="safetyLine"><span>●</span>Never enter a seed phrase, private key or recovery secret into AI chat.</div>
   </div>
-
-  <div class="walletGraphic">
-    <div class="mockWallet">
-      <div class="mockTop">
-        <div class="mockLogo">W</div>
-        <span>MY WALLET</span>
-        <i></i>
-      </div>
-
-      <div class="mockBalance">
-        <small>PORTFOLIO</small>
-        <strong>$24,830.42</strong>
-        <span>Human controlled</span>
-      </div>
-
-      <div class="mockAssets">
-        <div><b>₿</b><span>Bitcoin</span><em>BTC</em></div>
-        <div><b>Ł</b><span>Litecoin</span><em>LTC</em></div>
-        <div><b>◎</b><span>Solana</span><em>SOL</em></div>
-      </div>
-    </div>
-  </div>
-
+  <div class="walletGraphic"><div class="mockWallet"><div class="mockTop"><div class="mockLogo">W</div><span>MY WALLET</span><i></i></div><div class="mockBalance"><small>PORTFOLIO</small><strong>$24,830.42</strong><span>Human controlled</span></div><div class="mockAssets"><div><b>₿</b><span>Bitcoin</span><em>BTC</em></div><div><b>Ł</b><span>Litecoin</span><em>LTC</em></div><div><b>◎</b><span>Solana</span><em>SOL</em></div></div></div></div>
 </section>
-
 </main>
 
-
-<footer>
-  <div>
-    © 2026 Build-a-Wallet · Human-controlled wallet design tools.
-  </div>
-
-  <div>
-    <a href="/docs">Docs</a>
-    <a href="/pricing">Pricing</a>
-    <a href="/privacy">Privacy</a>
-    <a href="/terms">Terms</a>
-  </div>
-</footer>
-
-
+<footer><div>© 2026 Build-a-Wallet · Human-controlled wallet design tools.</div><div><a href="/docs">Docs</a><a href="/pricing">Pricing</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div></footer>
 
 <section class="onboardBackdrop" id="onboard" role="dialog" aria-modal="true" aria-label="BuildAWallet HUMAN setup">
   <div class="onboardCard">
     <div class="onboardProgress"><span id="onboardProgress">VERIFYING YOUR ACCOUNT</span><div><i id="onboardBar"></i></div></div>
     <div class="onboardHeader"><span class="onboardMark">W</span><div><strong>BuildAWallet HUMAN</strong><small id="onboardEmail">Checking your verified email...</small></div></div>
     <div class="onboardPage" id="onboardLoading"><h2 id="onboardTitle">Welcome to your build.</h2><p id="onboardWelcome">Cloudflare is confirming your email and preparing your private design workspace.</p><p class="onboardError" id="onboardError" role="alert"></p><button id="onboardRetry" class="onboardButton" type="button" hidden>Retry account setup</button><button id="onboardContinue" class="onboardButton secondary" type="button" hidden>Continue my saved Studio →</button></div>
-    <form class="onboardPage" id="onboardOne" hidden>
-      <span class="onboardKicker">01 / YOUR WALLET IDENTITY</span>
-      <h2>Make it yours.</h2>
-      <p>Your email signs you into the design studio. Your wallet choices are a blueprint, not a live key or funded wallet.</p>
-      <label for="onboardName">Name your wallet</label><input id="onboardName" maxlength="40" autocomplete="off" placeholder="Example: Midnight Vault" required>
-      <fieldset><legend>Which chains should it be designed for?</legend><div class="onboardChoices" id="onboardNetworks"></div></fieldset>
-      <fieldset><legend>Choose a visual direction</legend><div class="onboardChoices" id="onboardStyles"></div></fieldset>
-      <p class="onboardError" id="onboardOneError" role="alert"></p>
-      <div class="onboardActions"><button class="onboardButton" type="submit">Next: give it character →</button></div>
-    </form>
-    <form class="onboardPage" id="onboardTwo" hidden>
-      <span class="onboardKicker">02 / CONTROL AND CAPABILITIES</span>
-      <h2>How should it work?</h2>
-      <p>Pick a custody design and a few starting traits. Everything remains editable in Studio.</p>
-      <fieldset><legend>Who controls the keys?</legend><div class="onboardChoices" id="onboardCustody"></div></fieldset>
-      <fieldset><legend>Which assets matter most?</legend><div class="onboardChoices" id="onboardAssets"></div></fieldset>
-      <fieldset><legend>What should it do?</legend><div class="onboardChoices" id="onboardFeatures"></div></fieldset>
-      <p class="onboardError" id="onboardTwoError" role="alert"></p>
-      <div class="onboardActions"><button id="onboardBack" class="onboardButton secondary" type="button">← Back</button><button class="onboardButton" type="submit">Open my Studio →</button></div>
-    </form>
+    <form class="onboardPage" id="onboardOne" hidden><span class="onboardKicker">01 / YOUR WALLET IDENTITY</span><h2>Make it yours.</h2><p>Your email signs you into the design studio. Your wallet choices are a blueprint, not a live key or funded wallet.</p><label for="onboardName">Name your wallet</label><input id="onboardName" maxlength="40" autocomplete="off" placeholder="Example: Midnight Vault" required><fieldset><legend>Which chains should it be designed for?</legend><div class="onboardChoices" id="onboardNetworks"></div></fieldset><fieldset><legend>Choose a visual direction</legend><div class="onboardChoices" id="onboardStyles"></div></fieldset><p class="onboardError" id="onboardOneError" role="alert"></p><div class="onboardActions"><button class="onboardButton" type="submit">Next: give it character →</button></div></form>
+    <form class="onboardPage" id="onboardTwo" hidden><span class="onboardKicker">02 / CONTROL AND CAPABILITIES</span><h2>How should it work?</h2><p>Pick a custody design and a few starting traits. Everything remains editable in Studio.</p><fieldset><legend>Who controls the keys?</legend><div class="onboardChoices" id="onboardCustody"></div></fieldset><fieldset><legend>Which assets matter most?</legend><div class="onboardChoices" id="onboardAssets"></div></fieldset><fieldset><legend>What should it do?</legend><div class="onboardChoices" id="onboardFeatures"></div></fieldset><p class="onboardError" id="onboardTwoError" role="alert"></p><div class="onboardActions"><button id="onboardBack" class="onboardButton secondary" type="button">← Back</button><button class="onboardButton" type="submit">Open my Studio →</button></div></form>
     <div class="onboardFoot">No seed phrase, private key, or payment is needed to design a wallet.</div>
   </div>
 </section>
 
-<!-- AI WALLET ARCHITECT -->
-<button id="walletAiFab" class="walletAiFab" type="button" aria-label="Open Wallet Architect">
-  ✦
-</button>
-
+<button id="walletAiFab" class="walletAiFab" type="button" aria-label="Open Wallet Architect">✦</button>
 <div id="walletAiBackdrop" class="walletAiBackdrop show"></div>
-
 <section id="walletAi" class="walletAi show" aria-label="Wallet Architect AI">
-
-  <header class="walletAiHeader">
-    <div class="walletAiTitle">
-      <div class="walletAiLogo">W</div>
-      <div>
-        <strong>Wallet Architect AI</strong>
-        <span><i></i> Cloudflare AI connected</span>
-      </div>
-    </div>
-
-    <button id="walletAiClose" class="walletAiClose" type="button" aria-label="Close AI chat">
-      ×
-    </button>
-  </header>
-
-  <div id="walletAiMessages" class="walletAiMessages">
-    <div class="walletAiRow assistant">
-      <div class="walletAiAvatar">W</div>
-      <div class="walletAiBubble">
-        <strong>Wallet Architect</strong>
-        <p>
-          Describe the wallet you want to build and I’ll help you shape the
-          networks, custody model, security, recovery and features.
-        </p>
-        <small>
-          Never enter a seed phrase, private key, password or recovery secret.
-        </small>
-      </div>
-    </div>
-  </div>
-
-  <div class="walletAiQuick">
-    <button type="button">Bitcoin + Litecoin self-custody wallet</button>
-    <button type="button">Secure DeFi wallet</button>
-    <button type="button">Simple wallet for beginners</button>
-  </div>
-
-  <form id="walletAiForm" class="walletAiComposer">
-    <textarea
-      id="walletAiInput"
-      rows="2"
-      maxlength="1400"
-      placeholder="Describe the wallet you want..."
-    ></textarea>
-
-    <button id="walletAiSend" type="submit">
-      Send
-    </button>
-  </form>
-
+  <header class="walletAiHeader"><div class="walletAiTitle"><div class="walletAiLogo">W</div><div><strong>Wallet Architect AI</strong><span><i></i> Cloudflare AI connected</span></div></div><button id="walletAiClose" class="walletAiClose" type="button" aria-label="Close AI chat">×</button></header>
+  <div id="walletAiMessages" class="walletAiMessages"><div class="walletAiRow assistant"><div class="walletAiAvatar">W</div><div class="walletAiBubble"><strong>Wallet Architect</strong><p>Describe the wallet you want to build and I’ll help you shape the networks, custody model, security, recovery and features.</p><small>Never enter a seed phrase, private key, password or recovery secret.</small></div></div></div>
+  <div class="walletAiQuick"><button type="button">Bitcoin + Litecoin self-custody wallet</button><button type="button">Secure DeFi wallet</button><button type="button">Simple wallet for beginners</button></div>
+  <form id="walletAiForm" class="walletAiComposer"><textarea id="walletAiInput" rows="2" maxlength="1400" placeholder="Describe the wallet you want..."></textarea><button id="walletAiSend" type="submit">Send</button></form>
 </section>
 
 <script>
 (() => {
-  const panel = document.getElementById("walletAi");
-  const backdrop = document.getElementById("walletAiBackdrop");
-  const fab = document.getElementById("walletAiFab");
-  const close = document.getElementById("walletAiClose");
-  const form = document.getElementById("walletAiForm");
-  const input = document.getElementById("walletAiInput");
-  const send = document.getElementById("walletAiSend");
-  const messages = document.getElementById("walletAiMessages");
-
-  const history = [];
-
-  function openChat() {
-    panel.classList.add("show");
-    backdrop.classList.add("show");
-    fab.classList.remove("show");
-    setTimeout(() => input.focus(), 100);
-  }
-
-  function closeChat() {
-    panel.classList.remove("show");
-    backdrop.classList.remove("show");
-    fab.classList.add("show");
-  }
-
-  close.addEventListener("click", closeChat);
-  fab.addEventListener("click", openChat);
-  backdrop.addEventListener("click", closeChat);
-
-  function addMessage(role, text) {
-    const row = document.createElement("div");
-    row.className = "walletAiRow " + role;
-
-    const avatar = document.createElement("div");
-    avatar.className = "walletAiAvatar";
-    avatar.textContent = role === "assistant" ? "W" : "YOU";
-
-    const bubble = document.createElement("div");
-    bubble.className = "walletAiBubble";
-
-    const label = document.createElement("strong");
-    label.textContent = role === "assistant"
-      ? "Wallet Architect"
-      : "You";
-
-    const p = document.createElement("p");
-    p.textContent = text;
-
-    bubble.append(label, p);
-    row.append(avatar, bubble);
-    messages.appendChild(row);
-
-    messages.scrollTop = messages.scrollHeight;
-  }
-
-  async function sendMessage(text) {
-    addMessage("user", text);
-
-    history.push({
-      role: "user",
-      content: text
-    });
-
-    send.disabled = true;
-    send.textContent = "Thinking";
-
-    const thinking = document.createElement("div");
-    thinking.className = "walletAiThinking";
-    thinking.textContent = "Wallet Architect is thinking…";
-    messages.appendChild(thinking);
-    messages.scrollTop = messages.scrollHeight;
-
-    try {
-      const response = await fetch("/machine/ai/chat", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({
-          messages: history.slice(-10)
-        })
-      });
-
-      const data = await response.json().catch(() => ({}));
-      thinking.remove();
-
-      if (!response.ok) {
-        throw new Error(data.error || "AI request failed");
-      }
-
-      const reply =
-        typeof data.response === "string"
-          ? data.response
-          : "I couldn't generate a response.";
-
-      history.push({
-        role: "assistant",
-        content: reply
-      });
-
-      addMessage("assistant", reply);
-
-    } catch (error) {
-      thinking.remove();
-
-      addMessage(
-        "assistant",
-        "The AI connection is temporarily unavailable. Please try again."
-      );
-
-      console.error(error);
-
-    } finally {
-      send.disabled = false;
-      send.textContent = "Send";
-      input.focus();
-    }
-  }
-
-  form.addEventListener("submit", event => {
-    event.preventDefault();
-
-    const value = input.value.trim();
-    if (!value) return;
-
-    input.value = "";
-    sendMessage(value);
-  });
-
-  input.addEventListener("keydown", event => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      form.requestSubmit();
-    }
-  });
-
-  document.querySelectorAll(".walletAiQuick button")
-    .forEach(button => {
-      button.addEventListener("click", () => {
-        input.value = button.textContent;
-        form.requestSubmit();
-      });
-    });
-
-  closeChat();
+  const panel=document.getElementById("walletAi"),backdrop=document.getElementById("walletAiBackdrop"),fab=document.getElementById("walletAiFab"),close=document.getElementById("walletAiClose"),form=document.getElementById("walletAiForm"),input=document.getElementById("walletAiInput"),send=document.getElementById("walletAiSend"),messages=document.getElementById("walletAiMessages");
+  const history=[];
+  function openChat(){panel.classList.add("show");backdrop.classList.add("show");fab.classList.remove("show");setTimeout(()=>input.focus(),100)}
+  function closeChat(){panel.classList.remove("show");backdrop.classList.remove("show");fab.classList.add("show")}
+  close.addEventListener("click",closeChat);fab.addEventListener("click",openChat);backdrop.addEventListener("click",closeChat);
+  function addMessage(role,text){const row=document.createElement("div");row.className="walletAiRow "+role;const avatar=document.createElement("div");avatar.className="walletAiAvatar";avatar.textContent=role==="assistant"?"W":"YOU";const bubble=document.createElement("div");bubble.className="walletAiBubble";const label=document.createElement("strong");label.textContent=role==="assistant"?"Wallet Architect":"You";const p=document.createElement("p");p.textContent=text;bubble.append(label,p);row.append(avatar,bubble);messages.appendChild(row);messages.scrollTop=messages.scrollHeight}
+  async function sendMessage(text){addMessage("user",text);history.push({role:"user",content:text});send.disabled=true;send.textContent="Thinking";const thinking=document.createElement("div");thinking.className="walletAiThinking";thinking.textContent="Wallet Architect is thinking…";messages.appendChild(thinking);messages.scrollTop=messages.scrollHeight;try{const response=await fetch("/machine/ai/chat",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({messages:history.slice(-10)})});const data=await response.json().catch(()=>({}));thinking.remove();if(!response.ok)throw new Error(data.error||"AI request failed");const reply=typeof data.response==="string"?data.response:"I couldn't generate a response.";history.push({role:"assistant",content:reply});addMessage("assistant",reply)}catch(error){thinking.remove();addMessage("assistant","The AI connection is temporarily unavailable. Please try again.");console.error(error)}finally{send.disabled=false;send.textContent="Send";input.focus()}}
+  form.addEventListener("submit",event=>{event.preventDefault();const value=input.value.trim();if(!value)return;input.value="";sendMessage(value)});input.addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();form.requestSubmit()}});document.querySelectorAll(".walletAiQuick button").forEach(button=>button.addEventListener("click",()=>{input.value=button.textContent;form.requestSubmit()}));closeChat();
 })();
 </script>
-
-<script src="/human/onboarding.js?v=1" defer></script>
-
+<script src="/human-onboarding.js?v=2" defer></script>
 </body>
 </html>

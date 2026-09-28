@@ -58,12 +58,16 @@ solely based on what the user wants, as many features as options."
 - The known see.io site URL redirects HUMAN pages and direct HUMAN API paths
   to the Cloudflare-protected canonical hostname, while its landing and agent
   discovery remain open.
-- Cloudflare Access verifies HUMAN email before entry. The Worker creates a
-  pseudonymous D1 account record on /human/account without storing the raw
-  email. Two onboarding screens feed the name, chains, style, custody, assets
-  and features into the Studio. Studio shows an illustrative interactive phone
-  concept and final blueprint exports. The uploaded Android APK is only a
-  WebView wrapper and is not presented as a functional wallet download.
+- The routed HUMAN flow runs from `/human/setup` through identity, custody,
+  chains and security, then into the marketplace-style Studio, mainnet-only
+  release, $1.99 crypto payment and download screens. Browser-local choices survive backward
+  navigation. Bitcoin, TRON and Solana decorate the left side of desktop setup
+  screens; Ethereum, BNB and Litecoin decorate the right.
+- Cloudflare Access verifies HUMAN email for protected account and release
+  services. The Worker creates a pseudonymous D1 account record on
+  `/human/account` without storing the raw email. The download screen exposes
+  an APK link only when the build API reports a completed signed artifact. The
+  uploaded WebView and Cordova wrappers are not presented as functional wallets.
 - A later 3.4 MB uploaded APK is an unmodified Cordova Hello World template.
   The independent `android-studio/` project imports Studio JSON and draws an
   offline design preview; CI labels its debug APK as a preview. It cannot

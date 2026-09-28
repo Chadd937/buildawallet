@@ -5,25 +5,15 @@
   "workers_dev": false,
   "preview_urls": false,
   "routes": [
-    { "pattern": "buildawallet.xyz/", "zone_name": "buildawallet.xyz" },
     { "pattern": "buildawallet.xyz/machine/*", "zone_name": "buildawallet.xyz" },
-    { "pattern": "buildawallet.xyz/human", "zone_name": "buildawallet.xyz" },
-    { "pattern": "buildawallet.xyz/human.css", "zone_name": "buildawallet.xyz" },
-    { "pattern": "buildawallet.xyz/human/*", "zone_name": "buildawallet.xyz" },
-    { "pattern": "buildawallet.xyz/app.js", "zone_name": "buildawallet.xyz" },
-    { "pattern": "buildawallet.xyz/pay", "zone_name": "buildawallet.xyz" }
-    ,{ "pattern": "buildawallet.xyz/mcp", "zone_name": "buildawallet.xyz" }
-    ,{ "pattern": "buildawallet.xyz/.well-known/agent.json", "zone_name": "buildawallet.xyz" }
-    ,{ "pattern": "buildawallet.xyz/llms.txt", "zone_name": "buildawallet.xyz" }
-    ,{ "pattern": "buildawallet.xyz/agent-offer.json", "zone_name": "buildawallet.xyz" }
-    ,{ "pattern": "buildawallet.xyz/openapi.json", "zone_name": "buildawallet.xyz" }
-    ,{ "pattern": "buildawallet.xyz/api-docs", "zone_name": "buildawallet.xyz" }
-    ,{ "pattern": "buildawallet.xyz/api-docs/*", "zone_name": "buildawallet.xyz" }
-    ,{ "pattern": "buildawallet.xyz/docs/api", "zone_name": "buildawallet.xyz" }
-    ,{ "pattern": "buildawallet.xyz/docs", "zone_name": "buildawallet.xyz" }
-    ,{ "pattern": "buildawallet.xyz/pricing", "zone_name": "buildawallet.xyz" }
-    ,{ "pattern": "buildawallet.xyz/terms", "zone_name": "buildawallet.xyz" }
-    ,{ "pattern": "buildawallet.xyz/privacy", "zone_name": "buildawallet.xyz" }
+    { "pattern": "buildawallet.xyz/mcp", "zone_name": "buildawallet.xyz" },
+    { "pattern": "buildawallet.xyz/.well-known/agent.json", "zone_name": "buildawallet.xyz" },
+    { "pattern": "buildawallet.xyz/llms.txt", "zone_name": "buildawallet.xyz" },
+    { "pattern": "buildawallet.xyz/agent-offer.json", "zone_name": "buildawallet.xyz" },
+    { "pattern": "buildawallet.xyz/openapi.json", "zone_name": "buildawallet.xyz" },
+    { "pattern": "buildawallet.xyz/api-docs", "zone_name": "buildawallet.xyz" },
+    { "pattern": "buildawallet.xyz/api-docs/*", "zone_name": "buildawallet.xyz" },
+    { "pattern": "buildawallet.xyz/docs/api", "zone_name": "buildawallet.xyz" }
   ],
   "ai": { "binding": "AI" },
   "services": [

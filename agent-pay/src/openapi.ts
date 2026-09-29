@@ -3,7 +3,7 @@ import { publicPlans } from "./plans";
 const response = (description: string, schema: object = { type: "object" }) => ({ description,
   content: { "application/json": { schema } } });
 const errorResponses = {
-  "400": response("Invalid chain, address, signature, plan, or request body"),
+  "400": response("Invalid chain, address, transaction, plan, or request body"),
   "401": response("Missing or expired wallet session or API key"),
   "402": response("Subscription required or x402 payment challenge"),
   "409": response("Pending receipt, replayed transaction, or used challenge"),
@@ -12,136 +12,106 @@ const errorResponses = {
 };
 const pathParam = (name: string, description: string) => ({ name, in: "path", required: true,
   description, schema: { type: "string" } });
-const secured = (summary: string, description: string, parameters: any[]) => ({ tags: ["Subscription API"],
+const securedRead = (summary: string, description: string, parameters: any[]) => ({ tags: ["Subscription API"],
   summary, description, security: [{ ApiKey: [] }], parameters,
-  responses: { "200": response("Read-only mainnet data; one API unit consumed", { oneOf: [
-    { $ref: "#/components/schemas/WalletSnapshot" }, { $ref: "#/components/schemas/UsdcBalance" },
-    { $ref: "#/components/schemas/TransactionStatus" },
-  ] }), ...errorResponses } });
+  responses: { "200": response("Mainnet data; one API unit consumed"), ...errorResponses } });
+const txBody = (chain: "base" | "solana") => ({ required: true, content: { "application/json": { schema: {
+  type: "object", required: ["from", "to", "asset", "amountAtomic"], properties: {
+    from: { type: "string" }, to: { type: "string" }, asset: { enum: ["native", "usdc"] },
+    amountAtomic: { type: "string", pattern: "^[0-9]+$" },
+    ...(chain === "base" ? { data: { type: "string", description: "Optional even-length hex data for native Base transfers" } } : {
+      sourceTokenAccount: { type: "string", description: "Required for Solana USDC" },
+      destinationTokenAccount: { type: "string", description: "Required for Solana USDC" },
+    }),
+  },
+} } } });
 const apiPaths: Record<string, object> = {};
-for (const chain of ["base", "solana"]) {
-  apiPaths[`/machine/v1/${chain}/wallet/{address}`] = { get: secured(`${chain} native wallet snapshot`,
-    `Public ${chain} mainnet native balance and chain position. No signing or custody.`,
-    [pathParam("address", `${chain} public wallet address`)]) };
-  apiPaths[`/machine/v1/${chain}/usdc/{address}`] = { get: secured(`${chain} USDC balance`,
-    `Public native USDC token balance on ${chain} mainnet (6 decimals).`,
-    [pathParam("address", `${chain} public wallet address`)]) };
-  apiPaths[`/machine/v1/${chain}/transaction/{tx}`] = { get: secured(`${chain} transaction status`,
-    `Public receipt or signature status. An unknown transaction returns found=false; no submission occurs.`,
+for (const chain of ["base", "solana"] as const) {
+  apiPaths[`/machine/v1/${chain}/wallet/{address}`] = { get: securedRead(`${chain} native wallet snapshot`,
+    `Public ${chain} mainnet native balance and chain position.`, [pathParam("address", `${chain} public wallet address`)]) };
+  apiPaths[`/machine/v1/${chain}/usdc/{address}`] = { get: securedRead(`${chain} USDC balance`,
+    `Public native USDC token balance on ${chain} mainnet.`, [pathParam("address", `${chain} public wallet address`)]) };
+  apiPaths[`/machine/v1/${chain}/transaction/{tx}`] = { get: securedRead(`${chain} transaction status`,
+    "Public receipt or signature status. An unknown transaction returns found=false.",
     [pathParam("tx", `${chain} transaction hash or signature`)]) };
   apiPaths[`/machine/v1/${chain}/snapshot/{address}`] = { get: { tags: ["Subscription API"],
-    summary: `${chain} native and USDC snapshot`,
-    description: "Two API units on every plan, including Starter. Native balance and USDC balance are separate RPC reads. The context reports a Base block or Solana slots where available; the result is not an atomic chain snapshot. Failed reads are not metered.",
+    summary: `${chain} native and USDC snapshot`, description: "Two API units. Native and USDC are independent RPC reads, not an atomic snapshot.",
     security: [{ ApiKey: [] }], parameters: [pathParam("address", `${chain} public wallet address`)],
-    responses: { "200": response("Composite snapshot; two API units consumed", { $ref: "#/components/schemas/CompositeSnapshot" }),
-      ...errorResponses } } };
+    responses: { "200": response("Composite snapshot; two units consumed"), ...errorResponses } } };
+  apiPaths[`/machine/v1/${chain}/transaction/prepare`] = { post: { tags: ["Transactions"],
+    summary: `Prepare ${chain} native or USDC transaction`,
+    description: chain === "base" ?
+      "Returns an unsigned EIP-1559 Base mainnet transaction with current nonce, gas estimate and fee fields. The caller signs locally. BuildAWallet never accepts a private key." :
+      "Returns a serialized unsigned Solana legacy transaction with a zeroed signature slot. For USDC, provide source and destination token accounts. The caller signs locally. BuildAWallet never accepts a private key.",
+    security: [{ ApiKey: [] }], requestBody: txBody(chain),
+    responses: { "200": response("Wallet-signable transaction preparation; one API unit consumed"), ...errorResponses } } };
+  apiPaths[`/machine/v1/${chain}/transaction/broadcast`] = { post: { tags: ["Transactions"],
+    summary: `Broadcast already-signed ${chain} transaction`,
+    description: chain === "base" ?
+      "Relays raw signed EVM transaction hex using eth_sendRawTransaction. Signing is external to BuildAWallet." :
+      "Relays an already-signed base64 Solana transaction using sendTransaction with preflight enabled. Signing is external to BuildAWallet.",
+    security: [{ ApiKey: [] }], requestBody: { required: true, content: { "application/json": { schema: {
+      type: "object", required: [chain === "base" ? "signedTransaction" : "signedTransactionBase64"], properties:
+        chain === "base" ? { signedTransaction: { type: "string" } } : { signedTransactionBase64: { type: "string" } },
+    } } } }, responses: { "200": response("Submitted transaction ID; one API unit consumed"), ...errorResponses } } };
 }
 
 export const openapi = {
   openapi: "3.1.0",
-  info: { title: "BuildAWallet mainnet read API", version: "1.1.0",
-    description: `Free HUMAN wallet design and implementation blueprint, plus paid read-only Base and Solana mainnet data for people and agents. The three manual 30-day plans cover only API usage. Subscribe with a wallet signature and exact USDC transfer, then issue a bearer API key. The per-request x402 endpoints remain available separately. No deployed private-key wallet, custody, transaction submission, swap, or signing service is offered.`,
-    contact: { url: "https://buildawallet.xyz/pay" } },
+  info: {
+    title: "BuildAWallet mainnet API",
+    version: "1.2.0",
+    description: "Free HUMAN wallet design and configured signed-APK release, plus paid Base and Solana machine API/MCP services. Subscribed callers can read public chain data, prepare wallet-signable native/USDC transactions, and broadcast already-signed transactions. BuildAWallet does not accept private keys, seed phrases, or sign transactions for callers.",
+    contact: { url: "https://buildawallet.xyz/pay" },
+  },
   servers: [{ url: "https://buildawallet.xyz", description: "Mainnet production" }],
   tags: [
     { name: "Discovery", description: "Public machine-readable service information" },
-    { name: "HUMAN design", description: "Free design plan after Cloudflare Access sign-in; no wallet payment" },
-    { name: "Wallet subscription", description: "Sign a wallet message, pay exact USDC, verify onchain receipt, manage API key" },
-    { name: "Subscription API", description: "Bearer key and metered, read-only mainnet data" },
-    { name: "Pay per request", description: "x402 HTTP 402 USDC challenge on either Base or Solana" },
+    { name: "HUMAN design", description: "Free HUMAN design and release flow" },
+    { name: "Wallet subscription", description: "Wallet-authenticated USDC API subscription management" },
+    { name: "Subscription API", description: "Bearer-key metered Base/Solana reads" },
+    { name: "Transactions", description: "Bearer-key non-custodial preparation and signed-transaction broadcast" },
+    { name: "Pay per request", description: "x402 native-wallet snapshots" },
   ],
   "x-buildawallet-plans": publicPlans(),
   "x-mcp-server": "https://buildawallet.xyz/mcp",
   paths: {
-    "/machine/info": { get: { tags: ["Discovery"], summary: "Capabilities and configured networks",
-      responses: { "200": response("Service information") } } },
+    "/machine/info": { get: { tags: ["Discovery"], summary: "Capabilities and configured networks", responses: { "200": response("Service information") } } },
     "/machine/quote": { get: { tags: ["Discovery"], summary: "Free read price and API-unit quote",
-      description: "Choose chain=base|solana, kind=wallet|usdc|transaction|snapshot, access=x402|subscription. x402 supports wallet only. A quote never authorizes payment or reserves a price. Fetch the live 402 challenge before signing.",
       parameters: ["chain", "kind", "access"].map(name => ({ name, in: "query", required: true, schema: { type: "string" } })),
-      responses: { "200": response("Supported resource, price or units, payment networks and MCP tool"),
-        "400": errorResponses["400"] } } },
-    "/machine/human/subscription": { get: { tags: ["Wallet subscription"], summary: "Prices and collector details",
-      description: "Always check available=true and read current collectors before paying. Prices are exact native USDC on the chosen network; renewals are manual.",
-      responses: { "200": response("Plans, token mints/contracts and official collector wallets") } } },
-    "/machine/human/challenge": { post: { tags: ["Wallet subscription"], summary: "Request a one-use login challenge",
-      requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["chain", "wallet"],
-        properties: { chain: { enum: ["base", "solana"] }, wallet: { type: "string" } } } } } },
-      responses: { "200": response("Exact message and nonce; sign the message, not a transaction"), ...errorResponses } } },
-    "/machine/human/login": { post: { tags: ["Wallet subscription"], summary: "Exchange signature for a wallet session",
-      description: "Base uses personal_sign; Solana signs the UTF-8 challenge with Ed25519, signature encoded in base64. Session token expires after 30 days.",
-      requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["nonce", "signature"],
-        properties: { nonce: { type: "string", pattern: "^[0-9a-f]{64}$" }, signature: { type: "string" } } } } } },
-      responses: { "200": response("Bearer wallet session token"), ...errorResponses } } },
-    "/machine/human/confirm": { post: { tags: ["Wallet subscription"], summary: "Verify exact onchain payment and unlock",
-      description: "Requires a wallet session from the paying wallet. The receipt must be confirmed, sent from that wallet, in native USDC, to the configured chain collector, for the selected plan's exact amount, and unused. Verification does not initiate a payment. Reusing a transaction is rejected.",
-      security: [{ WalletSession: [] }],
-      requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["plan", "tx"],
-        properties: { plan: { enum: ["builder", "pro", "scale"] }, tx: { type: "string" } } } } } },
-      responses: { "200": response("Paid plan and expiration"), ...errorResponses } } },
-    "/machine/human/status": { get: { tags: ["Wallet subscription"], summary: "Wallet plan status",
-      security: [{ WalletSession: [] }], responses: { "200": response("Plan, expiry and API key existence"), ...errorResponses } } },
-    "/machine/human/payments": { get: { tags: ["Wallet subscription"], summary: "Verified subscription payment history",
-      description: "Returns up to 50 verified subscription transfers for the authenticated paying wallet, newest first. Per-call x402 receipts are returned with each paid response and are not included here.",
-      security: [{ WalletSession: [] }], responses: { "200": response("Wallet-scoped subscription payments"),
-        ...errorResponses } } },
-    "/machine/human/api-key": { post: { tags: ["Wallet subscription"], summary: "Issue or rotate API key",
-      description: "Requires an active plan. The key is returned once; save it securely. Rotating immediately revokes the previous key. API keys are stored as SHA-256 hashes.",
-      security: [{ WalletSession: [] }], responses: { "200": response("One-time API key; never returned again"), ...errorResponses } },
-      delete: { tags: ["Wallet subscription"], summary: "Revoke API key", security: [{ WalletSession: [] }],
-        responses: { "200": response("Revoked"), ...errorResponses } } },
+      responses: { "200": response("Supported resource quote"), "400": errorResponses["400"] } } },
+    "/machine/human/subscription": { get: { tags: ["Wallet subscription"], summary: "Current API plans and collectors",
+      responses: { "200": response("Plans, token contracts/mints and collectors") } } },
+    "/machine/human/challenge": { post: { tags: ["Wallet subscription"], summary: "Request one-use login challenge",
+      responses: { "200": response("Message and nonce"), ...errorResponses } } },
+    "/machine/human/login": { post: { tags: ["Wallet subscription"], summary: "Exchange wallet signature for session",
+      responses: { "200": response("Wallet session token"), ...errorResponses } } },
+    "/machine/human/confirm": { post: { tags: ["Wallet subscription"], summary: "Verify exact onchain API-plan payment",
+      security: [{ WalletSession: [] }], responses: { "200": response("Paid plan and expiration"), ...errorResponses } } },
+    "/machine/human/status": { get: { tags: ["Wallet subscription"], summary: "Wallet plan status", security: [{ WalletSession: [] }],
+      responses: { "200": response("Plan status"), ...errorResponses } } },
+    "/machine/human/payments": { get: { tags: ["Wallet subscription"], summary: "Verified API subscription payments", security: [{ WalletSession: [] }],
+      responses: { "200": response("Payment history"), ...errorResponses } } },
+    "/machine/human/api-key": { post: { tags: ["Wallet subscription"], summary: "Issue or rotate API key", security: [{ WalletSession: [] }],
+      responses: { "200": response("One-time API key"), ...errorResponses } },
+      delete: { tags: ["Wallet subscription"], summary: "Revoke API key", security: [{ WalletSession: [] }], responses: { "200": response("Revoked"), ...errorResponses } } },
     "/machine/human/blueprint": { post: { tags: ["HUMAN design"], summary: "Free HUMAN implementation blueprint",
-      description: "Returns a staged implementation design from your spec after Cloudflare Access sign-in. No wallet payment or API subscription is required. It is a planning document, not a functional Android wallet or APK.",
-      security: [{ AccessSession: [] }], requestBody: { required: true, content: { "application/json": {
-        schema: { type: "object", properties: { spec: { type: "object", additionalProperties: true } }, required: ["spec"] } } } },
-      responses: { "200": response("Implementation blueprint"), ...errorResponses } } },
-    "/human/account": { get: { tags: ["HUMAN design"], summary: "Verified HUMAN account bootstrap",
-      description: "Cloudflare Access email verification precedes this route. Creates or revisits a pseudonymous D1 account keyed by the hashed Access identity. Returns the verified email to the active browser; raw email is not saved in D1.",
-      security: [{ AccessSession: [] }],
-      responses: { "200": response("Verified account and creation time"), "403": response("Cloudflare Access sign-in required"),
-        "503": response("Account storage unavailable") } } },
-    "/machine/v1/usage": { get: { tags: ["Subscription API"], summary: "Quota and renewal window",
-      security: [{ ApiKey: [] }], responses: { "200": response("Used and remaining units; no unit charged"), ...errorResponses } } },
+      security: [{ AccessSession: [] }], responses: { "200": response("Implementation blueprint"), ...errorResponses } } },
+    "/human/account": { get: { tags: ["HUMAN design"], summary: "Verified HUMAN account bootstrap", security: [{ AccessSession: [] }],
+      responses: { "200": response("Verified account"), "403": response("Cloudflare Access sign-in required"), "503": response("Account storage unavailable") } } },
+    "/machine/v1/usage": { get: { tags: ["Subscription API"], summary: "Quota and renewal window", security: [{ ApiKey: [] }],
+      responses: { "200": response("Used and remaining units; no unit charged"), ...errorResponses } } },
     ...apiPaths,
-    "/machine/v1/batch": { post: { tags: ["Subscription API"], summary: "Batch wallet and USDC balances",
-      description: "Pro supports at most 10 queries, Scale at most 50. Builder does not include batching. Each successful query costs one API unit; the batch is all-or-nothing for metering. Invalid input and upstream failure do not consume units.",
-      security: [{ ApiKey: [] }], requestBody: { required: true, content: { "application/json": {
-        schema: { type: "object", required: ["queries"], properties: { queries: { type: "array", minItems: 1, maxItems: 50,
-          items: { type: "object", required: ["chain", "kind", "address"], properties: {
-            chain: { enum: ["base", "solana"] }, kind: { enum: ["wallet", "usdc"] }, address: { type: "string" } } } } } },
-        example: { queries: [{ chain: "base", kind: "wallet", address: "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d" }] } } } },
+    "/machine/v1/batch": { post: { tags: ["Subscription API"], summary: "Batch wallet and USDC reads", security: [{ ApiKey: [] }],
       responses: { "200": response("Ordered results and units used"), ...errorResponses } } },
-    "/machine/wallet": { get: { tags: ["Pay per request"], summary: "x402 Base native wallet snapshot",
-      description: "$0.01 USDC via Base or Solana x402 exact scheme. HTTP 402 provides payment requirements; retry with payment signature. RPC snapshot is fetched before payment challenge.",
-      parameters: [{ name: "address", in: "query", required: true, schema: { type: "string" } }],
-      responses: { "200": response("Paid Base snapshot"), ...errorResponses } } },
-    "/machine/solana-wallet": { get: { tags: ["Pay per request"], summary: "x402 Solana SOL snapshot",
-      description: "$0.01 USDC via Base or Solana x402 exact scheme. HTTP 402 provides payment requirements.",
-      parameters: [{ name: "address", in: "query", required: true, schema: { type: "string" } }],
-      responses: { "200": response("Paid Solana snapshot"), ...errorResponses } } },
+    "/machine/wallet": { get: { tags: ["Pay per request"], summary: "x402 Base native wallet snapshot", responses: { "200": response("Paid Base snapshot"), ...errorResponses } } },
+    "/machine/solana-wallet": { get: { tags: ["Pay per request"], summary: "x402 Solana native wallet snapshot", responses: { "200": response("Paid Solana snapshot"), ...errorResponses } } },
   },
   components: { securitySchemes: {
-    ApiKey: { type: "http", scheme: "bearer", bearerFormat: "baw_live_ API key", description: "Issue via wallet session after payment" },
-    WalletSession: { type: "http", scheme: "bearer", description: "One-use wallet signature login session" },
-    AccessSession: { type: "apiKey", in: "cookie", name: "CF_Authorization", description: "Cloudflare Access verified-email session for HUMAN design routes" },
-  }, schemas: {
-    WalletSnapshot: { type: "object", properties: { chain: { type: "string" }, address: { type: "string" },
-      balanceWei: { type: "string" }, balanceEth: { type: "string" }, balanceLamports: { type: "string" },
-      balanceSol: { type: "string" }, transactionCount: { type: "integer" }, blockNumber: { type: "integer" }, slot: { type: "integer" } } },
-    UsdcBalance: { type: "object", required: ["chain", "address", "token", "balanceAtomic", "balanceUSDC"], properties: {
-      chain: { enum: ["base", "solana"] }, address: { type: "string" }, token: { type: "string" },
-      symbol: { const: "USDC" }, decimals: { const: 6 }, balanceAtomic: { type: "string" }, balanceUSDC: { type: "string" } } },
-    TransactionStatus: { type: "object", properties: { chain: { enum: ["base", "solana"] }, tx: { type: "string" },
-      found: { type: "boolean" }, success: { type: "boolean" }, blockNumber: { type: "integer" },
-      slot: { type: "integer" }, confirmationStatus: { type: "string" }, explorer: { type: "string", format: "uri" } } },
-    CompositeSnapshot: { type: "object", required: ["chain", "address", "native", "usdc", "units", "observedAt", "context"],
-      properties: { chain: { enum: ["base", "solana"] }, address: { type: "string" },
-        native: { $ref: "#/components/schemas/WalletSnapshot" },
-        usdc: { $ref: "#/components/schemas/UsdcBalance" }, units: { const: 2 },
-        observedAt: { type: "string", format: "date-time" },
-        context: { type: "object", properties: { nativeBlock: { type: ["integer", "null"] },
-          nativeSlot: { type: ["integer", "null"] }, usdcSlot: { type: ["integer", "null"] },
-          consistency: { const: "independent confirmed or latest RPC reads" } } } } },
+    ApiKey: { type: "http", scheme: "bearer", bearerFormat: "baw_live_ API key", description: "Paid machine API key" },
+    WalletSession: { type: "http", scheme: "bearer", description: "Wallet-signature login session" },
+    AccessSession: { type: "apiKey", in: "cookie", name: "CF_Authorization", description: "Cloudflare Access HUMAN session" },
   } },
 } as const;
 
-export const swaggerHtml = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BuildAWallet API reference</title><link rel="stylesheet" href="/api-docs/swagger-ui.css"><style>body{margin:0;background:#f7fbf7;color:#12231a;font:16px system-ui}header{background:#092113;color:#e7ffdd;padding:20px 5%}header a{color:#9cf391;margin-right:20px}header h1{margin:10px 0 0}main{max-width:1100px;margin:20px auto;padding:0 20px}.intro{padding:24px;background:#e8f7e4;border-radius:16px}.intro code{word-break:break-all}#swagger-ui{margin-top:24px}</style></head><body><header><a href="/">BuildAWallet</a><a href="/pay">API plans</a><a href="/machine/openapi.json">OpenAPI JSON</a><h1>Mainnet API reference</h1></header><main><div class="intro"><p>The HUMAN builder and detailed design plan are free after Cloudflare sign-in. Paid plans cover read-only Base and Solana API access only: Starter $12 / 500 units, Pro $39 / 5,000, Scale $99 / 25,000, each for 30 days. Pay USDC on either chain, confirm the receipt, issue an API key, then use the endpoints below. Single reads cost one unit; a composite native and USDC snapshot costs two. Reads are not atomic. x402 pay-per-request remains $0.01 for native wallet snapshots.</p><p>Example: <code>curl -H &quot;Authorization: Bearer $BAW_API_KEY&quot; https://buildawallet.xyz/machine/v1/base/snapshot/0xBcCA6AED433d9020C50D44560F9679F1B5eB511d</code></p><p>Free quote: <code>/machine/quote?chain=base&amp;kind=wallet&amp;access=x402</code>. MCP endpoint: <code>https://buildawallet.xyz/mcp</code> with a subscriber key for metered tools, or x402 on the pay-per-call wallet tools. Payers sign locally. The API observes public chain state and does not sign or submit transactions.</p></div><div id="swagger-ui"><p>Loading Swagger UI... You can also read the <a href="/machine/openapi.json">OpenAPI JSON</a>.</p></div></main><script src="/api-docs/swagger-ui-bundle.js"></script><script>if(window.SwaggerUIBundle)SwaggerUIBundle({url:'/machine/openapi.json',dom_id:'#swagger-ui',deepLinking:true,displayRequestDuration:true,persistAuthorization:false});</script></body></html>`;
+export const swaggerHtml = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BuildAWallet API reference</title><link rel="stylesheet" href="/api-docs/swagger-ui.css"><style>body{margin:0;background:#f7fbf7;color:#12231a;font:16px system-ui}header{background:#092113;color:#e7ffdd;padding:20px 5%}header a{color:#9cf391;margin-right:20px}header h1{margin:10px 0 0}main{max-width:1100px;margin:20px auto;padding:0 20px}.intro{padding:24px;background:#e8f7e4;border-radius:16px}code{word-break:break-all}</style></head><body><header><a href="/">BuildAWallet</a><a href="/pay">Machine API plans</a><a href="/machine/openapi.json">OpenAPI JSON</a><h1>Mainnet API reference</h1></header><main><div class="intro"><p>HUMAN wallet creation and configured Android release are free. Paid plans cover machine API/MCP usage. Base and Solana callers can read public data, prepare wallet-signable native or USDC transactions, and broadcast already-signed transactions. Private keys and seed phrases never belong in this API.</p><p>Example read: <code>curl -H &quot;Authorization: Bearer $BAW_API_KEY&quot; https://buildawallet.xyz/machine/v1/base/snapshot/0xBcCA6AED433d9020C50D44560F9679F1B5eB511d</code></p></div><div id="swagger-ui"><p>Loading Swagger UI...</p></div></main><script src="/api-docs/swagger-ui-bundle.js"></script><script>if(window.SwaggerUIBundle)SwaggerUIBundle({url:'/machine/openapi.json',dom_id:'#swagger-ui',deepLinking:true,displayRequestDuration:true,persistAuthorization:false});</script></body></html>`;

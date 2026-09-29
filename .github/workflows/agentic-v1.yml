@@ -26,11 +26,32 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
       - name: Compile
-        run: python -m py_compile main.py agent_protocol.py chains.py evm.py solana_adapter.py utxo_adapter.py pricing.py wallet_crypto.py mcp_server.py app/brain.py app/catalog.py
+        run: python -m py_compile main.py human_worker.py agent_protocol.py chains.py evm.py solana_adapter.py utxo_adapter.py pricing.py wallet_crypto.py mcp_server.py app/brain.py app/catalog.py
       - name: Test
         run: pytest -q
       - name: Ensure no database is tracked
         run: test -z "$(git ls-files 'data/*.db*')"
+
+  human-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: human-app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: human-app/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build production HUMAN bundle
+        run: npm run build
+
   machine-worker:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -52,6 +73,7 @@ jobs:
         run: npm run typecheck && npm test
       - name: Check Wrangler bundle
         run: npx wrangler deploy --config wrangler.jsonc --dry-run
+
   android-studio-preview:
     runs-on: ubuntu-24.04
     timeout-minutes: 20

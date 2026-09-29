@@ -1,11 +1,28 @@
 # HUMAN API on Cloudflare Workers
 
-This project runs the existing wallet architect in a Python Worker. Pages continues to serve the `static/` directory. D1 stores saved blueprints, gallery entries, and stats. It does not hold signing keys or implement `/v1`.
+This project runs the HUMAN wallet architect in a Python Worker. Pages serves the frontend from `static/`. D1 stores saved blueprints, gallery entries, stats, and shared machine-API account tables. HUMAN wallet creation and release are free; the shared entitlement/payment tables are for the paid machine API, not a HUMAN paywall.
 
-New blueprint links use 26 random characters. Anyone holding the link can read
-that design, including when it is not listed in the public gallery. The public
-save endpoint does not record email addresses and stats do not list private
-designs or their links. Migration 0002 clears email values from older rows.
+The Worker never stores seed phrases or signing keys.
+
+## HUMAN Android release
+
+The new HUMAN release flow uses:
+
+```text
+POST /api/human/build
+GET  /api/human/build/:buildId
+```
+
+It advertises a signed Android artifact only when `HUMAN_APK_URL` is configured to a valid HTTPS URL. `HUMAN_APK_SHA256` is optional but recommended.
+
+Example configuration:
+
+```text
+HUMAN_APK_URL=https://your-artifact-host.example/buildawallet-signed.apk
+HUMAN_APK_SHA256=<64 lowercase hex characters>
+```
+
+The build request contains wallet design metadata only. It does not contain a seed phrase, private key, or signing secret.
 
 ## Prepare and verify
 
@@ -17,7 +34,7 @@ cd cloudflare-human
 uv run pywrangler deploy --dry-run
 ```
 
-`prepare.sh` copies the canonical `app/brain.py`, `app/catalog.py`, and `human_worker.py` into this isolated Worker build. Never edit the copies in `src/`.
+`prepare.sh` copies the canonical `app/brain.py`, `app/catalog.py`, and `human_worker.py` into the isolated Worker build. Never edit the generated copies in `src/`.
 
 ## Provision and deploy
 
@@ -29,8 +46,16 @@ npx wrangler login
 ./deploy.sh
 ```
 
-The script creates the `buildawallet` D1 database if needed, applies its migrations (including the HUMAN subscription records), packages the Python Worker, deploys the `/api/*` and `/healthz` routes, and checks the public builder endpoints. The `agent-pay` Worker can call this Worker over a service binding at `/machine/human/*` even if the public `/api/*` route is not dispatched by the zone. It writes the real database ID into an ignored local config file. No local web server is involved.
+The script finds or creates the shared `buildawallet` D1 database, applies migrations, packages the Python Worker, and deploys the `/api/*` and `/healthz` routes. The `agent-pay` Worker can call this Worker over the `HUMAN_API` service binding.
 
-Keep the existing Pages custom domain attached for all other paths. The Pages project must use `static` as its build output directory and the repository root as its project root so that `functions/w/[code].js` can serve saved blueprint URLs. Test a chat, save, shared link, gallery, and stats after deployment.
+After the Worker exists, configure the APK release values with Wrangler before the final deployment. They may be stored as Worker secrets even though the URL itself is not sensitive:
 
-**Security:** Never put `AGENT_BOOTSTRAP_SECRET`, `BAW_MASTER_KEY`, or mainnet broadcast settings in this Worker. The `/v1` agent API is a separate migration and must remain unavailable until its key storage, policy checks, and durable transaction state are verified.
+```bash
+printf '%s' 'https://your-artifact-host.example/buildawallet-signed.apk' | npx wrangler secret put HUMAN_APK_URL --config wrangler.deploy.jsonc
+printf '%s' '<sha256>' | npx wrangler secret put HUMAN_APK_SHA256 --config wrangler.deploy.jsonc
+./deploy.sh
+```
+
+If you do not yet have the final signed APK URL, deploy the Worker without those values; `/api/human/build` will return 503 instead of pretending an APK exists. Configure the real artifact later and redeploy.
+
+Keep the Pages custom domain attached for frontend paths. The Pages project uses `static` as the published directory. Test `/human/setup`, the Studio, free release, `/pay` (machine API plans), chat/save/gallery, and `/healthz` after deployment.

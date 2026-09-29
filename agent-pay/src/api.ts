@@ -87,12 +87,14 @@ async function execute(c: any, queries: ReadQuery[], transaction?: { chain: "bas
   if (!c.env.BASE_RPC_URL?.startsWith("https://") || !c.env.SOLANA_RPC_URL?.startsWith("https://"))
     return c.json({ error: "Mainnet RPC unavailable" }, 503);
   try {
-    const auth = await authorized(c, queries.length + (transaction ? 1 : 0));
+    const auth = await authorized(c, 0);
     if (!auth.ok) return auth.response;
     const { user, state } = auth;
     const cost = queries.length + (transaction ? 1 : 0);
     if (!composite && cost > 1 && (!state.plan.batchLimit || cost > state.plan.batchLimit))
       return c.json({ error: `This plan allows batches of at most ${state.plan.batchLimit} queries` }, 403);
+    if (state.used + cost > state.plan.units)
+      return c.json({ error: "API quota exhausted", remaining: 0 }, 429);
     const results = [];
     for (const query of queries) results.push(await readQuery(c.env.BASE_RPC_URL, c.env.SOLANA_RPC_URL, query));
     if (transaction) results.push(await transactionStatus(transaction.chain,

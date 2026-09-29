@@ -10,7 +10,10 @@ const transactionResult = { chain: z.string(), tx: z.string(), found: z.boolean(
 const snapshotResult = { chain: z.string(), address: z.string(), native: z.record(z.string(), z.unknown()),
   usdc: z.record(z.string(), z.unknown()), units: z.number(), observedAt: z.string(),
   context: z.record(z.string(), z.unknown()) };
+const genericResult = { chain: z.string() };
 const readonly = { readOnlyHint: true, idempotentHint: true, openWorldHint: true };
+const prepareOnly = { readOnlyHint: true, idempotentHint: false, openWorldHint: true };
+const broadcast = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true };
 
 function result(data: unknown) {
   const value = data && typeof data === "object" && !Array.isArray(data) ? data as Record<string, unknown> : { value: data };
@@ -27,16 +30,17 @@ function decodeHeader(value: string | null): Record<string, unknown> | null {
   } catch { return null; }
 }
 
-// Each request receives its own server. Subscriber calls use the REST D1 meter;
-// x402 calls reuse the HTTP resource server and its two-chain payment rail.
 export async function handleMcp(request: Request, env: Env, forward: (request: Request) => Promise<Response>) {
-  const server = new McpServer({ name: "buildawallet", version: "1.1.0" });
+  const server = new McpServer({ name: "buildawallet", version: "1.2.0" });
   const clientIp = request.headers.get("CF-Connecting-IP");
-  const invoke = async (path: string) => {
+  const invoke = async (path: string, body?: Record<string, unknown>) => {
     const headers = new Headers({ Authorization: request.headers.get("Authorization") ?? "" });
     if (clientIp) headers.set("CF-Connecting-IP", clientIp);
+    if (body) headers.set("Content-Type", "application/json");
     const response = await forward(new Request(`${base}/machine/v1/${path}`, {
+      method: body ? "POST" : "GET",
       headers,
+      body: body ? JSON.stringify(body) : undefined,
     }));
     const data = await response.json().catch(() => ({ error: "API response unavailable" }));
     return response.ok ? result(data) : error(response.status, data);
@@ -74,12 +78,29 @@ export async function handleMcp(request: Request, env: Env, forward: (request: R
       annotations: readonly, inputSchema: { address: z.string().describe("Public wallet address") }, outputSchema: snapshotResult },
       ({ address }) => invoke(`${chain}/snapshot/${encodeURIComponent(address)}`));
 
+    server.registerTool(`${chain}_prepare_transaction`, { title: `${chain} prepare transaction`,
+      description: `Prepare a non-custodial ${chain} mainnet native or USDC transaction. One API unit. BuildAWallet never receives a private key and does not sign.`,
+      annotations: prepareOnly,
+      inputSchema: chain === "base" ? {
+        from: z.string(), to: z.string(), asset: z.enum(["native", "usdc"]), amountAtomic: z.string(), data: z.string().optional(),
+      } : {
+        from: z.string(), to: z.string(), asset: z.enum(["native", "usdc"]), amountAtomic: z.string(),
+        sourceTokenAccount: z.string().optional(), destinationTokenAccount: z.string().optional(),
+      }, outputSchema: genericResult },
+      (args: any) => invoke(`${chain}/transaction/prepare`, args));
+
+    server.registerTool(`${chain}_broadcast_transaction`, { title: `${chain} broadcast signed transaction`,
+      description: `Broadcast an already-signed ${chain} mainnet transaction. One API unit. BuildAWallet does not sign and never accepts a private key.`,
+      annotations: broadcast,
+      inputSchema: chain === "base" ? { signedTransaction: z.string() } : { signedTransactionBase64: z.string() },
+      outputSchema: genericResult },
+      (args: any) => invoke(`${chain}/transaction/broadcast`, args));
+
     server.registerTool(`${chain}_wallet_payg`, { title: `${chain} wallet, pay per call`,
       description: `Native ${chain} snapshot for $0.01 USDC on Base or Solana, through x402. No API key. The payer signs locally.`,
       annotations: readonly, inputSchema: { address: z.string().describe("Public wallet address") },
       outputSchema: readResult, _meta: { "agents-x402/paymentRequired": true, "agents-x402/priceUSD": 0.01 } },
       async ({ address }, extra) => {
-        // Credentials are sent only to our own HTTP x402 route, never to a third-party URL.
         const token = (extra as any)?._meta?.["x402/payment"] ?? request.headers.get("PAYMENT-SIGNATURE");
         if (token !== undefined && token !== null && (typeof token !== "string" || token.length > 16000))
           return error(400, "Invalid payment credential");

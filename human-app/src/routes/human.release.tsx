@@ -17,16 +17,6 @@ function ReleasePage() {
     setBusy(true);
     setError("");
     try {
-      const ent = await fetch("/api/human/entitlement", {
-        credentials: "include",
-        cache: "no-store",
-      });
-      const entitlement = await ent.json().catch(() => ({}));
-      if (!ent.ok || !entitlement.mainnet) {
-        window.localStorage.setItem("buildawallet-human-release-target", "mainnet");
-        navigate({ to: "/human/pay" });
-        return;
-      }
       const response = await fetch("/api/human/build", {
         method: "POST",
         credentials: "include",
@@ -35,11 +25,11 @@ function ReleasePage() {
       });
       const build = await response.json().catch(() => ({}));
       if (!response.ok || !build.buildId)
-        throw new Error(build.error || "Android build service is not configured yet.");
+        throw new Error(build.error || build.detail || "Android release is not configured yet.");
       window.localStorage.setItem("buildawallet-human-build-id", build.buildId);
       navigate({ to: "/human/download" });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not start the build.");
+      setError(e instanceof Error ? e.message : "Could not start the release.");
     } finally {
       setBusy(false);
     }
@@ -51,18 +41,19 @@ function ReleasePage() {
         <p className="font-mono text-[10px] uppercase text-primary">Release / {draft.name}</p>
         <h1 className="mt-2 font-display text-5xl">Release your mainnet wallet.</h1>
         <p className="mt-3 max-w-2xl text-muted-foreground">
-          Your design is ready. BuildAWallet uses a mainnet-only release flow protected by a $1.99
-          monthly crypto subscription.
+          HUMAN wallet creation and release are free. BuildAWallet never charges a HUMAN-side
+          subscription or payment gate to release the configured signed Android build.
         </p>
         <section className="choice-card mt-8 p-6" data-selected="true">
           <ShieldCheck className="size-8 text-accent" />
-          <h2 className="mt-4 font-display text-2xl">Mainnet release</h2>
+          <h2 className="mt-4 font-display text-2xl">Free mainnet release</h2>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            We verify your subscription before creating the release request. The download page stays
-            locked until the build service reports a completed signed APK.
+            Your selected design is sent only as build metadata. Seed phrases and private keys are
+            not part of the build request. When the signed APK release URL is configured, the build
+            service returns it immediately for download.
           </p>
           <div className="mt-5 font-display text-3xl">
-            $1.99 <span className="text-sm text-muted-foreground">/ month, crypto only</span>
+            $0 <span className="text-sm text-muted-foreground">HUMAN release</span>
           </div>
         </section>
         {error && (
@@ -78,7 +69,7 @@ function ReleasePage() {
           </Button>
           <Button variant="arcade" size="lg" onClick={startRelease} disabled={busy}>
             <Rocket />
-            {busy ? "Starting build…" : "Verify subscription & release"}
+            {busy ? "Preparing release…" : "Release free Android build"}
           </Button>
         </div>
       </main>

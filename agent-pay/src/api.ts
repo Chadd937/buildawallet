@@ -15,6 +15,7 @@ const api = new Hono<{ Bindings: Env }>();
 const now = () => Math.floor(Date.now() / 1000);
 type Account = { chain: "base" | "solana"; wallet: string; expires_at: number; plan_id: string };
 type UsageState = { plan: NonNullable<ReturnType<typeof planById>>; used: number; periodStart: number; expiresAt: number };
+type AuthResult = { ok: true; user: Account; state: UsageState } | { ok: false; response: Response };
 
 async function account(c: any): Promise<Account | null> {
   const key = /^Bearer (baw_live_[0-9a-f]{64})$/.exec(c.req.header("Authorization") ?? "")?.[1];
@@ -52,13 +53,13 @@ function meterHeaders(c: any, state: UsageState, used: number, cost: number) {
   c.header("Cache-Control", "no-store");
 }
 
-async function authorized(c: any, cost: number) {
+async function authorized(c: any, cost: number): Promise<AuthResult> {
   const user = await account(c);
-  if (!user) return { response: c.json({ error: "Active plan and API key required" }, 401) };
+  if (!user) return { ok: false, response: c.json({ error: "Active plan and API key required" }, 401) };
   const state = await usage(c, user);
-  if (!state) return { response: c.json({ error: "Unknown plan" }, 503) };
-  if (state.used + cost > state.plan.units) return { response: c.json({ error: "API quota exhausted", remaining: 0 }, 429) };
-  return { user, state };
+  if (!state) return { ok: false, response: c.json({ error: "Unknown plan" }, 503) };
+  if (state.used + cost > state.plan.units) return { ok: false, response: c.json({ error: "API quota exhausted", remaining: 0 }, 429) };
+  return { ok: true, user, state };
 }
 
 api.use("/*", async (c, next) => {
@@ -87,7 +88,7 @@ async function execute(c: any, queries: ReadQuery[], transaction?: { chain: "bas
     return c.json({ error: "Mainnet RPC unavailable" }, 503);
   try {
     const auth = await authorized(c, queries.length + (transaction ? 1 : 0));
-    if (auth.response) return auth.response;
+    if (!auth.ok) return auth.response;
     const { user, state } = auth;
     const cost = queries.length + (transaction ? 1 : 0);
     if (!composite && cost > 1 && (!state.plan.batchLimit || cost > state.plan.batchLimit))
@@ -116,7 +117,7 @@ async function paidTransactionAction(c: any, chain: "base" | "solana", kind: "pr
   if (!rpc?.startsWith("https://")) return c.json({ error: `${chain} mainnet RPC unavailable` }, 503);
   try {
     const auth = await authorized(c, 1);
-    if (auth.response) return auth.response;
+    if (!auth.ok) return auth.response;
     const { user, state } = auth;
     const body = await c.req.json().catch(() => null);
     if (!body || typeof body !== "object") return c.json({ error: "Valid JSON body required" }, 400);

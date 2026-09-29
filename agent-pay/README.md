@@ -1,172 +1,139 @@
-# BuildAWallet mainnet read API and machine payments
+# BuildAWallet machine API, MCP, and HUMAN release
 
-This is an isolated Cloudflare Worker in the existing BuildAWallet repository. It uses
-the `/machine/*` route on `buildawallet.xyz`; it does not mount the local signing prototype or handle private keys. It also serves the HUMAN pages and forwards builder calls through a service binding to the Python Worker. HUMAN designs and implementation plan downloads are free after Cloudflare Access sign-in. The read-only API plans cost $12, $39 and $99 USDC per 30 days for 500, 5,000 and 25,000 units. Pro and Scale support batches of 10 and 50. API keys are issued after payment verification; MCP calls use the same key and quota.
+`buildawallet-agent-pay` owns the paid machine surfaces under `/machine/*`, `/mcp`, discovery, and API docs. It does **not** own the Pages frontend. HUMAN wallet design and release remain free; paid plans apply only to machine API/MCP usage.
 
-Paid capabilities are `GET /machine/wallet?address=0x...` for Base mainnet
-native balance, transaction count and block, and
-`GET /machine/solana-wallet?address=...` for Solana mainnet SOL balance and slot.
-The Worker validates an address, obtains the complete snapshot from the
-configured chain RPC, then issues an x402 challenge for
-**$0.01 USDC on Base or Solana mainnet**. PayAI verifies and settles the
-payment to the designated collector on the selected network:
+## Architecture
 
-| Payment network | USDC receiving address |
-| --- | --- |
-| Base | `0xBcCA6AED433d9020C50D44560F9679F1B5eB511d` |
-| Solana | `Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC` |
-The public API also reads native USDC holdings and transaction status with a subscribed API key. No claim of wallet custody, transaction signing, or risk analysis is made.
+- `buildawallet` Pages: `/`, `/human/*`, `/pay`, docs/legal frontend pages.
+- `buildawallet-human-api`: `/api/*` and `/healthz`.
+- `buildawallet-agent-pay`: `/machine/*`, `/mcp`, `/.well-known/agent.json`, `/agent-offer.json`, `/llms.txt`, `/api-docs*`, `/openapi.json`.
 
-## Read-only API plans
+The Worker never accepts seed phrases or private keys. Transaction signing always happens in the caller's wallet.
 
-The payment page at `/pay` offers Starter ($12 for 500 units), Pro ($39 for 5,000 units,
-10 items per batch), and Scale ($99 for 25,000 units, 50 items per batch), each for
-30 days. These plans purchase API calls only. A paying wallet
-signs a one-use login challenge, pays the selected exact native USDC amount on
-its chosen network, then confirms the onchain transaction. The Worker verifies
-token, payer, collector, amount and confirmation, and prevents receipt reuse.
-The wallet can then issue or rotate a one-time-display `baw_live_` API key.
-Access and quota remain tied to that wallet and expire with the plan.
+## HUMAN flow
 
-The HUMAN Studio can download its JSON design and a detailed implementation plan
-without wallet payment or an API subscription. `/machine/human/blueprint` requires
-the Cloudflare Access identity and a rate-limited POST of the design spec. This
-is a design document; no functional Android APK is produced by this repository.
+HUMAN design and mainnet release are free. The React release screen calls:
 
-The subscribed read API is under `/machine/v1` and covers native wallet balance,
-native USDC balance, transaction status, and a composite native plus USDC snapshot
-on Base and Solana. Six individual reads consume one unit each; the two
-composite snapshot endpoints consume two units per successful call on all
-three plans, including Starter. The underlying RPC reads are independent,
-not atomic; the response includes its observation time and block or slot
-context where available. `GET /usage` is free. Pro and Scale also have
-`POST /batch`; successful items consume one unit each. An upstream failure
-or invalid input does not consume units.
+- `POST /api/human/build`
+- `GET /api/human/build/:buildId`
 
-The MCP HTTP endpoint `/mcp` offers those eight subscriber reads as structured
-tools with the same API key and meter. `api_usage` and `service_quote` are free.
-`base_wallet_payg` and `solana_wallet_payg` bridge the existing two-chain
-HTTP x402 rail into MCP: an unpaid call returns the live payment challenge,
-and a compatible client signs a USDC payment locally before retrying. No
-private key is uploaded or stored by this Worker. The paid snapshot comes
-from the requested chain even if the payment uses the other chain. A client
-should enforce its own allowlist and spending cap before signing. The
-`scripts/paid-smoke.mjs` local payer is an operator-controlled one-attempt
-example, not an unattended agent wallet. Agent discovery lives at
-`/.well-known/agent.json`, `/agent-offer.json`
-and `/llms.txt`. The interactive Swagger reference is `/api-docs` and the
-OpenAPI 3.1 document is `/machine/openapi.json`.
+The Python HUMAN Worker returns the configured signed APK URL when `HUMAN_APK_URL` is set. `HUMAN_APK_SHA256` is optional but recommended. No HUMAN subscription invoice or entitlement is required.
 
-`GET /machine/quote?chain=base&kind=wallet&access=x402` gives a free
-preflight for each supported read, its payment network options or subscriber
-unit cost, and its MCP tool. The quote does not reserve a price or authorize
-payment; the live 402 challenge is authoritative. For a subscription read,
-set `access=subscription` and choose `wallet`, `usdc`, `transaction`, or
-`snapshot`. `GET /machine/human/payments` returns up to 50 verified
-subscription payments for the authenticated paying wallet; per-call x402
-receipts are returned with each paid response and are not in that history.
+`/pay` is reserved for machine API plans. `/human/pay` only explains that HUMAN release is free and links back to release.
 
-The existing x402 paid snapshots stay separate, with $0.01 USDC per call.
-Cloudflare's Machine Payments Protocol is a separate evolving protocol; this
-release uses tested x402 on Base/Solana and does not advertise MPP settlement.
+## Machine API plans
 
-## Local setup
+Machine plans remain paid in native USDC on Base or Solana:
+
+| Plan | Price | Units / 30 days | Batch |
+| --- | ---: | ---: | ---: |
+| Builder | $12 USDC | 500 | none |
+| Pro | $39 USDC | 5,000 | 10 |
+| Scale | $99 USDC | 25,000 | 50 |
+
+API keys use the `baw_live_` format and are issued only after the existing wallet-signature and onchain payment verification flow.
+
+## Read API
+
+Subscribed callers can read:
+
+- Base native balance / nonce / block
+- Solana SOL balance / slot
+- Base and Solana native USDC balances
+- Base and Solana transaction status
+- composite native + USDC snapshots
+- batch reads on Pro and Scale
+
+The existing x402 native-wallet snapshot endpoints remain available for $0.01 USDC per call.
+
+## Non-custodial transaction API
+
+The machine API now supports transaction preparation and broadcast on Base and Solana mainnet.
+
+### Prepare
+
+```text
+POST /machine/v1/base/transaction/prepare
+POST /machine/v1/solana/transaction/prepare
+```
+
+Each successful preparation costs one API unit.
+
+Base accepts `from`, `to`, `asset` (`native` or `usdc`), and `amountAtomic`. Native Base transfers may include optional hex `data`. The response contains an unsigned EIP-1559 transaction with current nonce, gas estimate, and fee fields.
+
+Solana accepts `from`, `to`, `asset`, and `amountAtomic`. Native SOL preparation returns a serialized legacy transaction with a zeroed signature slot. Solana USDC additionally requires `sourceTokenAccount` and `destinationTokenAccount`, and produces a `TransferChecked` instruction using native Solana USDC.
+
+The caller signs locally. BuildAWallet never receives a private key.
+
+### Broadcast
+
+```text
+POST /machine/v1/base/transaction/broadcast
+POST /machine/v1/solana/transaction/broadcast
+```
+
+Base accepts `signedTransaction` as raw signed EVM hex and relays it with `eth_sendRawTransaction`.
+
+Solana accepts `signedTransactionBase64` and relays it with `sendTransaction`, preflight enabled.
+
+Each successful broadcast costs one API unit. Failed validation or upstream failure is not metered.
+
+## MCP
+
+`/mcp` exposes the read tools plus:
+
+- `base_prepare_transaction`
+- `base_broadcast_transaction`
+- `solana_prepare_transaction`
+- `solana_broadcast_transaction`
+
+Preparation is non-custodial; broadcast requires a transaction already signed outside BuildAWallet.
+
+## Local verification
 
 ```bash
 cd agent-pay
 npm ci
-cp .dev.vars.example .dev.vars
-# edit .dev.vars with reliable Base and Solana mainnet RPC URLs
 npm run typecheck
 npm test
-npm run dev
+npx wrangler deploy --config wrangler.jsonc --dry-run
 ```
 
-`BASE_RPC_URL` must point to Base mainnet (chain ID 8453). `SOLANA_RPC_URL`
-must point to Solana mainnet. Do not place a
-private key in this Worker. `.dev.vars` is ignored. The receiving addresses
-are public and were supplied by the owner for Base and Solana respectively.
-
-Call the free discovery endpoint at `/machine/info` or the quote endpoint.
-A valid unpaid request to
-`/machine/wallet?address=...` returns HTTP 402 with an x402 payment challenge.
-A compatible client with Base or Solana mainnet USDC can pay and retry. Invalid addresses return
-400 before payment. Missing deployment configuration returns 503. The Worker
-limits calls to the paid path to 60 per minute per requesting IP at each Cloudflare
-location, before fetching from the RPC or facilitator. Shared IPs can hit this
-limit together.
-
-## Deploy
-
-Set `BASE_RPC_URL` and `SOLANA_RPC_URL` with `npx wrangler secret put --config wrangler.jsonc`, then run `npm run deploy` from this directory. The deploy script finds the existing `buildawallet` D1 database, applies the shared migrations, writes an ignored config with its real ID, and deploys. Deploy `cloudflare-human` first. It also checks the HUMAN pages, plan availability, OpenAPI and discovery. Verify `/machine/info`, invalid address
-400, unpaid valid address 402, and a paid request with real USDC. The custom
-domain route requires the zone in the Cloudflare account used by Wrangler.
-
-The x402 payment network can be Base or Solana mainnet. The returned data is
-from the queried Base or Solana chain. PayAI is an external production facilitator. Confirm its
-`/supported` response for both exact schemes before accepting traffic.
-This endpoint is a first real-payment capability; wallet balances themselves
-are public data. A broader business needs data whose value exceeds RPC and
-facilitator costs, plus rate controls and observability.
-
-## Controlled mainnet payment check
-
-`npm run smoke:paid -- base --prepare` and
-`npm run smoke:paid -- solana --prepare` fetch the live 402 challenges without
-signing. The script refuses to pay if the resource, network, USDC mint/contract,
-10,000 atomic units ($0.01), or collector differs from the expected value.
-
-Use **separate, small-funded test payer wallets**, never the collector wallets.
-The Base payer needs Base USDC; the Solana payer needs Solana USDC and a Solana
-CLI-style 64-byte JSON keypair file with mode 0600. Use a keyed mainnet RPC for
-Solana and preferably for Base receipt verification. Keep private keys, keypair
-files and RPC keys out of Git and chat. Store the Solana keypair file **outside**
-the Git checkout. Run these lines **one at a time** in a trusted local interactive
-shell: each hidden `read` waits for you to enter only the requested secret URL
-or key and press Enter. Pasting the entire block at once can put the next shell
-command into a secret variable.
+For the HUMAN app:
 
 ```bash
-cd agent-pay
+cd ../human-app
 npm ci
-npm run smoke:paid -- base --prepare
-npm run smoke:paid -- solana --prepare
-
-read -rsp 'Base test payer private key: ' BAW_TEST_EVM_PRIVATE_KEY; echo
-export BAW_TEST_EVM_PRIVATE_KEY
-read -rsp 'Base mainnet RPC URL: ' BAW_BASE_RPC_URL; echo
-export BAW_BASE_RPC_URL
-npm run smoke:paid -- base --check-funds
-npm run smoke:paid -- base --execute
-unset BAW_TEST_EVM_PRIVATE_KEY BAW_BASE_RPC_URL
-
-export BAW_TEST_SOLANA_KEYPAIR_FILE=/absolute/path/to/test-payer.json
-read -rsp 'Solana mainnet RPC URL: ' BAW_SOLANA_RPC_URL; echo
-export BAW_SOLANA_RPC_URL
-npm run smoke:paid -- solana --check-funds
-npm run smoke:paid -- solana --execute
-unset BAW_TEST_SOLANA_KEYPAIR_FILE BAW_SOLANA_RPC_URL
+npm run build
 ```
 
-The `--check-funds` mode requires at least $0.01 USDC in the payer's canonical
-associated token account and checks that the collector's Solana USDC associated
-token account exists. It never signs. A missing collector account makes the
-facilitator's `TransferChecked` simulation fail. The collector account can be
-created by a separate SOL-funded fee payer without the collector's private
-key. For example, after verifying the collector address, with the Solana RPC URL
-and test payer keypair variables set as above, this command creates the account
-at the deterministic address (the test payer pays SOL rent and the transaction fee):
+For the Python Worker:
 
 ```bash
-spl-token --url "$BAW_SOLANA_RPC_URL" --fee-payer "$BAW_TEST_SOLANA_KEYPAIR_FILE" create-account EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v --owner Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC
+cd ..
+pytest -q tests/test_cloudflare_human.py
 ```
 
-Verify that the CLI prints the expected associated token account and rerun
-`npm run smoke:paid -- solana --check-funds` before attempting to pay. Keep
-this account open; some wallet swap flows close an empty USDC account after use.
-The explicit `--execute` mode repeats the checks,
-asks for `PAY BASE` or `PAY SOLANA` before signing,
-sends exactly one paid request, checks the x402 settlement header, and verifies
-the USDC transfer in the onchain transaction. It does not retry a paid request.
-If the HTTP response is lost or receipt verification fails, inspect the payer and
-collector transactions before attempting another payment.
+## Production configuration
+
+`buildawallet-agent-pay` requires working Base and Solana mainnet RPC URLs, D1, its rate limiter, and the `HUMAN_API` service binding.
+
+`buildawallet-human-api` requires the existing D1 binding plus:
+
+```text
+HUMAN_APK_URL=https://.../signed-buildawallet.apk
+HUMAN_APK_SHA256=<optional 64-character lowercase sha256>
+```
+
+The APK URL may point at R2 or another HTTPS artifact origin. The endpoint refuses to advertise an APK until a valid HTTPS URL is configured.
+
+## Deploy order
+
+1. Build/publish the HUMAN Pages bundle.
+2. Deploy `buildawallet-human-api`.
+3. Deploy `buildawallet-agent-pay`.
+4. Deploy Pages to the `buildawallet` project.
+5. Verify `/human/release`, `/pay`, `/machine/openapi.json`, `/mcp`, transaction preparation, and an intentionally invalid signed-transaction broadcast before using real funds.
+
+Public API reference: `/api-docs`  
+OpenAPI: `/machine/openapi.json`

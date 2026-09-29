@@ -25,8 +25,9 @@ cat > "$STATIC/_redirects" <<'EOF'
 /human/ /human/setup 302
 /human/build /human-build.html 200
 /human/live /human-live.html 200
-/pay /human/pay 302
+/pay /human-pay.html 200
 EOF
 
 echo "HUMAN build published into static/."
-echo "Routes: /human/setup /human/custody /human/chains /human/security /human/studio /human/release /human/pay /human/download"
+echo "HUMAN routes: /human/setup /human/custody /human/chains /human/security /human/studio /human/release /human/pay /human/download"
+echo "Machine API plans remain at /pay."

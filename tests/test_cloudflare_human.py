@@ -47,7 +47,11 @@ def test_cloudflare_builder_conversation_and_saved_blueprint():
     db = DB()
     @human_worker.app.middleware("http")
     async def bind_database(request, call_next):
-        request.scope["env"] = types.SimpleNamespace(DB=db)
+        request.scope["env"] = types.SimpleNamespace(
+            DB=db,
+            HUMAN_APK_URL="https://downloads.example/buildawallet-signed.apk",
+            HUMAN_APK_SHA256="a" * 64,
+        )
         return await call_next(request)
 
     client = TestClient(human_worker.app)
@@ -74,3 +78,14 @@ def test_cloudflare_builder_conversation_and_saved_blueprint():
     db.conn.execute("UPDATE wallets SET email='legacy@example.com' WHERE code=?", (private,))
     db.conn.executescript((Path(__file__).resolve().parents[1] / "cloudflare-human/migrations/0002_clear_email.sql").read_text())
     assert db.conn.execute("SELECT email FROM wallets WHERE code=?", (private,)).fetchone()[0] is None
+
+    release = client.post("/api/human/build", json={"target": "mainnet", "draft": {"name": "Northvault"}})
+    assert release.status_code == 200
+    assert release.json()["buildId"] == "mainnet-release"
+    assert release.json()["status"] == "complete"
+    assert release.json()["apkUrl"].endswith(".apk")
+    assert release.json()["sha256"] == "a" * 64
+    status = client.get("/api/human/build/mainnet-release")
+    assert status.status_code == 200
+    assert status.json()["apkUrl"] == release.json()["apkUrl"]
+    assert client.get("/api/human/build/not-a-build").status_code == 404

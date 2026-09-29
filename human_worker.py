@@ -1,7 +1,9 @@
 """Cloudflare Python Worker for the HUMAN builder. D1 stores public blueprints."""
+import hashlib
 import json
 import secrets
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -15,6 +17,7 @@ PUBLIC_BASE_URL = "https://buildawallet.xyz"
 LIST_FIELDS = ("assets", "networks", "security", "features", "platforms", "privacy")
 SINGLE_FIELDS = ("custody", "style", "theme", "accent")
 CODE_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"
+RELEASE_BUILD_ID = "mainnet-release"
 
 
 def clean_spec(raw):
@@ -63,11 +66,34 @@ class SaveIn(BaseModel):
     is_public: bool = False
 
 
+class BuildIn(BaseModel):
+    target: str = Field(default="mainnet", max_length=32)
+    draft: dict | None = None
+
+
 def database(request: Request):
     env = request.scope.get("env")
     if env is None or getattr(env, "DB", None) is None:
         raise HTTPException(503, "Blueprint storage is unavailable")
     return env.DB
+
+
+def worker_env(request: Request):
+    return request.scope.get("env")
+
+
+def release_artifact(request: Request):
+    env = worker_env(request)
+    url = str(getattr(env, "HUMAN_APK_URL", "") or "").strip() if env is not None else ""
+    if not url:
+        raise HTTPException(503, "Signed Android release URL is not configured")
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise HTTPException(503, "Signed Android release URL is invalid")
+    sha256 = str(getattr(env, "HUMAN_APK_SHA256", "") or "").strip().lower() if env is not None else ""
+    if sha256 and (len(sha256) != 64 or any(ch not in "0123456789abcdef" for ch in sha256)):
+        raise HTTPException(503, "Signed Android release checksum is invalid")
+    return url, sha256 or None
 
 
 def row_py(row):
@@ -154,6 +180,39 @@ async def stats(request: Request):
     db = database(request)
     count = row_py(await db.prepare("SELECT COUNT(*) AS n FROM wallets").first())
     return {"built": count["n"], "options": TOTAL_OPTIONS}
+
+
+@app.post("/api/human/build")
+async def human_build(body: BuildIn, request: Request):
+    if body.target != "mainnet":
+        raise HTTPException(400, "Only the mainnet Android release is available")
+    url, sha256 = release_artifact(request)
+    draft = body.draft if isinstance(body.draft, dict) else {}
+    digest = hashlib.sha256(json.dumps(draft, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:12]
+    return {
+        "buildId": RELEASE_BUILD_ID,
+        "status": "complete",
+        "target": "mainnet",
+        "apkUrl": url,
+        "sha256": sha256,
+        "draftDigest": digest,
+        "message": "Signed Android release is ready. HUMAN release is free.",
+    }
+
+
+@app.get("/api/human/build/{build_id}")
+async def human_build_status(build_id: str, request: Request):
+    if build_id != RELEASE_BUILD_ID:
+        raise HTTPException(404, "Unknown HUMAN build")
+    url, sha256 = release_artifact(request)
+    return {
+        "buildId": RELEASE_BUILD_ID,
+        "status": "complete",
+        "target": "mainnet",
+        "apkUrl": url,
+        "sha256": sha256,
+        "message": "Signed Android release is ready. HUMAN release is free.",
+    }
 
 
 Default = asgi.entrypoint(app)

@@ -28,33 +28,15 @@ if ! npx wrangler d1 execute buildawallet --remote --config wrangler.deploy.json
   exit 1
 fi
 
-# Typecheck generates src/human-pages.ts and src/swagger-assets.ts. This must
-# happen before Wrangler bundles the Worker, especially when recreating a
-# deleted Worker from a fresh checkout.
+# Typecheck generates src/human-pages.ts and src/swagger-assets.ts before Wrangler bundles.
 npm run typecheck
 npm test
-
-# Deploy once before checking secrets so a deleted/new Worker can be recreated.
-# Existing Worker secrets survive a normal code deployment; a newly recreated
-# Worker will exist after this command so `wrangler secret put` can be used.
 npx wrangler deploy --config wrangler.deploy.jsonc
 
-set +e
-secret_json=$(npx wrangler secret list --format json --config wrangler.deploy.jsonc 2>/dev/null)
-secret_status=$?
-set -e
-if [ "$secret_status" -ne 0 ]; then
-  echo 'Worker was deployed, but Wrangler could not list its secrets.' >&2
-  echo 'Check `npx wrangler whoami`, then configure the required secrets and rerun npm run deploy.' >&2
-  exit 1
-fi
-
-missing=$(printf '%s' "$secret_json" | python3 -c 'import json,sys; names={s["name"] for s in json.load(sys.stdin)}; required={"CF_ACCESS_TEAM_DOMAIN","CF_ACCESS_AUD","BASE_RPC_URL","SOLANA_RPC_URL"}; print(" ".join(sorted(required-names)))')
-if [ -n "$missing" ]; then
-  echo "Worker recreated successfully. Configure these secrets, then rerun npm run deploy: $missing" >&2
-  echo 'Use: npx wrangler secret put SECRET_NAME --config wrangler.deploy.jsonc' >&2
-  exit 1
-fi
+# A dedicated BuildAWallet HUMAN Access application is optional for this bootstrap.
+# If CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD are added later, the Worker will verify
+# Access JWTs on the protected HUMAN helper routes. The Pages HUMAN flow and machine
+# API deployment do not require inventing those values.
 
 curl --fail --silent --show-error https://buildawallet.xyz/machine/info > /dev/null
 curl --fail --silent --show-error 'https://buildawallet.xyz/machine/quote?chain=base&kind=wallet&access=x402' | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["price"]["amountAtomic"] == "10000" and len(d["paymentOptions"]) == 2'

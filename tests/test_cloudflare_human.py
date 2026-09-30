@@ -37,14 +37,24 @@ class DB:
     def __init__(self):
         self.conn = sqlite3.connect(":memory:", check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
-        self.conn.executescript((Path(__file__).resolve().parents[1] / "cloudflare-human/migrations/0001_human.sql").read_text())
+        migrations = Path(__file__).resolve().parents[1] / "cloudflare-human/migrations"
+        self.conn.executescript((migrations / "0001_human.sql").read_text())
+        self.conn.executescript((migrations / "0006_human_email_auth.sql").read_text())
 
     def prepare(self, sql):
         return Statement(self.conn, sql)
 
 
-def test_cloudflare_builder_conversation_and_saved_blueprint():
+def test_cloudflare_builder_conversation_saved_blueprint_and_verified_account(monkeypatch):
     db = DB()
+
+    async def fake_send_verification_email(request, email, code):
+        assert email == "test@example.com"
+        assert code == "123456"
+
+    monkeypatch.setattr(human_worker, "send_verification_email", fake_send_verification_email)
+    monkeypatch.setattr(human_worker.secrets, "randbelow", lambda upper: 123456)
+
     @human_worker.app.middleware("http")
     async def bind_database(request, call_next):
         request.scope["env"] = types.SimpleNamespace(
@@ -54,7 +64,7 @@ def test_cloudflare_builder_conversation_and_saved_blueprint():
         )
         return await call_next(request)
 
-    client = TestClient(human_worker.app)
+    client = TestClient(human_worker.app, base_url="https://buildawallet.xyz")
     assert (health := client.get("/healthz")).json().get("ok") is True, (health.status_code, health.text)
     opening = client.get("/api/start").json()
     assert client.get("/api/catalog").json()["total"] >= 150
@@ -79,6 +89,20 @@ def test_cloudflare_builder_conversation_and_saved_blueprint():
     db.conn.executescript((Path(__file__).resolve().parents[1] / "cloudflare-human/migrations/0002_clear_email.sql").read_text())
     assert db.conn.execute("SELECT email FROM wallets WHERE code=?", (private,)).fetchone()[0] is None
 
+    assert client.get("/api/human/account").json() == {"authenticated": False, "verified": False}
+    request_code = client.post("/api/human/account/email", json={"email": "Test@Example.com"})
+    assert request_code.status_code == 200
+    assert request_code.json()["sent"] is True
+    wrong = client.post("/api/human/account/verify", json={"email": "test@example.com", "code": "000000"})
+    assert wrong.status_code == 400
+    verified = client.post("/api/human/account/verify", json={"email": "test@example.com", "code": "123456"})
+    assert verified.status_code == 200
+    assert verified.json()["verified"] is True
+    assert client.get("/api/human/account").json() == {"authenticated": True, "verified": True}
+    stored = db.conn.execute("SELECT email_hash FROM human_email_accounts").fetchone()[0]
+    assert stored == human_worker.sha256_text("test@example.com")
+    assert "test@example.com" not in str(list(db.conn.execute("SELECT * FROM human_email_accounts")))
+
     release = client.post("/api/human/build", json={"target": "mainnet", "draft": {"name": "Northvault"}})
     assert release.status_code == 200
     assert release.json()["buildId"] == "mainnet-release"
@@ -89,3 +113,8 @@ def test_cloudflare_builder_conversation_and_saved_blueprint():
     assert status.status_code == 200
     assert status.json()["apkUrl"] == release.json()["apkUrl"]
     assert client.get("/api/human/build/not-a-build").status_code == 404
+
+    logout = client.post("/api/human/account/logout")
+    assert logout.status_code == 200
+    assert client.get("/api/human/account").json()["authenticated"] is False
+    assert client.post("/api/human/build", json={"target": "mainnet", "draft": {"name": "Northvault"}}).status_code == 401

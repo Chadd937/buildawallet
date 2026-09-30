@@ -9,6 +9,9 @@
     { "pattern": "buildawallet.xyz/api/*", "zone_name": "buildawallet.xyz" },
     { "pattern": "buildawallet.xyz/healthz", "zone_name": "buildawallet.xyz" }
   ],
+  "vars": {
+    "HUMAN_EMAIL_FROM": "BuildAWallet <accounts@buildawallet.xyz>"
+  },
   "d1_databases": [
     { "binding": "DB", "database_name": "buildawallet", "database_id": "00000000-0000-4000-8000-000000000001", "migrations_dir": "migrations" }
   ]

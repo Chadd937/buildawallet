@@ -50,7 +50,7 @@ export function SetupPage({
       }
       return { ...current, [field]: name };
     });
-  const hasChoice = Array.isArray(value) ? value.length > 0 : Boolean(value);
+  const hasChoice = choices.length === 0 || (Array.isArray(value) ? value.length > 0 : Boolean(value));
 
   return (
     <WalletShell>

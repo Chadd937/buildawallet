@@ -15,7 +15,7 @@ if not identifier:
     raise SystemExit('D1 database ID missing')
 Path('wrangler.deploy.jsonc').write_text(Path('wrangler.jsonc').read_text().replace('00000000-0000-4000-8000-000000000001', identifier))
 PY
-npx wrangler secret list --format json --config wrangler.deploy.jsonc | python3 -c 'import json,sys; names={s["name"] for s in json.load(sys.stdin)}; missing={"CF_ACCESS_TEAM_DOMAIN","CF_ACCESS_AUD"}-names; assert not missing, "Set Cloudflare Access secrets first: "+", ".join(sorted(missing))'
+
 npx wrangler d1 migrations apply buildawallet --remote --config wrangler.deploy.jsonc
 if ! npx wrangler d1 execute buildawallet --remote --config wrangler.deploy.jsonc \
   --command 'SELECT plan_id FROM human_entitlements LIMIT 0' > /dev/null; then
@@ -27,9 +27,34 @@ if ! npx wrangler d1 execute buildawallet --remote --config wrangler.deploy.json
   echo 'HUMAN account migration is not applied. Deployment stopped.' >&2
   exit 1
 fi
+
+# Typecheck generates src/human-pages.ts and src/swagger-assets.ts. This must
+# happen before Wrangler bundles the Worker, especially when recreating a
+# deleted Worker from a fresh checkout.
 npm run typecheck
 npm test
+
+# Deploy once before checking secrets so a deleted/new Worker can be recreated.
+# Existing Worker secrets survive a normal code deployment; a newly recreated
+# Worker will exist after this command so `wrangler secret put` can be used.
 npx wrangler deploy --config wrangler.deploy.jsonc
+
+set +e
+secret_json=$(npx wrangler secret list --format json --config wrangler.deploy.jsonc 2>/dev/null)
+secret_status=$?
+set -e
+if [ "$secret_status" -ne 0 ]; then
+  echo 'Worker was deployed, but Wrangler could not list its secrets.' >&2
+  echo 'Check `npx wrangler whoami`, then configure the required secrets and rerun npm run deploy.' >&2
+  exit 1
+fi
+
+missing=$(printf '%s' "$secret_json" | python3 -c 'import json,sys; names={s["name"] for s in json.load(sys.stdin)}; required={"CF_ACCESS_TEAM_DOMAIN","CF_ACCESS_AUD","BASE_RPC_URL","SOLANA_RPC_URL"}; print(" ".join(sorted(required-names)))')
+if [ -n "$missing" ]; then
+  echo "Worker recreated successfully. Configure these secrets, then rerun npm run deploy: $missing" >&2
+  echo 'Use: npx wrangler secret put SECRET_NAME --config wrangler.deploy.jsonc' >&2
+  exit 1
+fi
 
 curl --fail --silent --show-error https://buildawallet.xyz/machine/info > /dev/null
 curl --fail --silent --show-error 'https://buildawallet.xyz/machine/quote?chain=base&kind=wallet&access=x402' | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["price"]["amountAtomic"] == "10000" and len(d["paymentOptions"]) == 2'

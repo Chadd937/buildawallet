@@ -15,6 +15,7 @@ type SetupPageProps = {
   field: keyof WalletDraft;
   choices: Choice[];
   multiple?: boolean;
+  canContinue?: boolean;
   next: "/human/custody" | "/human/chains" | "/human/security" | "/human/studio";
   back: "/" | "/human" | "/human/custody" | "/human/chains";
   children?: React.ReactNode;
@@ -28,6 +29,7 @@ export function SetupPage({
   field,
   choices,
   multiple,
+  canContinue = true,
   next,
   back,
   children,
@@ -62,29 +64,31 @@ export function SetupPage({
             <p className="mt-3 text-base text-muted-foreground sm:text-lg">{description}</p>
           </div>
           {children}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {choices.map((choice) => (
-              <button
-                key={choice.name}
-                type="button"
-                className="choice-card relative min-h-32 p-4 text-left"
-                data-selected={selected(choice.name)}
-                onClick={() => toggle(choice.name)}
-                disabled={!ready}
-              >
-                <span className="mb-4 grid size-9 place-items-center rounded-lg bg-secondary font-display text-sm text-primary">
-                  {choice.icon}
-                </span>
-                <strong className="block font-display text-sm">{choice.name}</strong>
-                <span className="mt-1 block text-sm text-muted-foreground">{choice.detail}</span>
-                {selected(choice.name) && (
-                  <span className="absolute right-3 top-3 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
-                    <Check className="size-3" />
+          {choices.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {choices.map((choice) => (
+                <button
+                  key={choice.name}
+                  type="button"
+                  className="choice-card relative min-h-32 p-4 text-left"
+                  data-selected={selected(choice.name)}
+                  onClick={() => toggle(choice.name)}
+                  disabled={!ready}
+                >
+                  <span className="mb-4 grid size-9 place-items-center rounded-lg bg-secondary font-display text-sm text-primary">
+                    {choice.icon}
                   </span>
-                )}
-              </button>
-            ))}
-          </div>
+                  <strong className="block font-display text-sm">{choice.name}</strong>
+                  <span className="mt-1 block text-sm text-muted-foreground">{choice.detail}</span>
+                  {selected(choice.name) && (
+                    <span className="absolute right-3 top-3 grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
+                      <Check className="size-3" />
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mt-7 flex flex-col-reverse items-stretch justify-between gap-3 border-t border-border pt-5 sm:flex-row sm:items-center">
             <Button variant="vault" asChild>
               <Link to={back}>
@@ -95,7 +99,7 @@ export function SetupPage({
               <Button
                 variant="arcade"
                 size="xl"
-                disabled={!hasChoice}
+                disabled={!hasChoice || !canContinue}
                 onClick={() => navigate({ to: next })}
               >
                 {step === 4 ? "Enter Studio" : "Continue"}

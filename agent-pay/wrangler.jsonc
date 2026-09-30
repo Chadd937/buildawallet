@@ -15,6 +15,10 @@
     { "pattern": "buildawallet.xyz/api-docs/*", "zone_name": "buildawallet.xyz" },
     { "pattern": "buildawallet.xyz/docs/api", "zone_name": "buildawallet.xyz" }
   ],
+  "vars": {
+    "BASE_RPC_URL": "https://mainnet.base.org",
+    "SOLANA_RPC_URL": "https://api.mainnet-beta.solana.com"
+  },
   "ai": { "binding": "AI" },
   "services": [
     { "binding": "HUMAN_API", "service": "buildawallet-human-api" }

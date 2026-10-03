@@ -10,11 +10,7 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from workers import asgi
-
-try:
-    from js import fetch as js_fetch
-except Exception:  # Local tests do not provide the Workers JS runtime.
-    js_fetch = None
+from workers import fetch as worker_fetch
 
 from app import brain
 from app.catalog import ACCENTS, BY_ID, GROUPS, THEMES, TOTAL_OPTIONS
@@ -166,10 +162,24 @@ async def require_account(request: Request):
 
 async def send_verification_email(request: Request, email: str, code: str):
     env = worker_env(request)
-    api_key = str(getattr(env, "RESEND_API_KEY", "") or "").strip() if env is not None else ""
-    email_from = str(getattr(env, "HUMAN_EMAIL_FROM", "") or "").strip() if env is not None else ""
-    if not api_key or not email_from or js_fetch is None:
-        raise HTTPException(503, "Email confirmation delivery is not configured")
+
+    api_key = (
+        str(getattr(env, "RESEND_API_KEY", "") or "").strip()
+        if env is not None
+        else ""
+    )
+    email_from = (
+        str(getattr(env, "HUMAN_EMAIL_FROM", "") or "").strip()
+        if env is not None
+        else ""
+    )
+
+    if not api_key or not email_from:
+        raise HTTPException(
+            503,
+            "Email confirmation delivery is not configured",
+        )
+
     payload = {
         "from": email_from,
         "to": [email],
@@ -177,24 +187,53 @@ async def send_verification_email(request: Request, email: str, code: str):
         "html": (
             "<div style='font-family:Arial,sans-serif;max-width:520px'>"
             "<h2>Confirm your BuildAWallet account</h2>"
-            f"<p>Your one-time confirmation code is <strong style='font-size:24px'>{code}</strong>.</p>"
-            "<p>This code expires in 10 minutes. BuildAWallet will never ask for a seed phrase or private key.</p>"
+            f"<p>Your one-time confirmation code is "
+            f"<strong style='font-size:24px'>{code}</strong>.</p>"
+            "<p>This code expires in 10 minutes. "
+            "BuildAWallet will never ask for a seed phrase or private key.</p>"
             "</div>"
         ),
     }
-    response = await js_fetch(
-        "https://api.resend.com/emails",
-        {
-            "method": "POST",
-            "headers": {
+
+    try:
+        response = await worker_fetch(
+            "https://api.resend.com/emails",
+            method="POST",
+            headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
-            "body": json.dumps(payload),
-        },
-    )
-    if int(response.status) >= 300:
-        raise HTTPException(503, "Could not send confirmation email")
+            body=json.dumps(payload),
+        )
+    except Exception as exc:
+        print(
+            f"RESEND_FETCH_ERROR type={type(exc).__name__} "
+            f"message={exc}"
+        )
+        raise HTTPException(
+            503,
+            "Could not send confirmation email",
+        ) from exc
+
+    status = int(response.status)
+
+    if status >= 300:
+        try:
+            detail = await response.text()
+        except Exception:
+            detail = ""
+
+        print(
+            f"RESEND_REJECTED status={status} "
+            f"body={detail[:800]}"
+        )
+
+        raise HTTPException(
+            503,
+            "Could not send confirmation email",
+        )
+
+    print(f"RESEND_SENT status={status} email={email}")
 
 
 @app.get("/healthz")

@@ -29,3 +29,4 @@ The free `/machine/quote` gives supported prices and API unit costs. Subscribed 
 ## Deploy
 
 See [the mainnet deployment runbook](DEPLOY_MAINNET.md) for the three Cloudflare surfaces, Wrangler commands, checks and remaining release gates. Pushing `main` also triggers the separate see.io container build per `AGENTS.md`; the Cloudflare Workers require their own deployment commands. A Pages build must use `static/` as output and keep the repository root as project root for `functions/w/[code].js`.
+# cloudflare-email-auth

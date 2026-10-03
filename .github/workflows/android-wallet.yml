@@ -42,7 +42,17 @@ jobs:
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Unit tests
-        run: gradle -p android-studio :app:testDebugUnitTest
+        shell: bash
+        run: |
+          set +e
+          gradle -p android-studio :app:testDebugUnitTest --stacktrace
+          status=$?
+          if [[ "$status" -ne 0 ]]; then
+            echo "=== UNIT TEST XML ==="
+            find android-studio/app/build/test-results/testDebugUnitTest \
+              -type f -name '*.xml' -print -exec cat {} \; || true
+            exit "$status"
+          fi
 
       - name: Build APK
         id: apk

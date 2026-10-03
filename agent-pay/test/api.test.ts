@@ -98,8 +98,8 @@ describe("subscription API and machine discovery", () => {
     expect(css.headers.get('content-type')).toContain('text/css');
     expect(js.status).toBe(200);
     expect(js.headers.get('content-type')).toContain('application/javascript');
-    expect((await (await app.request('/privacy')).text())).toContain('does not include advertising cookies');
-    expect((await (await app.request('/terms')).text())).toContain('Starter costs $12 USDC');
+    expect((await (await app.request('/privacy')).text())).toContain('We do not sell personal information');
+    expect((await (await app.request('/terms')).text())).toContain('BuildAWallet is self-custody software');
   });
   it("rejects missing credentials and invalid addresses before RPC or metering", async () => {
     const env = environment();

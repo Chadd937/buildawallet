@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { ArrowLeft, Download, FileJson, Info, Smartphone, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,49 +8,26 @@ import { useWalletDraft } from "@/hooks/use-wallet-draft";
 
 export const Route = createFileRoute("/human/download")({
   head: () => ({ meta: [
-    { title: "Download Your Wallet | BuildAWallet" },
-    { name: "description", content: "Download your BuildAWallet Android wallet and Studio design." },
-    { property: "og:title", content: "Download Your Wallet | BuildAWallet" },
-    { property: "og:description", content: "Download the Android wallet and import your custom Studio design." },
+    { title: "BuildAWallet Android App | Self-Custody Crypto Wallet" },
+    { name: "description", content: "Download the signed BuildAWallet Android wallet. Create or restore your self-custody wallet directly on your phone, with local signing and optional Studio design import." },
+    { property: "og:title", content: "BuildAWallet Android App" },
+    { property: "og:description", content: "Build your crypto wallet directly on Android. Keys stay on the phone; Studio designs can be imported separately." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary_large_image" },
   ] }),
-  component: DownloadPage,
+  component: AndroidDownloadPage,
 });
 
-function DownloadPage() {
+const APK_URL = "https://github.com/Chadd937/buildawallet/releases/download/android-latest/BuildAWallet-Wallet.apk";
+const SHA_URL = "https://github.com/Chadd937/buildawallet/releases/download/android-latest/BuildAWallet-Wallet.apk.sha256";
+
+function AndroidDownloadPage() {
   const { draft } = useWalletDraft();
-  const [url, setUrl] = useState("https://buildawallet.xyz/human/download");
-  const [build, setBuild] = useState<{ buildId: string; status: string; apkUrl?: string; sha256?: string; message?: string } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setUrl(window.location.href);
-    const buildId = window.localStorage.getItem("buildawallet-human-build-id");
-    if (!buildId) { setBuild(null); setLoading(false); return; }
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const response = await fetch(`/api/human/build/${encodeURIComponent(buildId)}`, { cache: "no-store", credentials: "include" });
-        const data = await response.json().catch(() => ({}));
-        if (!cancelled && response.ok) setBuild({ buildId, status: data.status || "queued", apkUrl: data.apkUrl, sha256: data.sha256, message: data.message });
-      } catch {
-        if (!cancelled) setBuild({ buildId, status: "unavailable", message: "Build service is not reachable yet." });
-      } finally { if (!cancelled) setLoading(false); }
-    };
-    poll();
-    const timer = window.setInterval(poll, 5000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, []);
-
-  const buildId = build?.buildId || "NOT-STARTED";
-  const ready = build?.status === "complete" && Boolean(build?.apkUrl);
-  const designPayload = { schema: "buildawallet-human-v1", ...draft };
+  const designPayload = useMemo(() => ({ schema: "buildawallet-human-v1", ...draft }), [draft]);
   const applyDesignUrl = `buildawallet://import?data=${encodeURIComponent(JSON.stringify(designPayload))}`;
 
   const downloadDesign = () => {
-    const body = JSON.stringify(designPayload, null, 2);
-    const blob = new Blob([body], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(designPayload, null, 2)], { type: "application/json" });
     const href = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = href;
@@ -61,25 +38,38 @@ function DownloadPage() {
     URL.revokeObjectURL(href);
   };
 
-  return <WalletShell><main className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-2">
+  return <WalletShell><main className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[1.1fr_.9fr]">
     <section className="rounded-2xl border-2 border-primary bg-card p-6 text-center sm:p-8">
-      <p className="font-mono text-[10px] uppercase text-primary">Build #{buildId} · {loading ? "checking" : (build?.status || "not started")}</p>
-      <h1 className="mt-2 font-display text-4xl leading-tight">{ready ? `${draft.name} is ready.` : "Your Android wallet"}</h1>
-      <p className="mt-2 text-muted-foreground">{ready ? "Install the signed APK, then apply your Studio design." : (build?.message || "Release the wallet from Studio to start the Android download flow.")}</p>
-      <div className="pulse-border mx-auto mt-6 w-fit rounded-2xl border-2 border-border bg-foreground p-4"><QRCodeSVG value={ready && build?.apkUrl ? new URL(build.apkUrl, window.location.origin).toString() : url} size={220} bgColor="transparent" fgColor="currentColor" className="text-background" /></div>
-      {ready ? <Button variant="arcade" size="xl" className="mt-6 w-full" asChild><a href={build!.apkUrl!}><Download /> Download signed APK</a></Button> : <Button variant="arcade" size="xl" className="mt-6 w-full" disabled><Download /> APK not ready yet</Button>}
-      {ready && <Button variant="vault" size="lg" className="mt-3 w-full" asChild><a href={applyDesignUrl}><WandSparkles /> Apply my Studio design</a></Button>}
-      <Button variant="vault" size="lg" className="mt-3 w-full" onClick={downloadDesign}><FileJson /> Download design JSON instead</Button>
-      <p className="mt-4 flex items-start gap-2 rounded-lg bg-secondary p-3 text-left text-xs text-muted-foreground"><Info className="mt-0.5 size-4 shrink-0 text-accent" /> Install the APK first, then tap <strong>Apply my Studio design</strong> on your Android phone. If your browser blocks app links, download the JSON and import it inside the wallet. Design data contains names/settings only—never a recovery phrase or private key.</p>
-      {build?.sha256 && <p className="mt-3 break-all font-mono text-[10px] text-muted-foreground">SHA-256: {build.sha256}</p>}
+      <p className="font-mono text-[10px] uppercase text-primary">BuildAWallet for Android</p>
+      <h1 className="mt-2 font-display text-4xl leading-tight sm:text-5xl">Build the wallet on your phone.</h1>
+      <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">The APK is the BuildAWallet mobile app—not the output of the website builder. Install it, then create a new wallet or restore an existing one inside the app. Recovery phrases and signing stay on the device.</p>
+      <div className="mx-auto mt-7 w-fit rounded-2xl bg-white p-4"><QRCodeSVG value={APK_URL} size={220} /></div>
+      <Button variant="arcade" size="xl" className="mt-6 w-full" asChild><a href={APK_URL}><Download /> Download signed Android APK</a></Button>
+      <a className="mt-3 block font-mono text-[10px] text-muted-foreground underline" href={SHA_URL}>View published SHA-256 checksum</a>
+      <p className="mt-4 flex items-start gap-2 rounded-lg bg-secondary p-3 text-left text-xs text-muted-foreground"><Info className="mt-0.5 size-4 shrink-0 text-accent" /> Android may ask you to allow installation from your browser or files app. Keep the recovery phrase offline and verify the published checksum when sideloading.</p>
     </section>
+
     <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-      <h2 className="flex items-center gap-2 font-display text-xl"><Smartphone className="size-5 text-primary" /> Build summary</h2>
-      <dl className="mt-5 space-y-4 text-sm">
-        {[["Skin", draft.theme], ["Custody", draft.custody]].map(([k, v]) => <div key={k} className="flex justify-between border-b border-border pb-2"><dt className="text-muted-foreground">{k}</dt><dd className="font-display">{v}</dd></div>)}
-        {([["Chains", draft.chains], ["Security", draft.security], ["Features", draft.features]] as const).map(([k, list]) => <div key={k}><dt className="mb-2 text-muted-foreground">{k} ({list.length})</dt><dd className="flex flex-wrap gap-1">{list.map((x) => <span key={x} className="rounded-full border border-border px-2 py-0.5 text-xs">{x}</span>)}</dd></div>)}
-      </dl>
-      <Button variant="vault" asChild className="mt-6"><Link to="/human/studio"><ArrowLeft /> Back to Studio</Link></Button>
+      <Smartphone className="size-7 text-primary" />
+      <h2 className="mt-3 font-display text-2xl">Mobile flow</h2>
+      <ol className="mt-5 space-y-3 text-sm text-muted-foreground">
+        <li><strong className="text-foreground">1. Install BuildAWallet.</strong> The signed app is reusable; you do not need a website build first.</li>
+        <li><strong className="text-foreground">2. Build inside the app.</strong> Choose your wallet identity, networks and look.</li>
+        <li><strong className="text-foreground">3. Create or restore locally.</strong> The recovery phrase is handled on-device and protected by Android Keystore.</li>
+        <li><strong className="text-foreground">4. Use the wallet.</strong> Read balances, receive, review, sign and broadcast supported EVM transfers.</li>
+      </ol>
+
+      <div className="mt-7 border-t border-border pt-6">
+        <h3 className="font-display text-xl">Already designed one in Studio?</h3>
+        <p className="mt-2 text-sm text-muted-foreground">Import only the visual/settings blueprint. No seed phrase, private key, browser password or Android key is included.</p>
+        <Button variant="vault" size="lg" className="mt-4 w-full" asChild><a href={applyDesignUrl}><WandSparkles /> Apply current Studio design</a></Button>
+        <Button variant="vault" size="lg" className="mt-3 w-full" onClick={downloadDesign}><FileJson /> Download design JSON</Button>
+      </div>
+
+      <div className="mt-7 flex flex-wrap gap-3">
+        <Button variant="vault" asChild><Link to="/human/studio"><ArrowLeft /> Open Studio</Link></Button>
+        <Button variant="arcade" asChild><Link to="/human/setup">Build desktop wallet</Link></Button>
+      </div>
     </section>
   </main></WalletShell>;
 }

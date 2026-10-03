@@ -13,7 +13,7 @@ export const defaultDraft: WalletDraft = {
   avatar: "N",
   custody: "Self custody",
   chains: ["Ethereum", "Base", "Polygon"],
-  security: ["Android Keystore", "Recovery phrase", "Transaction review"],
+  security: ["Browser vault", "Recovery phrase", "Transaction review", "Local signing"],
   features: ["Send & receive", "Multi-network balances", "Local transaction signing"],
   theme: "Acid Vault",
 };
@@ -32,22 +32,22 @@ export const featureGroups = [
   { key: "Wallet", items: [
     ["Send & receive", "Native mainnet transfers with explicit review", "↗"],
     ["Multi-network balances", "Read the same self-custody account across selected EVM chains", "◎"],
-    ["Local transaction signing", "Sign on the Android device; keys never leave it", "✓"],
+    ["Local transaction signing", "Unlock and sign in the browser; private keys never reach BuildAWallet", "✓"],
   ]},
   { key: "Recovery", items: [
-    ["Recovery phrase backup", "Show and back up the BIP-39 phrase on-device", "KEY"],
-    ["Wallet restore", "Restore an existing BIP-39 recovery phrase", "↻"],
-    ["Local wallet erase", "Remove encrypted wallet material from the device", "×"],
+    ["Recovery phrase backup", "Show and back up the BIP-39 phrase locally", "KEY"],
+    ["Wallet restore", "Restore an existing BIP-39 recovery phrase in this browser", "↻"],
+    ["Local wallet erase", "Remove encrypted wallet material from this browser", "×"],
   ]},
   { key: "Build", items: [
-    ["Custom wallet identity", "Carry the Studio wallet name and avatar into the app design", "◌"],
-    ["Theme metadata", "Carry the selected Studio skin into the Android wallet", "◇"],
+    ["Custom wallet identity", "Carry the Studio wallet name and avatar into the desktop wallet", "◌"],
+    ["Theme metadata", "Carry the selected Studio skin into the web wallet and optional Android import", "◇"],
     ["Network selection", "Only show the live networks selected during setup", "⌘"],
   ]},
 ] as const;
 
 export const presets = [
   { name: "Everyday EVM", detail: "Simple self-custody send and receive", score: 96, features: ["Send & receive", "Multi-network balances", "Recovery phrase backup"] },
-  { name: "Local Vault", detail: "On-device signing and recovery first", score: 98, features: ["Local transaction signing", "Recovery phrase backup", "Local wallet erase"] },
+  { name: "Local Vault", detail: "Browser-local signing and recovery first", score: 98, features: ["Local transaction signing", "Recovery phrase backup", "Local wallet erase"] },
   { name: "Multichain Core", detail: "One EVM account across selected networks", score: 94, features: ["Multi-network balances", "Network selection", "Send & receive"] },
 ];

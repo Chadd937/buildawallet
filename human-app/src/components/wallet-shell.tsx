@@ -4,7 +4,7 @@ import { ShieldCheck } from "lucide-react";
 
 export function WalletShell({ children }: { children: ReactNode }) {
   return <div className="min-h-screen bg-background text-foreground">
-    <div className="safety-ticker" aria-hidden="true"><div>No seed phrase requested <b>•</b> Human-controlled build <b>•</b> Multi-chain ready <b>•</b> Preview mode <b>•</b> No seed phrase requested <b>•</b> Human-controlled build <b>•</b> Multi-chain ready <b>•</b> Preview mode <b>•</b></div></div>
+    <div className="safety-ticker" aria-hidden="true"><div>Keys stay local <b>•</b> Human-controlled wallet <b>•</b> Multi-chain ready <b>•</b> Local signing <b>•</b> Keys stay local <b>•</b> Human-controlled wallet <b>•</b> Multi-chain ready <b>•</b> Local signing <b>•</b></div></div>
     <header className="border-b border-border/70 bg-background/85 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
         <a href="https://buildawallet.xyz/" className="flex items-center gap-3" aria-label="BuildAWallet.xyz main landing page">
@@ -14,11 +14,11 @@ export function WalletShell({ children }: { children: ReactNode }) {
         <nav className="ml-auto flex items-center gap-1 text-xs sm:gap-3">
           <Link to="/human" className="nav-link" activeProps={{ className: "nav-link nav-link-active" }}>Setup</Link>
           <Link to="/human/studio" className="nav-link" activeProps={{ className: "nav-link nav-link-active" }}>Studio</Link>
-          <Link to="/human/release" className="nav-link" activeProps={{ className: "nav-link nav-link-active" }}>Release</Link>
-          <Link to="/human/download" className="nav-link" activeProps={{ className: "nav-link nav-link-active" }}>Download</Link>
+          <Link to="/human/wallet" className="nav-link" activeProps={{ className: "nav-link nav-link-active" }}>Wallet</Link>
+          <Link to="/human/download" className="nav-link" activeProps={{ className: "nav-link nav-link-active" }}>Android</Link>
         </nav>
         <a href="https://buildawallet.xyz/" className="hidden font-display text-xs text-muted-foreground hover:text-foreground lg:block" aria-label="Return to BuildAWallet.xyz main landing page">BuildAWallet.xyz</a>
-        <span className="hidden items-center gap-1.5 font-mono text-[9px] text-muted-foreground md:flex"><ShieldCheck className="size-3 text-primary" /> PREVIEW</span>
+        <span className="hidden items-center gap-1.5 font-mono text-[9px] text-muted-foreground md:flex"><ShieldCheck className="size-3 text-primary" /> SELF-CUSTODY</span>
       </div>
     </header>
     {children}

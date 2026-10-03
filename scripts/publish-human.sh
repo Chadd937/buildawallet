@@ -6,7 +6,7 @@ APP="$ROOT/human-app"
 STATIC="$ROOT/static"
 
 cd "$APP"
-if [ ! -d node_modules ]; then
+if [ ! -d node_modules ] || [ ! -d node_modules/ethers ]; then
   npm install --legacy-peer-deps --no-audit --no-fund
 fi
 npm run build
@@ -16,7 +16,7 @@ rm -rf "$STATIC/assets"
 mkdir -p "$STATIC/assets" "$STATIC/human"
 cp -a "$APP/dist/assets/." "$STATIC/assets/"
 
-for page in setup custody chains security studio release pay download; do
+for page in setup custody chains security studio create wallet release pay download; do
   cp "$APP/dist/index.html" "$STATIC/human/${page}.html"
 done
 
@@ -29,5 +29,6 @@ cat > "$STATIC/_redirects" <<'EOF'
 EOF
 
 echo "HUMAN build published into static/."
-echo "HUMAN routes: /human/setup /human/custody /human/chains /human/security /human/studio /human/release /human/pay /human/download"
+echo "HUMAN routes: /human/setup /human/custody /human/chains /human/security /human/studio /human/create /human/wallet /human/download"
+echo "Legacy /human/release redirects into local browser-wallet creation."
 echo "Machine API plans remain at /pay."

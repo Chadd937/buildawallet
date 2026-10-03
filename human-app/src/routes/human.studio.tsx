@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Check, Flame, Rocket, Sparkles, Zap } from "lucide-react";
+import { Check, Flame, Sparkles, WalletCards, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WalletShell } from "@/components/wallet-shell";
 import { useWalletDraft } from "@/hooks/use-wallet-draft";
@@ -8,10 +8,10 @@ import { chainOptions, featureGroups, presets } from "@/lib/wallet-data";
 
 export const Route = createFileRoute("/human/studio")({
   head: () => ({ meta: [
-    { title: "Wallet Studio | BuildAWallet" },
-    { name: "description", content: "Mix presets, features, chains, and skins into your own crypto wallet in the BuildAWallet Studio." },
-    { property: "og:title", content: "Wallet Studio | BuildAWallet" },
-    { property: "og:description", content: "The marketplace-style studio for building your crypto wallet." },
+    { title: "Web3 Wallet Studio | BuildAWallet" },
+    { name: "description", content: "Customize a self-custody desktop Web3 wallet, then create or restore it locally in your browser with BuildAWallet Studio." },
+    { property: "og:title", content: "Web3 Wallet Studio | BuildAWallet" },
+    { property: "og:description", content: "Design your wallet interface, networks, features and theme before creating the local self-custody wallet." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary_large_image" },
   ] }),
@@ -46,7 +46,8 @@ function Studio() {
           <div className="absolute -right-10 -top-10 size-48 rounded-full bg-primary/20 blur-3xl" />
           <div className="absolute -bottom-16 left-1/3 size-48 rounded-full bg-coral/20 blur-3xl" />
           <p className="relative font-mono text-[10px] uppercase text-primary">Studio / {draft.name}</p>
-          <h1 className="relative mt-2 font-display text-4xl leading-none sm:text-6xl">Build the <span className="text-primary">rarest</span> wallet in the room.</h1>
+          <h1 className="relative mt-2 font-display text-4xl leading-none sm:text-6xl">Design the wallet you actually want to <span className="text-primary">use.</span></h1>
+          <p className="relative mt-4 max-w-3xl text-sm text-muted-foreground">Customize the desktop Web3 wallet first. When you are ready, BuildAWallet will create or restore the self-custody account locally in this browser—never on our server.</p>
           <div className="relative mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[["Features", draft.features.length], ["Chains", draft.chains.length], ["Shields", draft.security.length], ["Build score", score]].map(([l, v]) => <div key={l} className="rounded-xl border border-border bg-background/60 p-3"><div className="font-display text-2xl text-accent">{v}</div><div className="font-mono text-[9px] uppercase text-muted-foreground">{l}</div></div>)}
           </div>
@@ -57,7 +58,7 @@ function Studio() {
           <div className={`floaty mb-3 grid aspect-square place-items-center rounded-lg font-display text-4xl text-primary-foreground ${["bg-primary", "bg-coral", "bg-accent", "bg-highlight"][i]}`} style={{ animationDelay: `${i * 0.5}s` }}>{p.name.split(" ").map((w) => w[0]).join("")}</div>
           <div className="flex items-center justify-between"><strong className="font-display text-sm">{p.name}</strong><span className="font-mono text-[10px] text-accent">{p.score}</span></div>
           <p className="text-xs text-muted-foreground">{p.detail}</p>
-          <span className="mt-2 block font-mono text-[9px] text-primary">+ {p.features.length} features · click to mint</span>
+          <span className="mt-2 block font-mono text-[9px] text-primary">+ {p.features.length} features · apply preset</span>
         </button>)}</div>
 
         <div className="mt-8 flex flex-wrap items-center gap-2">
@@ -79,9 +80,10 @@ function Studio() {
 
         <section className="mt-10 rounded-2xl border-2 border-primary bg-card p-6 text-center">
           <Sparkles className="mx-auto size-6 text-accent" />
-          <h2 className="mt-2 font-display text-3xl">Ready to ship {draft.name}?</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{draft.features.length} features on {draft.chains.length} chains. Build score {score}.</p>
-          <Button variant="arcade" size="xl" className="mt-5 h-16 w-full max-w-md text-lg" onClick={() => navigate({ to: "/human/release" })}><Rocket /> Deploy wallet</Button>
+          <h2 className="mt-2 font-display text-3xl">Ready to make {draft.name} real?</h2>
+          <p className="mx-auto mt-2 max-w-2xl text-sm text-muted-foreground">Your design is finished. Next, create a new recovery phrase or restore an existing one locally in this browser. BuildAWallet never receives the phrase, private key, or wallet password.</p>
+          <Button variant="arcade" size="xl" className="mt-5 h-16 w-full max-w-md text-lg" onClick={() => navigate({ to: "/human/create" })}><WalletCards /> Create my wallet</Button>
+          <p className="mt-3 font-mono text-[9px] uppercase text-muted-foreground">{draft.features.length} features · {draft.chains.length} chains · build score {score}</p>
         </section>
       </div>
 
@@ -89,7 +91,7 @@ function Studio() {
         <div className="mx-auto w-72 rounded-[2.5rem] border-4 border-secondary bg-background p-4 shadow-2xl shadow-primary/10">
           <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-secondary" />
           <div className="flex items-center gap-2"><span className="grid size-9 place-items-center rounded-full bg-primary font-display text-primary-foreground">{draft.name[0] ?? "N"}</span><div><strong className="block font-display text-sm">{draft.name}</strong><span className="font-mono text-[9px] text-muted-foreground">{draft.custody} · {draft.theme}</span></div></div>
-          <div className="mt-4 rounded-xl bg-primary p-4 text-primary-foreground"><span className="font-mono text-[9px]">DEMO BALANCE</span><div className="font-display text-3xl">$12,480.22</div><span className="text-xs">+4.2% today</span></div>
+          <div className="mt-4 rounded-xl bg-primary p-4 text-primary-foreground"><span className="font-mono text-[9px]">STUDIO PREVIEW</span><div className="font-display text-3xl">$12,480.22</div><span className="text-xs">demo balance</span></div>
           <div className="mt-3 grid grid-cols-4 gap-1 text-center font-mono text-[9px]">{["Send", "Receive", "Swap", "Buy"].map((a) => <div key={a} className="rounded-lg bg-secondary py-2">{a}</div>)}</div>
           <div className="mt-3 flex flex-wrap gap-1">{draft.chains.slice(0, 8).map((c) => <span key={c} className="rounded-full border border-border px-2 py-0.5 text-[9px]">{c}</span>)}</div>
           <div className="mt-3 max-h-48 space-y-1 overflow-auto">{draft.features.map((f) => <div key={f} className="flex items-center gap-2 rounded-md bg-card px-2 py-1.5 text-xs"><Zap className="size-3 text-accent" />{f}</div>)}</div>

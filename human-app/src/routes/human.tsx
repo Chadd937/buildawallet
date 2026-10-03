@@ -8,7 +8,7 @@ export const Route = createFileRoute("/human")({
 function HumanLayout() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const publicRoute = pathname === "/human" || pathname === "/human/setup";
+  const publicRoute = pathname === "/human" || pathname === "/human/setup" || pathname === "/human/download";
   const [checking, setChecking] = useState(!publicRoute);
 
   useEffect(() => {

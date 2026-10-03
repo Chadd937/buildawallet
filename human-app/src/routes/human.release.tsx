@@ -41,16 +41,18 @@ function ReleasePage() {
         <p className="font-mono text-[10px] uppercase text-primary">Release / {draft.name}</p>
         <h1 className="mt-2 font-display text-5xl">Release your mainnet wallet.</h1>
         <p className="mt-3 max-w-2xl text-muted-foreground">
-          HUMAN wallet creation and release are free. BuildAWallet never charges a HUMAN-side
-          subscription or payment gate to release the configured signed Android build.
+          HUMAN wallet creation and release are free. The Android v1 app is self-custody:
+          recovery phrases are generated or restored on the phone, encrypted with Android
+          Keystore, and never sent to BuildAWallet.
         </p>
         <section className="choice-card mt-8 p-6" data-selected="true">
           <ShieldCheck className="size-8 text-accent" />
-          <h2 className="mt-4 font-display text-2xl">Free mainnet release</h2>
+          <h2 className="mt-4 font-display text-2xl">Free Android wallet release</h2>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Your selected design is sent only as build metadata. Seed phrases and private keys are
-            not part of the build request. When the signed APK release URL is configured, the build
-            service returns it immediately for download.
+            The live v1 core supports Ethereum, Base, Polygon, Arbitrum, Optimism,
+            Avalanche C-Chain and BNB Chain with balance reads, receive, transaction
+            review, local signing and broadcast. After installation, the download page
+            can apply your Studio design directly to the app; the design contains no wallet secrets.
           </p>
           <div className="mt-5 font-display text-3xl">
             $0 <span className="text-sm text-muted-foreground">HUMAN release</span>
@@ -63,13 +65,10 @@ function ReleasePage() {
         )}
         <div className="mt-8 flex flex-wrap gap-3">
           <Button variant="vault" asChild>
-            <Link to="/human/studio">
-              <ArrowLeft /> Back to Studio
-            </Link>
+            <Link to="/human/studio"><ArrowLeft /> Back to Studio</Link>
           </Button>
           <Button variant="arcade" size="lg" onClick={startRelease} disabled={busy}>
-            <Rocket />
-            {busy ? "Preparing release…" : "Release free Android build"}
+            <Rocket />{busy ? "Preparing release…" : "Release free Android wallet"}
           </Button>
         </div>
       </main>

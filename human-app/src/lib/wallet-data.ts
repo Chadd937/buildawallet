@@ -12,58 +12,42 @@ export const defaultDraft: WalletDraft = {
   name: "Nova Wallet",
   avatar: "N",
   custody: "Self custody",
-  chains: ["Ethereum", "Solana", "Base"],
-  security: ["Biometrics", "Cloud backup"],
-  features: ["Token swaps", "NFT gallery", "Portfolio analytics", "Price alerts"],
+  chains: ["Ethereum", "Base", "Polygon"],
+  security: ["Android Keystore", "Recovery phrase", "Transaction review"],
+  features: ["Send & receive", "Multi-network balances", "Local transaction signing"],
   theme: "Acid Vault",
 };
 
 export const chainOptions = [
-  ["Bitcoin", "BTC", "The original settlement network"],
   ["Ethereum", "ETH", "Apps, tokens, and collectibles"],
-  ["Solana", "SOL", "Fast payments and consumer apps"],
   ["Base", "BASE", "Low-cost Ethereum layer 2"],
   ["Arbitrum", "ARB", "Ethereum scaling and DeFi"],
   ["Polygon", "POL", "Gaming, payments, and apps"],
   ["Optimism", "OP", "Superchain ecosystem"],
-  ["Avalanche", "AVAX", "Fast custom blockchain network"],
+  ["Avalanche", "AVAX", "Avalanche C-Chain"],
   ["BNB Chain", "BNB", "Broad token and app support"],
-  ["Litecoin", "LTC", "Simple peer-to-peer payments"],
-  ["Cosmos", "ATOM", "Interchain assets and staking"],
-  ["Sui", "SUI", "Object-based apps and assets"],
 ] as const;
 
 export const featureGroups = [
-  { key: "Money", items: [
-    ["Token swaps", "Trade tokens with smart route finding", "⇄"], ["Cross-chain bridge", "Move assets between networks", "↗"],
-    ["Fiat on-ramp", "Buy crypto by card or bank", "+"], ["Fiat off-ramp", "Cash out to a bank account", "−"],
-    ["Recurring buys", "Automate a steady accumulation plan", "↻"], ["Payment requests", "Create links and scannable invoices", "¤"],
+  { key: "Wallet", items: [
+    ["Send & receive", "Native mainnet transfers with explicit review", "↗"],
+    ["Multi-network balances", "Read the same self-custody account across selected EVM chains", "◎"],
+    ["Local transaction signing", "Sign on the Android device; keys never leave it", "✓"],
   ]},
-  { key: "Collect", items: [
-    ["NFT gallery", "Display art across every chain", "◇"], ["Mint studio", "Create collections inside the wallet", "✦"],
-    ["Rarity explorer", "Inspect traits and collection floors", "★"], ["Token-gated access", "Unlock communities and experiences", "⌘"],
-    ["ENS profiles", "Use readable names and avatars", "@"], ["Watchlist", "Track wallets and collections", "◉"],
+  { key: "Recovery", items: [
+    ["Recovery phrase backup", "Show and back up the BIP-39 phrase on-device", "KEY"],
+    ["Wallet restore", "Restore an existing BIP-39 recovery phrase", "↻"],
+    ["Local wallet erase", "Remove encrypted wallet material from the device", "×"],
   ]},
-  { key: "Grow", items: [
-    ["Staking hub", "Delegate and track network rewards", "↑"], ["DeFi positions", "See lending and liquidity in one place", "≈"],
-    ["Portfolio analytics", "Profit, loss, allocation, and history", "▥"], ["Yield discovery", "Compare curated earning routes", "%"],
-    ["Tax exports", "Download categorized transaction records", "▤"], ["Price alerts", "Custom movement and balance alerts", "!"],
-  ]},
-  { key: "Protect", items: [
-    ["Transaction simulation", "Preview balance changes before signing", "◎"], ["Spam shield", "Hide suspicious tokens and NFTs", "×"],
-    ["Approval manager", "Review and revoke app permissions", "✓"], ["Address book", "Save verified contacts and labels", "⌁"],
-    ["Spending limits", "Require approval above custom limits", "⊘"], ["Emergency lock", "Freeze activity from a trusted device", "▣"],
-  ]},
-  { key: "Connect", items: [
-    ["WalletConnect", "Connect safely to supported apps", "⌬"], ["Dapp browser", "Explore decentralized apps in-wallet", "◫"],
-    ["Hardware wallets", "Pair Ledger and Trezor devices", "▰"], ["Multi-account", "Separate identities and portfolios", "◌"],
-    ["Contacts chat", "Message before sending a payment", "#"], ["Developer mode", "RPC, nonce, gas, and raw data tools", "{ }"],
+  { key: "Build", items: [
+    ["Custom wallet identity", "Carry the Studio wallet name and avatar into the app design", "◌"],
+    ["Theme metadata", "Carry the selected Studio skin into the Android wallet", "◇"],
+    ["Network selection", "Only show the live networks selected during setup", "⌘"],
   ]},
 ] as const;
 
 export const presets = [
-  { name: "Vault Runner", detail: "Hardware-first, guarded approvals", score: 94, features: ["Hardware wallets", "Transaction simulation", "Approval manager", "Emergency lock"] },
-  { name: "Meme Mint", detail: "Collect, mint, share, repeat", score: 82, features: ["NFT gallery", "Mint studio", "Rarity explorer", "Token-gated access"] },
-  { name: "DeFi Pilot", detail: "Swap, bridge, stake, analyze", score: 91, features: ["Token swaps", "Cross-chain bridge", "Staking hub", "DeFi positions", "Portfolio analytics"] },
-  { name: "Everyday Money", detail: "Friendly payments and alerts", score: 86, features: ["Fiat on-ramp", "Payment requests", "Recurring buys", "Price alerts", "Address book"] },
+  { name: "Everyday EVM", detail: "Simple self-custody send and receive", score: 96, features: ["Send & receive", "Multi-network balances", "Recovery phrase backup"] },
+  { name: "Local Vault", detail: "On-device signing and recovery first", score: 98, features: ["Local transaction signing", "Recovery phrase backup", "Local wallet erase"] },
+  { name: "Multichain Core", detail: "One EVM account across selected networks", score: 94, features: ["Multi-network balances", "Network selection", "Send & receive"] },
 ];

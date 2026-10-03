@@ -2,16 +2,22 @@ plugins {
     id 'com.android.application'
 }
 
+def releaseKeystore = System.getenv('BAW_ANDROID_KEYSTORE')
+def releaseStorePassword = System.getenv('BAW_ANDROID_KEYSTORE_PASSWORD')
+def releaseKeyAlias = System.getenv('BAW_ANDROID_KEY_ALIAS')
+def releaseKeyPassword = System.getenv('BAW_ANDROID_KEY_PASSWORD')
+def hasReleaseSigning = releaseKeystore && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
 android {
     namespace 'xyz.buildawallet.studio'
     compileSdk 35
 
     defaultConfig {
-        applicationId 'xyz.buildawallet.studio'
+        applicationId 'xyz.buildawallet.wallet'
         minSdk 26
         targetSdk 35
         versionCode 1
-        versionName '0.1.0-preview'
+        versionName '1.0.0'
     }
 
     compileOptions {
@@ -19,9 +25,45 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    buildTypes {
+    signingConfigs {
         release {
-            minifyEnabled false
+            if (hasReleaseSigning) {
+                storeFile file(releaseKeystore)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
         }
     }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+        release {
+            minifyEnabled false
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    packaging {
+        resources {
+            excludes += [
+                'META-INF/DEPENDENCIES',
+                'META-INF/LICENSE',
+                'META-INF/LICENSE.txt',
+                'META-INF/NOTICE',
+                'META-INF/NOTICE.txt'
+            ]
+        }
+    }
+}
+
+dependencies {
+    implementation 'org.web3j:core:4.12.3-android'
+    testImplementation 'junit:junit:4.13.2'
 }

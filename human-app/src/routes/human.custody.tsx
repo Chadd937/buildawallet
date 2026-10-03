@@ -1,4 +1,35 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SetupPage } from "@/components/setup-page";
-export const Route=createFileRoute("/human/custody")({head:()=>({meta:[{title:"Choose Custody | BuildAWallet"},{name:"description",content:"Choose how your wallet keys and approvals should be controlled."},{property:"og:title",content:"Choose Custody | BuildAWallet"},{property:"og:description",content:"Choose your wallet control model."},{property:"og:type",content:"website"},{name:"twitter:card",content:"summary_large_image"}]}),component:Page});
-function Page(){return <SetupPage step={2} eyebrow="02 / Custody" title="Who holds the keys?" description="Pick the control model that fits you. BuildAWallet will never ask you to paste a recovery phrase." field="custody" next="/human/chains" back="/human" choices={[{name:"Self custody",detail:"You control locally generated keys",icon:"YOU"},{name:"Hardware wallet",detail:"Confirm transactions on a paired device",icon:"HW"},{name:"Smart account",detail:"Passkeys, recovery, and programmable rules",icon:"AA"},{name:"Multisig",detail:"Require approval from multiple signers",icon:"2/3"},{name:"MPC wallet",detail:"Split key control across trusted devices",icon:"MPC"},{name:"Watch only",detail:"Track addresses without signing access",icon:"EYE"}]}/>}
+
+export const Route = createFileRoute("/human/custody")({
+  head: () => ({
+    meta: [
+      { title: "Choose Custody | BuildAWallet" },
+      { name: "description", content: "Choose how your Android wallet keys are controlled." },
+      { property: "og:title", content: "Choose Custody | BuildAWallet" },
+      { property: "og:description", content: "Build a self-custody Android wallet." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: Page,
+});
+
+function Page() {
+  return (
+    <SetupPage
+      step={2}
+      eyebrow="02 / Custody"
+      title="You hold the keys."
+      description="Android v1 is self-custody only: the recovery phrase is generated or restored on your phone and never sent to BuildAWallet."
+      field="custody"
+      next="/human/chains"
+      back="/human"
+      choices={[{
+        name: "Self custody",
+        detail: "BIP-39 recovery phrase + Android Keystore encrypted local storage",
+        icon: "YOU",
+      }]}
+    />
+  );
+}

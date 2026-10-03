@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, Download, Info, Smartphone } from "lucide-react";
+import { ArrowLeft, Download, FileJson, Info, Smartphone, WandSparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WalletShell } from "@/components/wallet-shell";
 import { useWalletDraft } from "@/hooks/use-wallet-draft";
@@ -9,9 +9,9 @@ import { useWalletDraft } from "@/hooks/use-wallet-draft";
 export const Route = createFileRoute("/human/download")({
   head: () => ({ meta: [
     { title: "Download Your Wallet | BuildAWallet" },
-    { name: "description", content: "Scan the QR code to get your BuildAWallet Android build and review your wallet summary." },
+    { name: "description", content: "Download your BuildAWallet Android wallet and Studio design." },
     { property: "og:title", content: "Download Your Wallet | BuildAWallet" },
-    { property: "og:description", content: "Scan to download your custom wallet build." },
+    { property: "og:description", content: "Download the Android wallet and import your custom Studio design." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary_large_image" },
   ] }),
@@ -45,15 +45,32 @@ function DownloadPage() {
 
   const buildId = build?.buildId || "NOT-STARTED";
   const ready = build?.status === "complete" && Boolean(build?.apkUrl);
+  const designPayload = { schema: "buildawallet-human-v1", ...draft };
+  const applyDesignUrl = `buildawallet://import?data=${encodeURIComponent(JSON.stringify(designPayload))}`;
+
+  const downloadDesign = () => {
+    const body = JSON.stringify(designPayload, null, 2);
+    const blob = new Blob([body], { type: "application/json" });
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = `${draft.name.trim().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "my-wallet"}-design.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(href);
+  };
 
   return <WalletShell><main className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-2">
     <section className="rounded-2xl border-2 border-primary bg-card p-6 text-center sm:p-8">
       <p className="font-mono text-[10px] uppercase text-primary">Build #{buildId} · {loading ? "checking" : (build?.status || "not started")}</p>
-      <h1 className="mt-2 font-display text-4xl leading-tight">{ready ? `${draft.name} is ready.` : "Your Android build"}</h1>
-      <p className="mt-2 text-muted-foreground">{ready ? "Scan with your Android phone or download the signed APK directly." : (build?.message || "Release the wallet from Studio to start an Android build.")}</p>
+      <h1 className="mt-2 font-display text-4xl leading-tight">{ready ? `${draft.name} is ready.` : "Your Android wallet"}</h1>
+      <p className="mt-2 text-muted-foreground">{ready ? "Install the signed APK, then apply your Studio design." : (build?.message || "Release the wallet from Studio to start the Android download flow.")}</p>
       <div className="pulse-border mx-auto mt-6 w-fit rounded-2xl border-2 border-border bg-foreground p-4"><QRCodeSVG value={ready && build?.apkUrl ? new URL(build.apkUrl, window.location.origin).toString() : url} size={220} bgColor="transparent" fgColor="currentColor" className="text-background" /></div>
       {ready ? <Button variant="arcade" size="xl" className="mt-6 w-full" asChild><a href={build!.apkUrl!}><Download /> Download signed APK</a></Button> : <Button variant="arcade" size="xl" className="mt-6 w-full" disabled><Download /> APK not ready yet</Button>}
-      <p className="mt-4 flex items-start gap-2 rounded-lg bg-secondary p-3 text-left text-xs text-muted-foreground"><Info className="mt-0.5 size-4 shrink-0 text-accent" /> BuildAWallet only labels a file as an APK when the Android build service reports a completed signed artifact. No seed phrase or private key is included in the build configuration.</p>
+      {ready && <Button variant="vault" size="lg" className="mt-3 w-full" asChild><a href={applyDesignUrl}><WandSparkles /> Apply my Studio design</a></Button>}
+      <Button variant="vault" size="lg" className="mt-3 w-full" onClick={downloadDesign}><FileJson /> Download design JSON instead</Button>
+      <p className="mt-4 flex items-start gap-2 rounded-lg bg-secondary p-3 text-left text-xs text-muted-foreground"><Info className="mt-0.5 size-4 shrink-0 text-accent" /> Install the APK first, then tap <strong>Apply my Studio design</strong> on your Android phone. If your browser blocks app links, download the JSON and import it inside the wallet. Design data contains names/settings only—never a recovery phrase or private key.</p>
       {build?.sha256 && <p className="mt-3 break-all font-mono text-[10px] text-muted-foreground">SHA-256: {build.sha256}</p>}
     </section>
     <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">

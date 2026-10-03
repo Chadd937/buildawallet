@@ -34,10 +34,15 @@ final class SecureSeedStore {
         return prefs.contains(IV) && prefs.contains(CIPHER);
     }
 
-    String createMnemonic() throws Exception {
+    /** Generate a new BIP-39 phrase without persisting it. Persist only after backup verification. */
+    String generateMnemonic() {
         byte[] entropy = new byte[16];
         new SecureRandom().nextBytes(entropy);
-        String mnemonic = MnemonicUtils.generateMnemonic(entropy);
+        return MnemonicUtils.generateMnemonic(entropy);
+    }
+
+    String createMnemonic() throws Exception {
+        String mnemonic = generateMnemonic();
         save(mnemonic);
         return mnemonic;
     }

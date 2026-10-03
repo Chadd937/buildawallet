@@ -9,6 +9,10 @@
         android:theme="@android:style/Theme.Material.NoActionBar">
         <activity
             android:name=".MainActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+        <activity
+            android:name=".LegalGateActivity"
             android:exported="true"
             android:screenOrientation="unspecified">
             <intent-filter>

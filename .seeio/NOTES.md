@@ -75,3 +75,5 @@ solely based on what the user wants, as many features as options."
 
 ## Open questions for the owner
 - Any interest in a gallery of public builds on the home page?
+
+- Frontend uses the BuildAWallet wallet favicon and standard Vite plugins. Unused editor metadata, telemetry hooks and the obsolete alternate dependency lockfile were removed on 2026-10-04.

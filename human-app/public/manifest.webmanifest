@@ -1,0 +1,16 @@
+{
+  "name": "BuildAWallet",
+  "short_name": "BuildAWallet",
+  "start_url": "/human/wallet",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0d10",
+  "theme_color": "#0b0d10",
+  "icons": [
+    {
+      "src": "/favicon.svg?v=20261004",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

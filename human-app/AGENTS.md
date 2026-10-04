@@ -1,6 +1,14 @@
-# BuildAWallet frontend instructions
+## BuildAWallet rules
+- This app owns the production landing, /human, /nonhuman, and versioned legal-entry gate. Preserve the legacy backend and its stored data during the production cutover.
+- Web and Android legal acceptance use separate versioned browser records, selected by the Android wrapper user agent. Why: accepting on one surface must never pre-accept the other.
+- HUMAN wallet keys are derived client-side (src/lib/wallet) from one BIP-39 phrase and stored only AES-GCM encrypted in IndexedDB; never send them to a server. The machine side's opt-in server-made wallet generates in memory, returns once with no-store, and persists nothing. Why: self-custody, with an explicit agent-chosen exception.
+- Every Studio feature id in src/lib/catalog.ts must map to real wallet behavior; no mock features. Why: user forbids placeholders.
+- Solana RPC goes through the allowlisted server relay (rpc.functions.ts) because public endpoints reject browser origins.
+- Machine APIs expose the same ten public-data networks as HUMAN, while paid subscription settlement remains exact USDC on Base or Solana and all signing remains client-side. Why: shared chain coverage without introducing custody.
+- HUMAN flow is landing → /human/setup (name, avatar, emailed magic link back to setup) → /human/studio (all build options incl. safety limits) → /human/deploy (build backup file, no keys) → /human/wallet or /human/android; wallet onboarding offers create, restore phrase, or import build backup. Web terms gate shows only on "/"; Android shows it at app start. Why: user-defined flow; email links must resume the build.
+- The Studio hero artwork is mounted behind every page except the split landing, and Android inherits the same scene through its wallet WebView. Why: internal surfaces stay visually consistent while the human/robot entry image remains distinct.
+- The HUMAN assistant uses one account-persisted conversation and a streaming app route; the separate Cloudflare Worker is only its public deployment surface, and neither receives wallet secrets. Why: one continuous guide must work across web and Android without weakening self-custody.
+- The generated Android app is a hardened HTTPS WebView of `/human/wallet`, so web and Android share one production wallet implementation; release builds must be signed and file import must remain supported. Why: feature parity and wallet security must not drift between platforms.
 
-- Keep published Git history intact and push working changes to the canonical `Chadd937/buildawallet` repository.
-
-- Keep the Human builder as route-based steps backed by one browser-local wallet draft, because the flow must survive navigation without requiring accounts or backend storage.
-- Treat deploy and APK delivery as a transparent prototype handoff until a signed wallet binary exists, because the frontend must never imply a non-functional package can hold funds.
+- Machine side is a /nonhuman layout with sub-pages; human API accounts use api_* tables (read via RLS, written by authenticated server functions with admin client) and baw_acct_ keys metered by consume_account_api_units, alongside wallet-session baw_live_ keys. Why: one metering path for both purchase routes with real usage history.
+- Endpoint docs come from src/lib/machine/catalog.ts, shared by pages, OpenAPI, llms.txt and pricing. Why: docs cannot drift from the API.

@@ -9,20 +9,63 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as HumanRouteImport } from './routes/human'
+import { Route as NonhumanRouteImport } from './routes/nonhuman'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as PrivacyChoicesRouteImport } from './routes/privacy-choices'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as ApiHumanAiRouteImport } from './routes/api/human-ai'
 import { Route as HumanIndexRouteImport } from './routes/human.index'
-import { Route as HumanChainsRouteImport } from './routes/human.chains'
-import { Route as HumanCustodyRouteImport } from './routes/human.custody'
-import { Route as HumanDownloadRouteImport } from './routes/human.download'
-import { Route as HumanPayRouteImport } from './routes/human.pay'
-import { Route as HumanReleaseRouteImport } from './routes/human.release'
-import { Route as HumanSecurityRouteImport } from './routes/human.security'
+import { Route as HumanAndroidRouteImport } from './routes/human.android'
+import { Route as HumanDeployRouteImport } from './routes/human.deploy'
 import { Route as HumanSetupRouteImport } from './routes/human.setup'
 import { Route as HumanStudioRouteImport } from './routes/human.studio'
+import { Route as HumanWalletRouteImport } from './routes/human.wallet'
+import { Route as NonhumanIndexRouteImport } from './routes/nonhuman.index'
+import { Route as NonhumanApiRouteImport } from './routes/nonhuman.api'
+import { Route as NonhumanChainsRouteImport } from './routes/nonhuman.chains'
+import { Route as NonhumanDashboardRouteImport } from './routes/nonhuman.dashboard'
+import { Route as NonhumanMcpRouteImport } from './routes/nonhuman.mcp'
+import { Route as NonhumanPayPerCallRouteImport } from './routes/nonhuman.pay-per-call'
+import { Route as NonhumanPricingRouteImport } from './routes/nonhuman.pricing'
+import { Route as NonhumanWalletsRouteImport } from './routes/nonhuman.wallets'
+import { Route as ApiPublicOpenapiRouteImport } from './routes/api/public/openapi'
+import { Route as ApiPublicMachineSplatRouteImport } from './routes/api/public/machine/$'
 
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HumanRoute = HumanRouteImport.update({
   id: '/human',
   path: '/human',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NonhumanRoute = NonhumanRouteImport.update({
+  id: '/nonhuman',
+  path: '/nonhuman',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyChoicesRoute = PrivacyChoicesRouteImport.update({
+  id: '/privacy-choices',
+  path: '/privacy-choices',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHumanAiRoute = ApiHumanAiRouteImport.update({
+  id: '/api/human-ai',
+  path: '/api/human-ai',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HumanIndexRoute = HumanIndexRouteImport.update({
@@ -30,34 +73,14 @@ const HumanIndexRoute = HumanIndexRouteImport.update({
   path: '/',
   getParentRoute: () => HumanRoute,
 } as any)
-const HumanChainsRoute = HumanChainsRouteImport.update({
-  id: '/chains',
-  path: '/chains',
+const HumanAndroidRoute = HumanAndroidRouteImport.update({
+  id: '/android',
+  path: '/android',
   getParentRoute: () => HumanRoute,
 } as any)
-const HumanCustodyRoute = HumanCustodyRouteImport.update({
-  id: '/custody',
-  path: '/custody',
-  getParentRoute: () => HumanRoute,
-} as any)
-const HumanDownloadRoute = HumanDownloadRouteImport.update({
-  id: '/download',
-  path: '/download',
-  getParentRoute: () => HumanRoute,
-} as any)
-const HumanPayRoute = HumanPayRouteImport.update({
-  id: '/pay',
-  path: '/pay',
-  getParentRoute: () => HumanRoute,
-} as any)
-const HumanReleaseRoute = HumanReleaseRouteImport.update({
-  id: '/release',
-  path: '/release',
-  getParentRoute: () => HumanRoute,
-} as any)
-const HumanSecurityRoute = HumanSecurityRouteImport.update({
-  id: '/security',
-  path: '/security',
+const HumanDeployRoute = HumanDeployRouteImport.update({
+  id: '/deploy',
+  path: '/deploy',
   getParentRoute: () => HumanRoute,
 } as any)
 const HumanSetupRoute = HumanSetupRouteImport.update({
@@ -70,92 +93,273 @@ const HumanStudioRoute = HumanStudioRouteImport.update({
   path: '/studio',
   getParentRoute: () => HumanRoute,
 } as any)
+const HumanWalletRoute = HumanWalletRouteImport.update({
+  id: '/wallet',
+  path: '/wallet',
+  getParentRoute: () => HumanRoute,
+} as any)
+const NonhumanIndexRoute = NonhumanIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => NonhumanRoute,
+} as any)
+const NonhumanApiRoute = NonhumanApiRouteImport.update({
+  id: '/api',
+  path: '/api',
+  getParentRoute: () => NonhumanRoute,
+} as any)
+const NonhumanChainsRoute = NonhumanChainsRouteImport.update({
+  id: '/chains',
+  path: '/chains',
+  getParentRoute: () => NonhumanRoute,
+} as any)
+const NonhumanDashboardRoute = NonhumanDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => NonhumanRoute,
+} as any)
+const NonhumanMcpRoute = NonhumanMcpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => NonhumanRoute,
+} as any)
+const NonhumanPayPerCallRoute = NonhumanPayPerCallRouteImport.update({
+  id: '/pay-per-call',
+  path: '/pay-per-call',
+  getParentRoute: () => NonhumanRoute,
+} as any)
+const NonhumanPricingRoute = NonhumanPricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => NonhumanRoute,
+} as any)
+const NonhumanWalletsRoute = NonhumanWalletsRouteImport.update({
+  id: '/wallets',
+  path: '/wallets',
+  getParentRoute: () => NonhumanRoute,
+} as any)
+const ApiPublicOpenapiRoute = ApiPublicOpenapiRouteImport.update({
+  id: '/api/public/openapi',
+  path: '/api/public/openapi',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicMachineSplatRoute = ApiPublicMachineSplatRouteImport.update({
+  id: '/api/public/machine/$',
+  path: '/api/public/machine/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof IndexRoute
   '/human': typeof HumanRouteWithChildren
-  '/human/chains': typeof HumanChainsRoute
-  '/human/custody': typeof HumanCustodyRoute
-  '/human/download': typeof HumanDownloadRoute
-  '/human/pay': typeof HumanPayRoute
-  '/human/release': typeof HumanReleaseRoute
-  '/human/security': typeof HumanSecurityRoute
+  '/nonhuman': typeof NonhumanRouteWithChildren
+  '/privacy': typeof PrivacyRoute
+  '/privacy-choices': typeof PrivacyChoicesRoute
+  '/terms': typeof TermsRoute
+  '/api/human-ai': typeof ApiHumanAiRoute
+  '/human/android': typeof HumanAndroidRoute
+  '/human/deploy': typeof HumanDeployRoute
   '/human/setup': typeof HumanSetupRoute
   '/human/studio': typeof HumanStudioRoute
+  '/human/wallet': typeof HumanWalletRoute
+  '/nonhuman/api': typeof NonhumanApiRoute
+  '/nonhuman/chains': typeof NonhumanChainsRoute
+  '/nonhuman/dashboard': typeof NonhumanDashboardRoute
+  '/nonhuman/mcp': typeof NonhumanMcpRoute
+  '/nonhuman/pay-per-call': typeof NonhumanPayPerCallRoute
+  '/nonhuman/pricing': typeof NonhumanPricingRoute
+  '/nonhuman/wallets': typeof NonhumanWalletsRoute
   '/human/': typeof HumanIndexRoute
+  '/nonhuman/': typeof NonhumanIndexRoute
+  '/api/public/openapi': typeof ApiPublicOpenapiRoute
+  '/api/public/machine/$': typeof ApiPublicMachineSplatRoute
 }
 export interface FileRoutesByTo {
-  '/human/chains': typeof HumanChainsRoute
-  '/human/custody': typeof HumanCustodyRoute
-  '/human/download': typeof HumanDownloadRoute
-  '/human/pay': typeof HumanPayRoute
-  '/human/release': typeof HumanReleaseRoute
-  '/human/security': typeof HumanSecurityRoute
+  '/': typeof IndexRoute
+  '/privacy': typeof PrivacyRoute
+  '/privacy-choices': typeof PrivacyChoicesRoute
+  '/terms': typeof TermsRoute
+  '/api/human-ai': typeof ApiHumanAiRoute
+  '/human/android': typeof HumanAndroidRoute
+  '/human/deploy': typeof HumanDeployRoute
   '/human/setup': typeof HumanSetupRoute
   '/human/studio': typeof HumanStudioRoute
+  '/human/wallet': typeof HumanWalletRoute
+  '/nonhuman/api': typeof NonhumanApiRoute
+  '/nonhuman/chains': typeof NonhumanChainsRoute
+  '/nonhuman/dashboard': typeof NonhumanDashboardRoute
+  '/nonhuman/mcp': typeof NonhumanMcpRoute
+  '/nonhuman/pay-per-call': typeof NonhumanPayPerCallRoute
+  '/nonhuman/pricing': typeof NonhumanPricingRoute
+  '/nonhuman/wallets': typeof NonhumanWalletsRoute
   '/human': typeof HumanIndexRoute
+  '/nonhuman': typeof NonhumanIndexRoute
+  '/api/public/openapi': typeof ApiPublicOpenapiRoute
+  '/api/public/machine/$': typeof ApiPublicMachineSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/human': typeof HumanRouteWithChildren
-  '/human/chains': typeof HumanChainsRoute
-  '/human/custody': typeof HumanCustodyRoute
-  '/human/download': typeof HumanDownloadRoute
-  '/human/pay': typeof HumanPayRoute
-  '/human/release': typeof HumanReleaseRoute
-  '/human/security': typeof HumanSecurityRoute
+  '/nonhuman': typeof NonhumanRouteWithChildren
+  '/privacy': typeof PrivacyRoute
+  '/privacy-choices': typeof PrivacyChoicesRoute
+  '/terms': typeof TermsRoute
+  '/api/human-ai': typeof ApiHumanAiRoute
+  '/human/android': typeof HumanAndroidRoute
+  '/human/deploy': typeof HumanDeployRoute
   '/human/setup': typeof HumanSetupRoute
   '/human/studio': typeof HumanStudioRoute
+  '/human/wallet': typeof HumanWalletRoute
+  '/nonhuman/api': typeof NonhumanApiRoute
+  '/nonhuman/chains': typeof NonhumanChainsRoute
+  '/nonhuman/dashboard': typeof NonhumanDashboardRoute
+  '/nonhuman/mcp': typeof NonhumanMcpRoute
+  '/nonhuman/pay-per-call': typeof NonhumanPayPerCallRoute
+  '/nonhuman/pricing': typeof NonhumanPricingRoute
+  '/nonhuman/wallets': typeof NonhumanWalletsRoute
   '/human/': typeof HumanIndexRoute
+  '/nonhuman/': typeof NonhumanIndexRoute
+  '/api/public/openapi': typeof ApiPublicOpenapiRoute
+  '/api/public/machine/$': typeof ApiPublicMachineSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/'
     | '/human'
-    | '/human/chains'
-    | '/human/custody'
-    | '/human/download'
-    | '/human/pay'
-    | '/human/release'
-    | '/human/security'
+    | '/nonhuman'
+    | '/privacy'
+    | '/privacy-choices'
+    | '/terms'
+    | '/api/human-ai'
+    | '/human/android'
+    | '/human/deploy'
     | '/human/setup'
     | '/human/studio'
+    | '/human/wallet'
+    | '/nonhuman/api'
+    | '/nonhuman/chains'
+    | '/nonhuman/dashboard'
+    | '/nonhuman/mcp'
+    | '/nonhuman/pay-per-call'
+    | '/nonhuman/pricing'
+    | '/nonhuman/wallets'
     | '/human/'
+    | '/nonhuman/'
+    | '/api/public/openapi'
+    | '/api/public/machine/$'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/human/chains'
-    | '/human/custody'
-    | '/human/download'
-    | '/human/pay'
-    | '/human/release'
-    | '/human/security'
+    | '/'
+    | '/privacy'
+    | '/privacy-choices'
+    | '/terms'
+    | '/api/human-ai'
+    | '/human/android'
+    | '/human/deploy'
     | '/human/setup'
     | '/human/studio'
+    | '/human/wallet'
+    | '/nonhuman/api'
+    | '/nonhuman/chains'
+    | '/nonhuman/dashboard'
+    | '/nonhuman/mcp'
+    | '/nonhuman/pay-per-call'
+    | '/nonhuman/pricing'
+    | '/nonhuman/wallets'
     | '/human'
+    | '/nonhuman'
+    | '/api/public/openapi'
+    | '/api/public/machine/$'
   id:
     | '__root__'
+    | '/'
     | '/human'
-    | '/human/chains'
-    | '/human/custody'
-    | '/human/download'
-    | '/human/pay'
-    | '/human/release'
-    | '/human/security'
+    | '/nonhuman'
+    | '/privacy'
+    | '/privacy-choices'
+    | '/terms'
+    | '/api/human-ai'
+    | '/human/android'
+    | '/human/deploy'
     | '/human/setup'
     | '/human/studio'
+    | '/human/wallet'
+    | '/nonhuman/api'
+    | '/nonhuman/chains'
+    | '/nonhuman/dashboard'
+    | '/nonhuman/mcp'
+    | '/nonhuman/pay-per-call'
+    | '/nonhuman/pricing'
+    | '/nonhuman/wallets'
     | '/human/'
+    | '/nonhuman/'
+    | '/api/public/openapi'
+    | '/api/public/machine/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   HumanRoute: typeof HumanRouteWithChildren
+  NonhumanRoute: typeof NonhumanRouteWithChildren
+  PrivacyRoute: typeof PrivacyRoute
+  PrivacyChoicesRoute: typeof PrivacyChoicesRoute
+  TermsRoute: typeof TermsRoute
+  ApiHumanAiRoute: typeof ApiHumanAiRoute
+  ApiPublicOpenapiRoute: typeof ApiPublicOpenapiRoute
+  ApiPublicMachineSplatRoute: typeof ApiPublicMachineSplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/human': {
       id: '/human'
       path: '/human'
       fullPath: '/human'
       preLoaderRoute: typeof HumanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nonhuman': {
+      id: '/nonhuman'
+      path: '/nonhuman'
+      fullPath: '/nonhuman'
+      preLoaderRoute: typeof NonhumanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy-choices': {
+      id: '/privacy-choices'
+      path: '/privacy-choices'
+      fullPath: '/privacy-choices'
+      preLoaderRoute: typeof PrivacyChoicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/human-ai': {
+      id: '/api/human-ai'
+      path: '/api/human-ai'
+      fullPath: '/api/human-ai'
+      preLoaderRoute: typeof ApiHumanAiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/human/': {
@@ -165,46 +369,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HumanIndexRouteImport
       parentRoute: typeof HumanRoute
     }
-    '/human/chains': {
-      id: '/human/chains'
-      path: '/chains'
-      fullPath: '/human/chains'
-      preLoaderRoute: typeof HumanChainsRouteImport
+    '/human/android': {
+      id: '/human/android'
+      path: '/android'
+      fullPath: '/human/android'
+      preLoaderRoute: typeof HumanAndroidRouteImport
       parentRoute: typeof HumanRoute
     }
-    '/human/custody': {
-      id: '/human/custody'
-      path: '/custody'
-      fullPath: '/human/custody'
-      preLoaderRoute: typeof HumanCustodyRouteImport
-      parentRoute: typeof HumanRoute
-    }
-    '/human/download': {
-      id: '/human/download'
-      path: '/download'
-      fullPath: '/human/download'
-      preLoaderRoute: typeof HumanDownloadRouteImport
-      parentRoute: typeof HumanRoute
-    }
-    '/human/pay': {
-      id: '/human/pay'
-      path: '/pay'
-      fullPath: '/human/pay'
-      preLoaderRoute: typeof HumanPayRouteImport
-      parentRoute: typeof HumanRoute
-    }
-    '/human/release': {
-      id: '/human/release'
-      path: '/release'
-      fullPath: '/human/release'
-      preLoaderRoute: typeof HumanReleaseRouteImport
-      parentRoute: typeof HumanRoute
-    }
-    '/human/security': {
-      id: '/human/security'
-      path: '/security'
-      fullPath: '/human/security'
-      preLoaderRoute: typeof HumanSecurityRouteImport
+    '/human/deploy': {
+      id: '/human/deploy'
+      path: '/deploy'
+      fullPath: '/human/deploy'
+      preLoaderRoute: typeof HumanDeployRouteImport
       parentRoute: typeof HumanRoute
     }
     '/human/setup': {
@@ -221,38 +397,153 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HumanStudioRouteImport
       parentRoute: typeof HumanRoute
     }
+    '/human/wallet': {
+      id: '/human/wallet'
+      path: '/wallet'
+      fullPath: '/human/wallet'
+      preLoaderRoute: typeof HumanWalletRouteImport
+      parentRoute: typeof HumanRoute
+    }
+    '/nonhuman/': {
+      id: '/nonhuman/'
+      path: '/'
+      fullPath: '/nonhuman/'
+      preLoaderRoute: typeof NonhumanIndexRouteImport
+      parentRoute: typeof NonhumanRoute
+    }
+    '/nonhuman/api': {
+      id: '/nonhuman/api'
+      path: '/api'
+      fullPath: '/nonhuman/api'
+      preLoaderRoute: typeof NonhumanApiRouteImport
+      parentRoute: typeof NonhumanRoute
+    }
+    '/nonhuman/chains': {
+      id: '/nonhuman/chains'
+      path: '/chains'
+      fullPath: '/nonhuman/chains'
+      preLoaderRoute: typeof NonhumanChainsRouteImport
+      parentRoute: typeof NonhumanRoute
+    }
+    '/nonhuman/dashboard': {
+      id: '/nonhuman/dashboard'
+      path: '/dashboard'
+      fullPath: '/nonhuman/dashboard'
+      preLoaderRoute: typeof NonhumanDashboardRouteImport
+      parentRoute: typeof NonhumanRoute
+    }
+    '/nonhuman/mcp': {
+      id: '/nonhuman/mcp'
+      path: '/mcp'
+      fullPath: '/nonhuman/mcp'
+      preLoaderRoute: typeof NonhumanMcpRouteImport
+      parentRoute: typeof NonhumanRoute
+    }
+    '/nonhuman/pay-per-call': {
+      id: '/nonhuman/pay-per-call'
+      path: '/pay-per-call'
+      fullPath: '/nonhuman/pay-per-call'
+      preLoaderRoute: typeof NonhumanPayPerCallRouteImport
+      parentRoute: typeof NonhumanRoute
+    }
+    '/nonhuman/pricing': {
+      id: '/nonhuman/pricing'
+      path: '/pricing'
+      fullPath: '/nonhuman/pricing'
+      preLoaderRoute: typeof NonhumanPricingRouteImport
+      parentRoute: typeof NonhumanRoute
+    }
+    '/nonhuman/wallets': {
+      id: '/nonhuman/wallets'
+      path: '/wallets'
+      fullPath: '/nonhuman/wallets'
+      preLoaderRoute: typeof NonhumanWalletsRouteImport
+      parentRoute: typeof NonhumanRoute
+    }
+    '/api/public/openapi': {
+      id: '/api/public/openapi'
+      path: '/api/public/openapi'
+      fullPath: '/api/public/openapi'
+      preLoaderRoute: typeof ApiPublicOpenapiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/machine/$': {
+      id: '/api/public/machine/$'
+      path: '/api/public/machine/$'
+      fullPath: '/api/public/machine/$'
+      preLoaderRoute: typeof ApiPublicMachineSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface HumanRouteChildren {
-  HumanChainsRoute: typeof HumanChainsRoute
-  HumanCustodyRoute: typeof HumanCustodyRoute
-  HumanDownloadRoute: typeof HumanDownloadRoute
-  HumanPayRoute: typeof HumanPayRoute
-  HumanReleaseRoute: typeof HumanReleaseRoute
-  HumanSecurityRoute: typeof HumanSecurityRoute
+  HumanAndroidRoute: typeof HumanAndroidRoute
+  HumanDeployRoute: typeof HumanDeployRoute
   HumanSetupRoute: typeof HumanSetupRoute
   HumanStudioRoute: typeof HumanStudioRoute
+  HumanWalletRoute: typeof HumanWalletRoute
   HumanIndexRoute: typeof HumanIndexRoute
 }
 
 const HumanRouteChildren: HumanRouteChildren = {
-  HumanChainsRoute: HumanChainsRoute,
-  HumanCustodyRoute: HumanCustodyRoute,
-  HumanDownloadRoute: HumanDownloadRoute,
-  HumanPayRoute: HumanPayRoute,
-  HumanReleaseRoute: HumanReleaseRoute,
-  HumanSecurityRoute: HumanSecurityRoute,
+  HumanAndroidRoute: HumanAndroidRoute,
+  HumanDeployRoute: HumanDeployRoute,
   HumanSetupRoute: HumanSetupRoute,
   HumanStudioRoute: HumanStudioRoute,
+  HumanWalletRoute: HumanWalletRoute,
   HumanIndexRoute: HumanIndexRoute,
 }
 
 const HumanRouteWithChildren = HumanRoute._addFileChildren(HumanRouteChildren)
 
+interface NonhumanRouteChildren {
+  NonhumanApiRoute: typeof NonhumanApiRoute
+  NonhumanChainsRoute: typeof NonhumanChainsRoute
+  NonhumanDashboardRoute: typeof NonhumanDashboardRoute
+  NonhumanMcpRoute: typeof NonhumanMcpRoute
+  NonhumanPayPerCallRoute: typeof NonhumanPayPerCallRoute
+  NonhumanPricingRoute: typeof NonhumanPricingRoute
+  NonhumanWalletsRoute: typeof NonhumanWalletsRoute
+  NonhumanIndexRoute: typeof NonhumanIndexRoute
+}
+
+const NonhumanRouteChildren: NonhumanRouteChildren = {
+  NonhumanApiRoute: NonhumanApiRoute,
+  NonhumanChainsRoute: NonhumanChainsRoute,
+  NonhumanDashboardRoute: NonhumanDashboardRoute,
+  NonhumanMcpRoute: NonhumanMcpRoute,
+  NonhumanPayPerCallRoute: NonhumanPayPerCallRoute,
+  NonhumanPricingRoute: NonhumanPricingRoute,
+  NonhumanWalletsRoute: NonhumanWalletsRoute,
+  NonhumanIndexRoute: NonhumanIndexRoute,
+}
+
+const NonhumanRouteWithChildren = NonhumanRoute._addFileChildren(
+  NonhumanRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   HumanRoute: HumanRouteWithChildren,
+  NonhumanRoute: NonhumanRouteWithChildren,
+  PrivacyRoute: PrivacyRoute,
+  PrivacyChoicesRoute: PrivacyChoicesRoute,
+  TermsRoute: TermsRoute,
+  ApiHumanAiRoute: ApiHumanAiRoute,
+  ApiPublicOpenapiRoute: ApiPublicOpenapiRoute,
+  ApiPublicMachineSplatRoute: ApiPublicMachineSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

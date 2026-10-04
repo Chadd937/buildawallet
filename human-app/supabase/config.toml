@@ -1,0 +1,4 @@
+project_id = "vfvidjzggojmptbxnqep"
+[auth]
+site_url = "https://buildawallet.xyz"
+additional_redirect_urls = ["https://buildawallet.xyz/human/setup", "https://buildawallet.xyz/nonhuman/dashboard"]

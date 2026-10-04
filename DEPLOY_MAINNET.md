@@ -1,3 +1,5 @@
+> The updated full-app release is deployed from `human-app/`, not the legacy commands below. See [human-app/INTEGRATION.md](human-app/INTEGRATION.md) for the required backend migration and Cloudflare cutover. The instructions below are retained for the older D1-based service.
+
 # BuildAWallet mainnet deployment
 
 The HUMAN Python Worker owns the builder brain and D1 database. The `agent-pay` Worker serves the free HUMAN pages and implementation plan, a service-bound API proxy, three paid read-only API plans, MCP tools, and the existing $0.01 USDC x402 machine data routes. The static origin can also serve the pages from `static/`; the Worker routes make the HUMAN release independent of a pending static-site rebuild.

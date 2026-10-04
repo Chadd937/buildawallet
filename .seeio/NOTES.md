@@ -77,3 +77,5 @@ solely based on what the user wants, as many features as options."
 - Any interest in a gallery of public builds on the home page?
 
 - Frontend uses the BuildAWallet wallet favicon and standard Vite plugins. Unused editor metadata, telemetry hooks and the obsolete alternate dependency lockfile were removed on 2026-10-04.
+
+- The October 4 full app import is under human-app, uses Supabase Auth/PostgreSQL, and builds a Cloudflare Worker rather than a static SPA. Legacy backends and Android sources remain preserved. Database, live authentication, real payments and a new signed WebView APK still need production validation.

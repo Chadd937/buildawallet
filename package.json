@@ -1,0 +1,10 @@
+{
+  "name": "buildawallet",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix human-app ci --legacy-peer-deps --no-audit --no-fund && npm --prefix human-app run build",
+    "test": "npm --prefix human-app test",
+    "typecheck": "npm --prefix human-app run typecheck",
+    "deploy": "npm --prefix human-app run deploy"
+  }
+}

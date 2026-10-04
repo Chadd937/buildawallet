@@ -1,3 +1,5 @@
+> Current production app source: `human-app/`. It includes the updated HUMAN and machine flows. Read [human-app/INTEGRATION.md](human-app/INTEGRATION.md) before deploying; the new billing backend uses Supabase/PostgreSQL, and the older deployment instructions below describe the legacy implementation.
+
 # BuildAWallet.xyz
 
 BuildAWallet has a HUMAN wallet designer and a NON-HUMAN read-only machine data API. The public website does **not** create custodial wallets or sign and broadcast transactions.

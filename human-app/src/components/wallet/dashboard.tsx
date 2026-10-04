@@ -1,0 +1,538 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QRCodeSVG } from "qrcode.react";
+import { toast } from "sonner";
+import {
+  Activity as ActivityIcon, ArrowDownLeft, ArrowUpRight, BookUser, Copy, Download, ExternalLink, Eye, EyeOff,
+  Gauge, Loader2, Lock, Printer, RefreshCw, Settings, Trash2, Wallet as WalletIcon, Radar,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { has, type Draft } from "@/lib/catalog";
+import { CHAINS, chainById, type ChainDef, type TokenDef } from "@/lib/wallet/chains";
+import { deriveAccounts, publicAddresses, type DerivedAccounts } from "@/lib/wallet/derive";
+import { addressFor, estimateFee, fetchHoldings, fetchPrices, send, validateRecipient, type Holding } from "@/lib/wallet/ops";
+import { downloadCsv, store, type Contact, type Watch } from "@/lib/wallet/local";
+import { eraseVault, isDeviceVault, unlockVault } from "@/lib/wallet/vault";
+
+type Tab = "portfolio" | "send" | "receive" | "activity" | "contacts" | "watch" | "network" | "settings";
+
+const short = (a: string) => (a.length > 14 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a);
+const priceId = (h: Holding, c: ChainDef) =>
+  h.token ? ({ USDC: "usd-coin", USDT: "tether", DAI: "dai" } as Record<string, string>)[h.symbol] ?? "" : c.coingeckoId;
+
+export function Dashboard({ draft, phrase, onLock, onErased }: { draft: Draft; phrase: string; onLock: () => void; onErased: () => void }) {
+  const accounts = useMemo<DerivedAccounts>(() => deriveAccounts(phrase), [phrase]);
+  const addrs = useMemo(() => publicAddresses(accounts), [accounts]);
+  const chains = useMemo(() => draft.chains.map(chainById).filter(Boolean) as ChainDef[], [draft.chains]);
+  const [tab, setTab] = useState<Tab>("portfolio");
+  const [hidden, setHidden] = useState(false);
+  const spent = useRef(0);
+  const qc = useQueryClient();
+
+  // Auto-lock: wipe keys from memory after inactivity.
+  useEffect(() => {
+    if (!has(draft, "autolock")) return;
+    let t = window.setTimeout(onLock, draft.autoLockMin * 60_000);
+    const reset = () => { window.clearTimeout(t); t = window.setTimeout(onLock, draft.autoLockMin * 60_000); };
+    const evs = ["mousemove", "keydown", "click", "touchstart"];
+    evs.forEach((e) => window.addEventListener(e, reset));
+    return () => { window.clearTimeout(t); evs.forEach((e) => window.removeEventListener(e, reset)); };
+  }, [draft, onLock]);
+
+  const holdingQs = useQueries({
+    queries: chains.map((c) => ({
+      queryKey: ["holdings", c.id, addressFor(c, addrs)],
+      queryFn: () => fetchHoldings(c, addrs),
+      refetchInterval: 45_000,
+      retry: 1,
+    })),
+  });
+  const prices = useQuery({
+    queryKey: ["prices", draft.currency, chains.map((c) => c.coingeckoId).join()],
+    queryFn: () => fetchPrices([...chains.map((c) => c.coingeckoId), "usd-coin", "tether", "dai"], draft.currency),
+    enabled: has(draft, "prices"),
+    refetchInterval: 60_000,
+  });
+  const usdPrices = useQuery({
+    queryKey: ["prices", "usd", chains.map((c) => c.coingeckoId).join()],
+    queryFn: () => fetchPrices([...chains.map((c) => c.coingeckoId), "usd-coin", "tether", "dai"], "usd"),
+    refetchInterval: 120_000,
+  });
+
+  const showStables = has(draft, "stables");
+  const rows = chains.flatMap((c, i) => {
+    const hs = holdingQs[i]?.data ?? [];
+    return hs.filter((h) => !h.token || showStables).map((h) => ({ chain: c, h, fiat: prices.data?.[priceId(h, c)] != null ? prices.data[priceId(h, c)]! * Number(h.amount) : null }));
+  });
+  const total = rows.reduce((s, r) => s + (r.fiat ?? 0), 0);
+  const valuationReady = holdingQs.every(q => q.isSuccess && !q.isError) && prices.isSuccess && !prices.isError && rows.every(r => r.fiat != null);
+  const fmtFiat = (n: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: draft.currency.toUpperCase(), maximumFractionDigits: 2 }).format(n);
+  const blur = hidden ? "blur-md select-none" : "";
+  const compact = has(draft, "compact");
+
+  const tabs: { id: Tab; label: string; icon: React.ReactNode; on: boolean }[] = [
+    { id: "portfolio", label: "Portfolio", icon: <WalletIcon />, on: true },
+    { id: "send", label: "Send", icon: <ArrowUpRight />, on: true },
+    { id: "receive", label: "Receive", icon: <ArrowDownLeft />, on: true },
+    { id: "activity", label: "Activity", icon: <ActivityIcon />, on: has(draft, "activity") },
+    { id: "contacts", label: "Contacts", icon: <BookUser />, on: has(draft, "addressbook") },
+    { id: "watch", label: "Watch", icon: <Eye />, on: has(draft, "watch") },
+    { id: "network", label: "Network", icon: <Gauge />, on: has(draft, "gas") || has(draft, "status") },
+    { id: "settings", label: "Settings", icon: <Settings />, on: true },
+  ];
+
+  return (
+    <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[220px_1fr]">
+      <nav className="flex gap-1 overflow-x-auto rounded-2xl p-2 skin-surface lg:sticky lg:top-6 lg:h-fit lg:flex-col">
+        {tabs.filter((t) => t.on).map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold [&_svg]:size-4 ${tab === t.id ? "skin-accent" : "hover:brightness-125"}`}>
+            {t.icon}{t.label}
+          </button>
+        ))}
+        <button onClick={onLock} className="flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold skin-muted lg:mt-4 [&_svg]:size-4"><Lock />Lock</button>
+      </nav>
+
+      <main className="min-w-0">
+        <header className="mb-6 flex flex-wrap items-end justify-between gap-4 rounded-3xl border p-6 skin-border skin-surface skin-glow">
+          <div>
+            <p className="text-xs uppercase tracking-widest skin-muted">{draft.avatar} {draft.name} · total balance</p>
+            <p className={`num mt-1 text-4xl font-bold sm:text-5xl ${blur}`}>{has(draft, "prices") ? (valuationReady ? fmtFiat(total) : "Balance unavailable") : `${rows.length} assets`}</p>
+            <p className="mt-1 text-xs skin-muted">{chains.length} mainnet chains · keys on this device only</p>
+          </div>
+          <div className="flex gap-2">
+            {has(draft, "hide") && (
+              <Button variant="skinGhost" size="icon" aria-label="Toggle privacy" onClick={() => setHidden(!hidden)}>{hidden ? <Eye /> : <EyeOff />}</Button>
+            )}
+            <Button variant="skinGhost" size="icon" aria-label="Refresh" onClick={() => qc.invalidateQueries({ queryKey: ["holdings"] })}><RefreshCw /></Button>
+            <Button variant="skin" onClick={() => setTab("send")}><ArrowUpRight />Send</Button>
+            <Button variant="skinGhost" onClick={() => setTab("receive")}><ArrowDownLeft />Receive</Button>
+          </div>
+        </header>
+
+        {tab === "portfolio" && (
+          <section className="space-y-3">
+            {chains.map((c, i) => {
+              const q = holdingQs[i]!;
+              return (
+                <div key={c.id} className="rounded-2xl border p-4 skin-border skin-surface">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="size-3 rounded-full" style={{ background: `oklch(0.78 0.17 ${c.hue})` }} />
+                      <span className="font-semibold">{c.name}</span>
+                      <a href={c.explorerAddress(addressFor(c, addrs))} target="_blank" rel="noreferrer" className="num text-xs skin-muted hover:underline">{short(addressFor(c, addrs))}</a>
+                    </div>
+                    {q.isLoading && <Loader2 className="size-4 animate-spin skin-muted" />}
+                    {q.isError && <button className="text-xs text-destructive" onClick={() => q.refetch()}>Network error · retry</button>}
+                  </div>
+                  <div className={`mt-2 divide-y ${compact ? "text-sm" : ""}`} style={{ borderColor: "transparent" }}>
+                    {(q.data ?? []).filter((h) => !h.token || showStables).map((h) => {
+                      const price = prices.data?.[priceId(h, c)];
+                      const fiat = price != null && !prices.isError ? price * Number(h.amount) : null;
+                      return (
+                        <div key={h.symbol} className={`flex items-center justify-between ${compact ? "py-1" : "py-2"}`}>
+                          <span>{h.symbol} <span className="text-xs skin-muted">{h.token ? h.name : "native"}</span></span>
+                          <span className={`num text-right ${blur}`}>
+                            {Number(h.amount).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                            {has(draft, "prices") && <span className="block text-xs skin-muted">{fiat != null ? fmtFiat(fiat) : "Price unavailable"}</span>}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {has(draft, "csv") && (
+              <Button variant="skinGhost" onClick={() => downloadCsv("holdings.csv", [["chain", "asset", "amount", `value_${draft.currency}`], ...rows.map((r) => [r.chain.name, r.h.symbol, r.h.amount, r.fiat != null ? r.fiat.toFixed(2) : ""])])}>
+                <Download />Export holdings CSV
+              </Button>
+            )}
+          </section>
+        )}
+
+        {tab === "send" && (
+          <SendPanel draft={draft} chains={chains} accounts={accounts} addrs={addrs} holdings={holdingQs.map((q) => q.data ?? [])}
+            usd={usdPrices.isError ? {} : usdPrices.data ?? {}} spent={spent} onSent={() => { qc.invalidateQueries({ queryKey: ["holdings"] }); setTab(has(draft, "activity") ? "activity" : "portfolio"); }} />
+        )}
+        {tab === "receive" && <ReceivePanel draft={draft} chains={chains} addrs={addrs} />}
+        {tab === "activity" && <ActivityPanel draft={draft} />}
+        {tab === "contacts" && <ContactsPanel chains={chains} />}
+        {tab === "watch" && <WatchPanel chains={chains} />}
+        {tab === "network" && <NetworkPanel draft={draft} chains={chains} />}
+        {tab === "settings" && <SettingsPanel draft={draft} onErased={onErased} />}
+      </main>
+    </div>
+  );
+}
+
+/* ---------------- SEND ---------------- */
+function SendPanel({ draft, chains, accounts, addrs, holdings, usd, spent, onSent }: {
+  draft: Draft; chains: ChainDef[]; accounts: DerivedAccounts; addrs: ReturnType<typeof publicAddresses>;
+  holdings: Holding[][]; usd: Record<string, number>; spent: React.MutableRefObject<number>; onSent: () => void;
+}) {
+  const [chainId, setChainId] = useState(chains[0]?.id ?? "");
+  const chain = chainById(chainId)!;
+  const [tokenSym, setTokenSym] = useState<string>("");
+  const token: TokenDef | undefined = chain.tokens.find((t) => t.symbol === tokenSym);
+  const [to, setTo] = useState("");
+  const [amount, setAmount] = useState("");
+  const [btcSpeed, setBtcSpeed] = useState<"economy" | "normal" | "priority">("normal");
+  const [review, setReview] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const contacts = store.contacts().filter((c) => chainById(c.chainId)?.family === chain.family);
+
+  const idx = chains.findIndex((c) => c.id === chainId);
+  const bal = (holdings[idx] ?? []).find((h) => (token ? h.symbol === token.symbol : !h.token));
+  const fee = useQuery({ queryKey: ["fee", chainId, tokenSym], queryFn: () => estimateFee(chain, token), enabled: !!chain, refetchInterval: 30_000 });
+  const btcRate = fee.data?.btcRate ? Math.max(1, Math.round(fee.data.btcRate * { economy: 0.5, normal: 1, priority: 1.8 }[btcSpeed])) : undefined;
+
+  const usdRate = usd[token ? (({ USDC: "usd-coin", USDT: "tether", DAI: "dai" } as Record<string,string>)[token.symbol] ?? "") : chain.coingeckoId];
+  const priceKnown = typeof usdRate === "number" && Number.isFinite(usdRate) && usdRate > 0;
+  const usdValue = Number(amount || 0) * (priceKnown ? usdRate : 0);
+  const safetyPriceMissing = !priceKnown && (has(draft, "bigsend") || has(draft, "limit"));
+  const validTo = to ? validateRecipient(chain, to) : false;
+  const newRecipient = validTo && has(draft, "newaddr") && !store.knownRecipient(to);
+  const bigSend = has(draft, "bigsend") && usdValue >= draft.bigSendUsd;
+  const overLimit = has(draft, "limit") && spent.current + usdValue > draft.sessionLimitUsd;
+  const insufficient = bal ? Number(amount || 0) > Number(bal.amount) : false;
+  const canReview = validTo && !!bal && Number.isFinite(Number(amount)) && Number(amount) > 0 && !insufficient && !overLimit && !safetyPriceMissing;
+
+  async function doSend() {
+    if (!canReview || (bigSend && confirmText !== amount)) { toast.error("Refresh balances and prices, then review this transfer again."); return; }
+    setBusy(true);
+    try {
+      const hash = await send({ chain, accounts, to: to.trim(), amount, token, btcFeeRate: btcRate });
+      spent.current += usdValue;
+      store.addActivity({ hash, chainId, symbol: token?.symbol ?? chain.symbol, amount, to: to.trim(), at: Date.now() });
+      toast.success("Transaction broadcast", { description: hash, action: { label: "View", onClick: () => window.open(chain.explorerTx(hash), "_blank") } });
+      if (has(draft, "confetti")) celebrate();
+      setReview(false); setAmount(""); setTo(""); setConfirmText("");
+      onSent();
+    } catch (e) {
+      toast.error("Send failed", { description: e instanceof Error ? e.message.slice(0, 240) : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="max-w-xl space-y-5 rounded-3xl border p-6 skin-border skin-surface">
+      <h2 className="text-2xl font-bold">Send</h2>
+      <div className="flex flex-wrap gap-1.5">
+        {chains.map((c) => (
+          <button key={c.id} onClick={() => { setChainId(c.id); setTokenSym(""); }} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${c.id === chainId ? "skin-accent" : "border skin-border"}`}>{c.name}</button>
+        ))}
+      </div>
+      {has(draft, "stables") && chain.tokens.length > 0 && (
+        <div className="flex gap-1.5">
+          {["", ...chain.tokens.map((t) => t.symbol)].map((s) => (
+            <button key={s || "native"} onClick={() => setTokenSym(s)} className={`num rounded-lg px-3 py-1.5 text-xs ${s === tokenSym ? "skin-accent" : "border skin-border"}`}>{s || chain.symbol}</button>
+          ))}
+        </div>
+      )}
+      <div>
+        <label className="text-sm font-semibold">Recipient</label>
+        <Input value={to} onChange={(e) => setTo(e.target.value.trim())} placeholder={`${chain.name} address`} className="num mt-1 h-12 rounded-xl" spellCheck={false} />
+        {to && !validTo && <p className="mt-1 text-xs text-destructive">Not a valid {chain.name} address.</p>}
+        {contacts.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {contacts.map((c) => <button key={c.address} onClick={() => setTo(c.address)} className="rounded-full border px-2.5 py-1 text-xs skin-border">@{c.name}</button>)}
+          </div>
+        )}
+      </div>
+      <div>
+        <div className="flex justify-between text-sm"><label className="font-semibold">Amount</label>
+          <span className="num skin-muted">Balance: {bal ? Number(bal.amount).toLocaleString(undefined, { maximumFractionDigits: 6 }) : "…"} {token?.symbol ?? chain.symbol}</span></div>
+        <Input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="0.00" className="num mt-1 h-14 rounded-xl text-2xl" />
+        <p className="num mt-1 text-xs skin-muted">{priceKnown ? `≈ $${usdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })} USD` : "USD price unavailable"}</p>
+        {safetyPriceMissing && <p className="text-xs text-destructive">A live USD price is needed to enforce your send limits. Wait for the price feed to recover.</p>}
+        {insufficient && <p className="text-xs text-destructive">Amount exceeds balance.</p>}
+        {overLimit && <p className="text-xs text-destructive">This exceeds your session limit of ${draft.sessionLimitUsd.toLocaleString()}. Lock and unlock to reset.</p>}
+      </div>
+      {chain.family === "bitcoin" && has(draft, "btcfee") && (
+        <div className="grid grid-cols-3 gap-2">
+          {(["economy", "normal", "priority"] as const).map((s) => (
+            <button key={s} onClick={() => setBtcSpeed(s)} className={`rounded-xl py-2 text-xs font-semibold capitalize ${btcSpeed === s ? "skin-accent" : "border skin-border"}`}>{s}</button>
+          ))}
+        </div>
+      )}
+      <p className="text-sm skin-muted">Network fee: <span className="num">{chain.family === "bitcoin" && btcRate ? `${btcRate} sat/vB` : fee.data?.label ?? "estimating…"}</span></p>
+      <Button variant="skin" size="lg" className="w-full" disabled={!canReview} onClick={() => setReview(true)}>Review transaction</Button>
+
+      <Dialog open={review} onOpenChange={(o) => !busy && setReview(o)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm send</DialogTitle>
+            <DialogDescription>Check every character. Mainnet transactions can't be reversed.</DialogDescription>
+          </DialogHeader>
+          <dl className="space-y-2 text-sm">
+            <div className="flex justify-between"><dt className="text-muted-foreground">Network</dt><dd>{chain.name} mainnet</dd></div>
+            <div className="flex justify-between"><dt className="text-muted-foreground">Amount</dt><dd className="num font-bold">{amount} {token?.symbol ?? chain.symbol}</dd></div>
+            <div><dt className="text-muted-foreground">To</dt><dd className="num break-all">{to}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted-foreground">Fee</dt><dd className="num">{chain.family === "bitcoin" && btcRate ? `${btcRate} sat/vB` : fee.data?.label}</dd></div>
+          </dl>
+          {newRecipient && <p className="rounded-xl bg-zap/15 p-3 text-sm text-zap">⚠ You've never sent to this address. Verify it out-of-band. Address-poisoning scams copy the first and last characters.</p>}
+          {bigSend && (
+            <div className="rounded-xl bg-pop/15 p-3 text-sm">
+              <p className="text-pop">🛡 Large send. Type the amount <b className="num">{amount}</b> to confirm.</p>
+              <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} className="num mt-2" />
+            </div>
+          )}
+          <Button size="lg" disabled={busy || (bigSend && confirmText !== amount)} onClick={doSend}>
+            {busy ? <Loader2 className="animate-spin" /> : <ArrowUpRight />} {busy ? "Signing & broadcasting…" : "Sign and send"}
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </section>
+  );
+}
+
+function celebrate() {
+  const root = document.createElement("div");
+  root.className = "pointer-events-none fixed inset-0 z-[100] overflow-hidden";
+  const glyphs = ["🎉", "🚀", "💎", "✨", "🔥"];
+  for (let i = 0; i < 40; i++) {
+    const s = document.createElement("span");
+    s.textContent = glyphs[i % glyphs.length]!;
+    s.style.cssText = `position:absolute;left:${Math.random() * 100}%;top:-40px;font-size:${18 + Math.random() * 20}px;transition:transform 1.8s cubic-bezier(.2,.7,.3,1),opacity 1.8s;`;
+    root.appendChild(s);
+    requestAnimationFrame(() => { s.style.transform = `translateY(${window.innerHeight + 80}px) rotate(${Math.random() * 720}deg)`; s.style.opacity = "0"; });
+  }
+  document.body.appendChild(root);
+  setTimeout(() => root.remove(), 2000);
+}
+
+/* ---------------- RECEIVE ---------------- */
+function ReceivePanel({ draft, chains, addrs }: { draft: Draft; chains: ChainDef[]; addrs: ReturnType<typeof publicAddresses> }) {
+  const [chainId, setChainId] = useState(chains[0]?.id ?? "");
+  const chain = chainById(chainId)!;
+  const address = addressFor(chain, addrs);
+  const copy = async () => {
+    await navigator.clipboard.writeText(address);
+    toast.success("Address copied");
+    if (has(draft, "clipboard")) setTimeout(() => navigator.clipboard.writeText("").catch(() => {}), 60_000);
+  };
+  return (
+    <section className="max-w-xl rounded-3xl border p-6 skin-border skin-surface">
+      <h2 className="text-2xl font-bold">Receive</h2>
+      <div className="mt-4 flex flex-wrap gap-1.5">
+        {chains.map((c) => (
+          <button key={c.id} onClick={() => setChainId(c.id)} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${c.id === chainId ? "skin-accent" : "border skin-border"}`}>{c.name}</button>
+        ))}
+      </div>
+      {has(draft, "qr") && (
+        <div className="mx-auto mt-6 w-fit rounded-2xl bg-foreground p-4">
+          <QRCodeSVG value={address} size={208} />
+        </div>
+      )}
+      <p className="num mt-5 break-all rounded-xl border p-3 text-center text-sm skin-border">{address}</p>
+      <p className="mt-2 text-center text-xs skin-muted">
+        Only send {chain.symbol}{chain.tokens.length ? ` or ${chain.tokens.map((t) => t.symbol).join("/")}` : ""} on {chain.name} mainnet to this address.
+      </p>
+      <Button variant="skin" className="mt-4 w-full" onClick={copy}><Copy />Copy address</Button>
+    </section>
+  );
+}
+
+/* ---------------- ACTIVITY ---------------- */
+function ActivityPanel({ draft }: { draft: Draft }) {
+  const items = store.activity();
+  return (
+    <section className="rounded-3xl border p-6 skin-border skin-surface">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Activity</h2>
+        {has(draft, "csv") && items.length > 0 && (
+          <Button variant="skinGhost" size="sm" onClick={() => downloadCsv("activity.csv", [["date", "chain", "asset", "amount", "to", "hash"], ...items.map((a) => [new Date(a.at).toISOString(), a.chainId, a.symbol, a.amount, a.to, a.hash])])}><Download />CSV</Button>
+        )}
+      </div>
+      {items.length === 0 ? <p className="mt-6 text-sm skin-muted">No sends from this wallet yet. Incoming transfers show in your balances and on each chain's explorer.</p> : (
+        <ul className="mt-4 divide-y">
+          {items.map((a) => {
+            const c = chainById(a.chainId);
+            return (
+              <li key={a.hash} className="flex items-center justify-between gap-3 py-3 text-sm">
+                <span><ArrowUpRight className="mr-1 inline size-4 skin-accent2-text" />{a.amount} {a.symbol} → <span className="num">{short(a.to)}</span>
+                  <span className="block text-xs skin-muted">{c?.name} · {new Date(a.at).toLocaleString()}</span></span>
+                {c && <a href={c.explorerTx(a.hash)} target="_blank" rel="noreferrer" className="skin-accent-text"><ExternalLink className="size-4" /></a>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/* ---------------- CONTACTS ---------------- */
+function ContactsPanel({ chains }: { chains: ChainDef[] }) {
+  const [list, setList] = useState<Contact[]>(store.contacts());
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [chainId, setChainId] = useState(chains[0]?.id ?? "");
+  const chain = chainById(chainId)!;
+  const valid = name.trim() && validateRecipient(chain, address.trim());
+  const save = (l: Contact[]) => { setList(l); store.setContacts(l); };
+  return (
+    <section className="max-w-2xl rounded-3xl border p-6 skin-border skin-surface">
+      <h2 className="text-2xl font-bold">Address book</h2>
+      <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_2fr_auto_auto]">
+        <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Input placeholder="Address" className="num" value={address} onChange={(e) => setAddress(e.target.value)} />
+        <select value={chainId} onChange={(e) => setChainId(e.target.value)} className="h-10 rounded-md border bg-transparent px-2 text-sm skin-border">
+          {chains.map((c) => <option key={c.id} value={c.id} className="bg-background">{c.name}</option>)}
+        </select>
+        <Button variant="skin" disabled={!valid} onClick={() => { save([...list, { name: name.trim(), address: address.trim(), chainId }]); setName(""); setAddress(""); }}>Add</Button>
+      </div>
+      <ul className="mt-4 divide-y">
+        {list.map((c, i) => (
+          <li key={i} className="flex items-center justify-between py-3 text-sm">
+            <span><b>@{c.name}</b> <span className="text-xs skin-muted">{chainById(c.chainId)?.name}</span><span className="num block text-xs skin-muted">{c.address}</span></span>
+            <button aria-label="Remove contact" onClick={() => save(list.filter((_, j) => j !== i))}><Trash2 className="size-4 skin-muted" /></button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/* ---------------- WATCH ---------------- */
+function WatchPanel({ chains }: { chains: ChainDef[] }) {
+  const [list, setList] = useState<Watch[]>(store.watch());
+  const [label, setLabel] = useState("");
+  const [address, setAddress] = useState("");
+  const [chainId, setChainId] = useState(chains[0]?.id ?? "");
+  const chain = chainById(chainId)!;
+  const valid = validateRecipient(chain, address.trim());
+  const save = (l: Watch[]) => { setList(l); store.setWatch(l); };
+  const qs = useQueries({
+    queries: list.map((w) => {
+      const c = chainById(w.chainId)!;
+      const fake = { evm: w.address, solana: w.address, bitcoin: w.address, tron: w.address };
+      return { queryKey: ["watch", w.chainId, w.address], queryFn: () => fetchHoldings(c, fake), refetchInterval: 60_000 };
+    }),
+  });
+  return (
+    <section className="max-w-2xl rounded-3xl border p-6 skin-border skin-surface">
+      <h2 className="text-2xl font-bold">Watch-only</h2>
+      <p className="text-sm skin-muted">Track any public address. No keys involved.</p>
+      <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_2fr_auto_auto]">
+        <Input placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <Input placeholder="Address" className="num" value={address} onChange={(e) => setAddress(e.target.value)} />
+        <select value={chainId} onChange={(e) => setChainId(e.target.value)} className="h-10 rounded-md border bg-transparent px-2 text-sm skin-border">
+          {chains.map((c) => <option key={c.id} value={c.id} className="bg-background">{c.name}</option>)}
+        </select>
+        <Button variant="skin" disabled={!valid} onClick={() => { save([...list, { label: label.trim() || "Watched", address: address.trim(), chainId }]); setLabel(""); setAddress(""); }}><Radar />Watch</Button>
+      </div>
+      <ul className="mt-4 space-y-2">
+        {list.map((w, i) => (
+          <li key={i} className="rounded-xl border p-3 text-sm skin-border">
+            <div className="flex justify-between"><b>{w.label} <span className="text-xs font-normal skin-muted">{chainById(w.chainId)?.name}</span></b>
+              <button aria-label="Remove" onClick={() => save(list.filter((_, j) => j !== i))}><Trash2 className="size-4 skin-muted" /></button></div>
+            <p className="num text-xs skin-muted">{w.address}</p>
+            <p className="num mt-1">{qs[i]?.isLoading ? "…" : (qs[i]?.data ?? []).map((h) => `${Number(h.amount).toLocaleString(undefined, { maximumFractionDigits: 6 })} ${h.symbol}`).join(" · ")}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/* ---------------- NETWORK ---------------- */
+function NetworkPanel({ draft, chains }: { draft: Draft; chains: ChainDef[] }) {
+  const fees = useQueries({ queries: chains.map((c) => ({ queryKey: ["fee", c.id, ""], queryFn: () => estimateFee(c), refetchInterval: 30_000 })) });
+  const status = useQueries({
+    queries: chains.map((c) => ({
+      queryKey: ["status", c.id],
+      enabled: has(draft, "status"),
+      refetchInterval: 20_000,
+      queryFn: async () => {
+        const t = performance.now();
+        if (c.family === "evm") {
+          const r = await fetch(c.rpc[0]!, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_blockNumber", params: [] }) });
+          const j = (await r.json()) as { result: string };
+          return { height: parseInt(j.result, 16), ms: Math.round(performance.now() - t) };
+        }
+        if (c.family === "bitcoin") {
+          const r = await fetch(`${c.rpc[0]!}/blocks/tip/height`);
+          return { height: Number(await r.text()), ms: Math.round(performance.now() - t) };
+        }
+        if (c.family === "tron") {
+          const r = await fetch("https://api.trongrid.io/wallet/getnowblock", { method: "POST" });
+          const j = (await r.json()) as { block_header: { raw_data: { number: number } } };
+          return { height: j.block_header.raw_data.number, ms: Math.round(performance.now() - t) };
+        }
+        const { solanaRpc } = await import("@/lib/wallet/rpc.functions");
+        const r = await solanaRpc({ data: { method: "getLatestBlockhash", params: [] } });
+        return { height: (JSON.parse(r.json) as { context: { slot: number } }).context.slot, ms: Math.round(performance.now() - t) };
+      },
+    })),
+  });
+  return (
+    <section className="grid gap-3 sm:grid-cols-2">
+      {chains.map((c, i) => (
+        <div key={c.id} className="rounded-2xl border p-4 skin-border skin-surface">
+          <div className="flex items-center justify-between">
+            <b>{c.name}</b>
+            {has(draft, "status") && <span className={`size-2.5 rounded-full ${status[i]!.isSuccess ? "bg-success" : status[i]!.isError ? "bg-destructive" : "bg-muted"}`} />}
+          </div>
+          {has(draft, "status") && <p className="num mt-2 text-sm">Block <b>{status[i]!.data?.height.toLocaleString() ?? "…"}</b> <span className="skin-muted">· {status[i]!.data?.ms ?? "–"} ms</span></p>}
+          {has(draft, "gas") && <p className="num mt-1 text-sm skin-muted">Fee: {fees[i]!.data?.label ?? "…"}</p>}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/* ---------------- SETTINGS ---------------- */
+function SettingsPanel({ draft, onErased }: { draft: Draft; onErased: () => void }) {
+  const [pw, setPw] = useState("");
+  const [revealed, setRevealed] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+  const [confirmErase, setConfirmErase] = useState("");
+  const [needsPw, setNeedsPw] = useState(true);
+  useEffect(() => { isDeviceVault().then((d) => setNeedsPw(!d)).catch(() => {}); }, []);
+  return (
+    <section className="max-w-2xl space-y-4">
+      <div className="rounded-3xl border p-6 skin-border skin-surface">
+        <h2 className="text-xl font-bold">Recovery phrase</h2>
+        <p className="text-sm skin-muted">{needsPw ? "Re-enter your password to view. " : ""}Do this privately.</p>
+        {!revealed ? (
+          <form className="mt-3 flex gap-2" onSubmit={async (e) => { e.preventDefault(); setErr(""); try { setRevealed(await unlockVault(pw)); } catch (x) { setErr(x instanceof Error ? x.message : "Failed"); } setPw(""); }}>
+            {needsPw && <Input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Password" />}
+            <Button variant="skin" disabled={needsPw && !pw}>Reveal</Button>
+          </form>
+        ) : (
+          <>
+            <ol className="num mt-3 grid grid-cols-3 gap-2 text-sm">
+              {revealed.split(" ").map((w, i) => <li key={i} className="rounded-lg border px-2 py-1.5 skin-border"><span className="skin-muted">{i + 1}.</span> {w}</li>)}
+            </ol>
+            <div className="mt-3 flex gap-2 no-print">
+              {has(draft, "paper") && <Button variant="skinGhost" onClick={() => window.print()}><Printer />Print paper backup</Button>}
+              <Button variant="skinGhost" onClick={() => setRevealed(null)}>Hide</Button>
+            </div>
+          </>
+        )}
+        {err && <p className="mt-2 text-sm text-destructive">{err}</p>}
+      </div>
+      <div className="rounded-3xl border p-6 skin-border skin-surface">
+        <h2 className="text-xl font-bold">Your build</h2>
+        <p className="text-sm skin-muted">Auto-lock {has(draft, "autolock") ? `${draft.autoLockMin} min` : "off"} · large-send {has(draft, "bigsend") ? `$${draft.bigSendUsd}` : "off"} · session limit {has(draft, "limit") ? `$${draft.sessionLimitUsd}` : "off"}</p>
+        <a href="/human/studio" className="mt-3 inline-block text-sm font-semibold skin-accent-text">Edit in Studio →</a>
+      </div>
+      <div className="rounded-3xl border border-destructive/50 p-6">
+        <h2 className="text-xl font-bold text-destructive">Erase wallet from this browser</h2>
+        <p className="text-sm skin-muted">Funds stay on-chain. You'll need your recovery phrase to restore. Type ERASE to confirm.</p>
+        <div className="mt-3 flex gap-2">
+          <Input value={confirmErase} onChange={(e) => setConfirmErase(e.target.value)} placeholder="ERASE" />
+          <Button variant="destructive" disabled={confirmErase !== "ERASE"} onClick={async () => { await eraseVault(); store.clearAll(); onErased(); }}><Trash2 />Erase</Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export { CHAINS };

@@ -1,205 +1,288 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Check, Sparkles, WalletCards, Zap } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Check, Flame, Rocket, Search, Sparkles, Trophy, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { WalletShell } from "@/components/wallet-shell";
-import { useWalletDraft } from "@/hooks/use-wallet-draft";
-import { chainOptions, featureGroups } from "@/lib/wallet-data";
+import { Input } from "@/components/ui/input";
+import { Ticker } from "@/components/human/step-shell";
+import { PhonePreview } from "@/components/human/phone-preview";
+import { SafetyLimits } from "@/components/human/safety-limits";
+import { useDraft } from "@/hooks/use-draft";
+import { AVATARS, FEATURES, MEMES, PRESETS, SKINS, type FeatureCategory } from "@/lib/catalog";
+import { CHAINS } from "@/lib/wallet/chains";
+import hero from "@/assets/studio-hero.jpg";
 
 export const Route = createFileRoute("/human/studio")({
-  head: () => ({ meta: [
-    { title: "Web3 Wallet Studio | BuildAWallet" },
-    { name: "description", content: "Customize a self-custody desktop Web3 wallet, then create or restore it locally in your browser with BuildAWallet Studio." },
-    { property: "og:title", content: "Web3 Wallet Studio | BuildAWallet" },
-    { property: "og:description", content: "Design your wallet interface, networks, features and theme before creating the local self-custody wallet." },
-    { property: "og:type", content: "website" },
-    { name: "twitter:card", content: "summary_large_image" },
-  ] }),
+  head: () => ({
+    meta: [
+      { title: "Wallet Studio ,  BuildAWallet" },
+      { name: "description", content: "Mix skins, chains and power-ups into your own self-custody wallet, then deploy it to web and Android." },
+      { property: "og:title", content: "Wallet Studio ,  BuildAWallet" },
+      { property: "og:description", content: "The wallet builder that feels like an NFT drop. Pick, mix, deploy." },
+    ],
+  }),
   component: Studio,
 });
 
-const themes = [
-  {
-    name: "Acid Vault",
-    detail: "Neon cyber grid",
-    accent: "#5cffb0",
-    surface: "#101912",
-    background: "radial-gradient(circle at 20% 20%, rgba(92,255,176,.38), transparent 28%), radial-gradient(circle at 80% 15%, rgba(183,255,46,.24), transparent 30%), linear-gradient(rgba(92,255,176,.09) 1px, transparent 1px), linear-gradient(90deg, rgba(92,255,176,.09) 1px, transparent 1px), linear-gradient(145deg, #06120d 0%, #0d2419 55%, #030806 100%)",
-    backgroundSize: "auto, auto, 18px 18px, 18px 18px, auto",
-  },
-  {
-    name: "Pixel Pop",
-    detail: "Coral arcade energy",
-    accent: "#ff765f",
-    surface: "#221027",
-    background: "linear-gradient(135deg, rgba(255,118,95,.9) 0 18%, transparent 18% 36%, rgba(142,83,255,.8) 36% 54%, transparent 54% 72%, rgba(255,214,79,.72) 72% 90%, transparent 90%), linear-gradient(160deg, #36113d 0%, #16122d 48%, #090a13 100%)",
-    backgroundSize: "70px 70px, auto",
-  },
-  {
-    name: "Clean Signal",
-    detail: "Minimal glass & light",
-    accent: "#dff7ff",
-    surface: "#16202b",
-    background: "radial-gradient(circle at 72% 18%, rgba(255,255,255,.55), transparent 18%), linear-gradient(120deg, rgba(255,255,255,.18), transparent 42%), linear-gradient(145deg, #435363 0%, #1a2633 42%, #0b1118 100%)",
-    backgroundSize: "auto",
-  },
-  {
-    name: "Gold Rush",
-    detail: "Dark metal & gold rays",
-    accent: "#ffd35a",
-    surface: "#211a0d",
-    background: "repeating-conic-gradient(from 220deg at 15% 85%, rgba(255,211,90,.22) 0deg 8deg, transparent 8deg 18deg), radial-gradient(circle at 78% 20%, rgba(255,188,41,.34), transparent 26%), linear-gradient(145deg, #211604 0%, #0e0c09 58%, #050505 100%)",
-    backgroundSize: "auto",
-  },
-  {
-    name: "Midnight Circuit",
-    detail: "Electric blue circuitry",
-    accent: "#66a8ff",
-    surface: "#0b1528",
-    background: "linear-gradient(90deg, transparent 0 46%, rgba(102,168,255,.18) 46% 50%, transparent 50% 100%), linear-gradient(0deg, transparent 0 46%, rgba(102,168,255,.12) 46% 50%, transparent 50% 100%), radial-gradient(circle at 78% 30%, rgba(54,107,255,.38), transparent 28%), linear-gradient(145deg, #07101f 0%, #0b1b38 50%, #030711 100%)",
-    backgroundSize: "42px 42px, 42px 42px, auto, auto",
-  },
-  {
-    name: "Ocean Glass",
-    detail: "Aqua depth & soft glass",
-    accent: "#63f4ff",
-    surface: "#09232a",
-    background: "radial-gradient(ellipse at 18% 20%, rgba(99,244,255,.36), transparent 30%), radial-gradient(ellipse at 82% 78%, rgba(72,99,255,.3), transparent 32%), linear-gradient(165deg, rgba(255,255,255,.08), transparent 30%), linear-gradient(145deg, #062630 0%, #0c3747 44%, #07121c 100%)",
-    backgroundSize: "auto",
-  },
-];
+const CATS: ("All" | FeatureCategory)[] = ["All", "Core", "Assets", "Security", "Privacy", "Power tools", "Style"];
+const RARITY_CLASS: Record<string, string> = {
+  Common: "bg-surface-2 text-muted-foreground",
+  Rare: "bg-primary/15 text-primary",
+  Epic: "bg-pop/15 text-pop",
+  Legendary: "bg-zap/20 text-zap",
+};
+const RARITY_PTS: Record<string, number> = { Common: 4, Rare: 8, Epic: 14, Legendary: 22 };
 
-const memes = ["WAGMI", "GM", "HODL", "TO THE MOON", "NGMI? NEVER", "LFG", "DYOR", "FEW"];
-const rarity = (i: number) => ["COMMON", "RARE", "EPIC", "LEGENDARY"][i % 4];
-const allFeatures = featureGroups.flatMap((g) => g.items.map((f) => ({ group: g.key, name: f[0], detail: f[1], icon: f[2] })));
+function useCountUp(target: number) {
+  const [v, setV] = useState(target);
+  useEffect(() => {
+    const start = v;
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / 450);
+      setV(Math.round(start + (target - start) * p));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target]);
+  return v;
+}
 
 function Studio() {
-  const { draft, setDraft } = useWalletDraft();
+  const { draft, update, ready } = useDraft();
   const navigate = useNavigate();
-  const [filter, setFilter] = useState("All");
-  const [query, setQuery] = useState("");
-  const shown = allFeatures.filter((f) => (filter === "All" || f.group === filter) && f.name.toLowerCase().includes(query.toLowerCase()));
-  const score = useMemo(() => Math.min(99, 40 + draft.features.length * 2 + draft.chains.length * 2 + draft.security.length * 3), [draft]);
-  const toggleList = (key: "features" | "chains", name: string) => setDraft((d) => ({ ...d, [key]: d[key].includes(name) ? d[key].filter((x) => x !== name) : [...d[key], name] }));
-  const selectedTheme = themes.find((theme) => theme.name === draft.theme) ?? themes[0];
+  const [cat, setCat] = useState<(typeof CATS)[number]>("All");
+  const [q, setQ] = useState("");
 
-  return <WalletShell>
-    <div className="overflow-hidden border-b border-border bg-card/60 py-2 font-display text-xs text-accent" aria-hidden="true">
-      <div className="safety-ticker !border-0 !text-xs !text-accent"><div>{[...memes, ...memes].map((m, i) => <span key={i} className="px-6">{m} <b>◆</b></span>)}</div></div>
-    </div>
-    <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[1fr_340px]">
-      <div className="min-w-0">
-        <section className="relative overflow-hidden rounded-2xl border border-border bg-card p-6">
-          <div className="absolute -right-10 -top-10 size-48 rounded-full bg-primary/20 blur-3xl" />
-          <div className="absolute -bottom-16 left-1/3 size-48 rounded-full bg-coral/20 blur-3xl" />
-          <p className="relative font-mono text-[10px] uppercase text-primary">Studio / {draft.name}</p>
-          <h1 className="relative mt-2 font-display text-4xl leading-none sm:text-6xl">Design the wallet you actually want to <span className="text-primary">use.</span></h1>
-          <p className="relative mt-4 max-w-3xl text-sm text-muted-foreground">Customize the desktop Web3 wallet first. When you are ready, BuildAWallet will create or restore the self-custody account locally in this browser—never on our server.</p>
-          <div className="relative mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[["Features", draft.features.length], ["Chains", draft.chains.length], ["Shields", draft.security.length], ["Build score", score]].map(([l, v]) => <div key={l} className="rounded-xl border border-border bg-background/60 p-3"><div className="font-display text-2xl text-accent">{v}</div><div className="font-mono text-[9px] uppercase text-muted-foreground">{l}</div></div>)}
-          </div>
-        </section>
+  const visible = FEATURES.filter((f) => (cat === "All" || f.category === cat) && (f.name + f.detail).toLowerCase().includes(q.toLowerCase()));
+  const power = useMemo(() => {
+    const f = FEATURES.filter((x) => draft.features.includes(x.id)).reduce((s, x) => s + (RARITY_PTS[x.rarity] ?? 0), 0);
+    return Math.min(999, f + draft.chains.length * 12);
+  }, [draft]);
+  const shownPower = useCountUp(power);
+  const tier = power > 300 ? "LEGENDARY" : power > 200 ? "EPIC" : power > 110 ? "RARE" : "COMMON";
 
-        <div className="mt-8 flex flex-wrap items-center gap-2">
-          {["All", ...featureGroups.map((g) => g.key)].map((k) => <button key={k} onClick={() => setFilter(k)} className={`nav-link border border-border ${filter === k ? "nav-link-active" : ""}`}>{k}</button>)}
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search features" className="ml-auto h-9 rounded-full border border-input bg-background px-4 text-sm outline-none focus:border-primary" />
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{shown.map((f) => { const i = allFeatures.indexOf(f); const on = draft.features.includes(f.name); return <button key={f.name} onClick={() => toggleList("features", f.name)} data-selected={on} className="choice-card relative p-4 text-left">
-          <div className="flex items-start justify-between"><span className="grid size-11 place-items-center rounded-lg bg-secondary font-display text-lg text-primary">{f.icon}</span><span className={`rounded-full px-2 py-0.5 font-mono text-[8px] ${i % 4 === 3 ? "bg-accent text-accent-foreground" : i % 4 === 2 ? "bg-coral text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>{rarity(i)}</span></div>
-          <strong className="mt-3 block font-display text-sm">{f.name}</strong><span className="text-xs text-muted-foreground">{f.detail}</span>
-          <div className="mt-3 flex justify-between font-mono text-[9px] text-muted-foreground"><span>#{String(i + 1).padStart(3, "0")} · {f.group}</span><span className="text-primary">{on ? "EQUIPPED" : `${(i * 37) % 900 + 100} builders`}</span></div>
-          {on && <Check className="absolute right-3 top-14 size-4 text-primary" />}
-        </button>; })}</div>
+  const toggleFeature = (id: string) => {
+    const f = FEATURES.find((x) => x.id === id);
+    if (f?.core) return;
+    update((d) => ({ features: d.features.includes(id) ? d.features.filter((x) => x !== id) : [...d.features, id] }));
+  };
+  const toggleChain = (id: string) =>
+    update((d) => {
+      const next = d.chains.includes(id) ? d.chains.filter((c) => c !== id) : [...d.chains, id];
+      return { chains: next.length ? next : d.chains };
+    });
 
-        <h2 className="mt-8 font-display text-xl">Chains</h2>
-        <div className="mt-3 flex flex-wrap gap-2">{chainOptions.map(([name, sym]) => <button key={name} onClick={() => toggleList("chains", name)} data-selected={draft.chains.includes(name)} className="choice-card px-3 py-2 text-sm"><b className="font-mono text-xs text-primary">{sym}</b> {name}</button>)}</div>
-
-        <section className="mt-8">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-primary">Wallet atmosphere</p>
-              <h2 className="mt-1 font-display text-2xl">Background & color</h2>
-              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Choose the visual world of the wallet. Each option changes the background artwork, accent color and preview treatment.</p>
+  return (
+    <div className="studio-background min-h-screen">
+      <Ticker />
+      {/* HERO */}
+      <section className="relative overflow-hidden border-b border-border">
+        <img src={hero} alt="Holographic wallet card surrounded by coins" className="absolute inset-0 h-full w-full object-cover opacity-55 brightness-110 saturate-110" width={1280} height={768} />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/55 to-background/80" />
+        <div className="relative mx-auto grid max-w-7xl gap-8 px-5 py-14 lg:grid-cols-[1.4fr_1fr] lg:py-20">
+          <div>
+            <a href="/" className="font-display text-sm font-bold">BUILD<span className="text-splash">A</span>WALLET</a>
+            <p className="mt-8 inline-flex items-center gap-2 rounded-full bg-pop/15 px-3 py-1 text-xs font-bold text-pop">
+              <Flame className="size-3.5" /> LIVE MINT · MAINNET
+            </p>
+            <h1 className="mt-4 text-5xl font-black leading-[0.95] sm:text-7xl">
+              The <span className="shimmer-text">Studio</span>
+            </h1>
+            <p className="mt-4 max-w-xl text-lg text-foreground">
+              Collect power-ups, pick your chains, drip it in a skin. Every card you pick is a real feature in your deployed wallet.
+            </p>
+            <div className="mt-8 grid max-w-xl grid-cols-3 gap-3">
+              <Stat label="Power score" value={ready ? shownPower : 0} accent="text-primary" />
+              <Stat label="Chains" value={draft.chains.length} accent="text-pop" />
+              <Stat label="Power-ups" value={draft.features.length} accent="text-zap" />
             </div>
-            <span className="rounded-full border border-border bg-card px-3 py-1 font-mono text-[10px] text-muted-foreground">Selected · {selectedTheme.name}</span>
           </div>
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {themes.map((theme) => {
-              const selected = draft.theme === theme.name;
-              return <button
-                key={theme.name}
-                type="button"
-                onClick={() => setDraft((d) => ({ ...d, theme: theme.name }))}
-                data-selected={selected}
-                className="choice-card group overflow-hidden p-0 text-left"
-              >
-                <div
-                  className="relative h-36 overflow-hidden border-b border-white/10 p-4 text-white"
-                  style={{ backgroundImage: theme.background, backgroundSize: theme.backgroundSize }}
-                >
-                  <div className="absolute inset-0 bg-black/10 transition group-hover:bg-transparent" />
-                  <div className="relative flex h-full flex-col justify-between">
-                    <div className="flex items-center justify-between">
-                      <span className="rounded-full border border-white/25 bg-black/25 px-2 py-1 font-mono text-[9px] uppercase backdrop-blur">Wallet background</span>
-                      {selected && <span className="grid size-7 place-items-center rounded-full bg-white text-black"><Check className="size-4" /></span>}
-                    </div>
-                    <div className="rounded-xl border border-white/15 bg-black/30 p-3 backdrop-blur-sm">
-                      <div className="font-display text-xl">{draft.name}</div>
-                      <div className="mt-1 font-mono text-[9px] text-white/70">$12,480.22 · preview</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-3 p-4">
-                  <div>
-                    <strong className="block font-display text-sm">{theme.name}</strong>
-                    <span className="text-xs text-muted-foreground">{theme.detail}</span>
-                  </div>
-                  <div className="flex gap-1.5">
-                    <span className="size-4 rounded-full border border-white/20" style={{ background: theme.accent }} />
-                    <span className="size-4 rounded-full border border-white/20" style={{ background: theme.surface }} />
-                  </div>
-                </div>
-              </button>;
-            })}
+          <div className="relative hidden items-center justify-center lg:flex">
+            <div className="animate-float"><PhonePreview draft={draft} /></div>
+            {MEMES.slice(0, 5).map((m, i) => (
+              <span key={m} className={`absolute rounded-full px-3 py-1 font-display text-xs font-bold shadow-card ${["bg-primary text-primary-foreground", "bg-pop text-pop-foreground", "bg-zap text-zap-foreground"][i % 3]}`}
+                style={{ top: `${10 + i * 18}%`, [i % 2 ? "right" : "left"]: `${i * 3}%`, transform: `rotate(${i % 2 ? 8 : -8}deg)` }}>
+                {m}
+              </span>
+            ))}
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section className="mt-10 rounded-2xl border-2 border-primary bg-card p-6 text-center">
-          <Sparkles className="mx-auto size-6 text-accent" />
-          <h2 className="mt-2 font-display text-3xl">Ready to make {draft.name} real?</h2>
-          <p className="mx-auto mt-2 max-w-2xl text-sm text-muted-foreground">Your design is finished. Next, create a new recovery phrase or restore an existing one locally in this browser. BuildAWallet never receives the phrase, private key, or wallet password.</p>
-          <Button variant="arcade" size="xl" className="mt-5 h-16 w-full max-w-md text-lg" onClick={() => navigate({ to: "/human/create" })}><WalletCards /> Create my wallet</Button>
-          <p className="mt-3 font-mono text-[9px] uppercase text-muted-foreground">{draft.features.length} features · {draft.chains.length} chains · build score {score}</p>
-        </section>
+      <div className="mx-auto grid max-w-7xl gap-10 px-5 py-10 lg:grid-cols-[1fr_320px]">
+        <div className="space-y-14">
+          {/* DROPS */}
+          <Section kicker="Featured drops" title="One-click presets" icon={<Trophy className="size-5 text-zap" />}>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {PRESETS.map((p) => (
+                <button key={p.id} onClick={() => update({ chains: p.chains, features: p.features, skin: p.skin })}
+                  className="group relative overflow-hidden rounded-2xl border border-border bg-surface p-4 text-left transition hover:-translate-y-1 hover:shadow-neon">
+                  <span className="text-4xl transition group-hover:animate-wiggle inline-block">{p.emoji}</span>
+                  <p className="mt-3 font-display font-bold">{p.name}</p>
+                  <p className="text-sm text-foreground">{p.tagline}</p>
+                  <p className="num mt-3 text-xs text-primary">{p.chains.length} chains · {p.features.length} power-ups</p>
+                </button>
+              ))}
+            </div>
+          </Section>
+
+          {/* IDENTITY */}
+          <Section kicker="01" title="Identity" icon={<Sparkles className="size-5 text-primary" />}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <label className="text-sm font-semibold" htmlFor="sname">Name</label>
+                <Input id="sname" maxLength={24} value={draft.name} onChange={(e) => update({ name: e.target.value })} className="mt-2 h-12 rounded-xl text-lg" />
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {AVATARS.map((a) => (
+                  <button key={a} aria-label={`Avatar ${a}`} onClick={() => update({ avatar: a })}
+                    className={`size-11 rounded-xl text-xl transition hover:scale-110 ${draft.avatar === a ? "bg-primary/20 ring-2 ring-primary" : "bg-surface"}`}>{a}</button>
+                ))}
+              </div>
+            </div>
+          </Section>
+
+          {/* SKINS */}
+          <Section kicker="02" title="Skins collection" icon={<Zap className="size-5 text-pop" />}>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {SKINS.map((s, i) => {
+                const on = draft.skin === s.id;
+                return (
+                  <button key={s.id} onClick={() => update({ skin: s.id })}
+                    className={`group overflow-hidden rounded-2xl border text-left transition hover:-translate-y-1 ${on ? "border-primary shadow-neon" : "border-border"}`}>
+                    <div className="relative h-28" style={{ background: `radial-gradient(circle at 30% 30%, ${s.accent}, transparent 55%), radial-gradient(circle at 80% 80%, ${s.accent2}, transparent 50%), ${s.bg}` }}>
+                      <span className="num absolute left-2 top-2 rounded-md bg-background/70 px-1.5 py-0.5 text-[10px]">#{String(i + 1).padStart(3, "0")}</span>
+                      {on && <Check className="absolute right-2 top-2 size-5 rounded-full bg-primary p-0.5 text-primary-foreground" />}
+                    </div>
+                    <div className="bg-surface p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold">{s.name}</p>
+                        <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ${RARITY_CLASS[s.rarity]}`}>{s.rarity}</span>
+                      </div>
+                      <p className="text-xs text-foreground">{s.vibe}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
+
+          {/* CHAINS */}
+          <Section kicker="03" title="Chains" icon={<span className="text-lg">⛓</span>}>
+            <div className="flex flex-wrap gap-2">
+              {CHAINS.map((c) => {
+                const on = draft.chains.includes(c.id);
+                return (
+                  <button key={c.id} onClick={() => toggleChain(c.id)}
+                    className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${on ? "border-primary bg-primary/10" : "border-border bg-surface text-foreground"}`}>
+                    <span className="size-2.5 rounded-full" style={{ background: `oklch(0.78 0.17 ${c.hue})` }} />
+                    {c.name}
+                    <span className="num text-xs opacity-70">{c.symbol}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
+
+          {/* POWER-UPS */}
+          <Section kicker="04" title="Power-ups marketplace" icon={<Rocket className="size-5 text-zap" />}>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-1.5">
+                {CATS.map((c) => (
+                  <button key={c} onClick={() => setCat(c)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-bold ${cat === c ? "bg-foreground text-background" : "bg-surface text-foreground"}`}>
+                    {c}
+                  </button>
+                ))}
+              </div>
+              <div className="relative sm:w-56">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-foreground" />
+                <Input placeholder="Search power-ups" value={q} onChange={(e) => setQ(e.target.value)} className="h-9 rounded-full pl-9" />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {visible.map((f, i) => {
+                const on = draft.features.includes(f.id) || f.core;
+                return (
+                  <button key={f.id} onClick={() => toggleFeature(f.id)} disabled={f.core}
+                    className={`group relative flex flex-col overflow-hidden rounded-2xl border p-4 text-left transition hover:-translate-y-1 disabled:cursor-default ${on ? "border-primary/70 bg-primary/5" : "border-border bg-surface"}`}>
+                    <div className="flex items-start justify-between">
+                      <span className="grid size-12 place-items-center rounded-xl bg-surface-2 text-2xl transition group-hover:scale-110">{f.emoji}</span>
+                      <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ${RARITY_CLASS[f.rarity]}`}>{f.rarity}</span>
+                    </div>
+                    <p className="mt-3 font-semibold">{f.name}</p>
+                    <p className="mt-1 flex-1 text-xs text-foreground">{f.detail}</p>
+                    <div className="mt-3 flex items-center justify-between text-xs">
+                      <span className="num text-foreground">#{String(i + 1).padStart(3, "0")} · +{RARITY_PTS[f.rarity]} pwr</span>
+                      <span className={`font-bold ${on ? "text-primary" : "text-foreground"}`}>{f.core ? "INCLUDED" : on ? "EQUIPPED ✓" : "+ ADD"}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </Section>
+        </div>
+
+        {/* SIDEBAR */}
+        <aside className="lg:sticky lg:top-6 lg:h-fit">
+          <div className="lg:hidden"><PhonePreview draft={draft} /></div>
+          <div className="mt-6 rounded-2xl border border-border bg-surface p-5 lg:mt-0">
+            <p className="text-xs uppercase tracking-widest text-foreground">Build tier</p>
+            <p className="shimmer-text font-display text-3xl font-black">{tier}</p>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-2">
+              <div className="h-full bg-splash transition-all" style={{ width: `${Math.min(100, power / 4)}%` }} />
+            </div>
+            <dl className="mt-4 space-y-2 text-sm">
+              <Row k="Skin" v={SKINS.find((s) => s.id === draft.skin)?.name ?? ""} />
+              <Row k="Keys" v="Create or import at launch" />
+              <Row k="Auto-lock" v={`${draft.autoLockMin} min`} />
+              <Row k="Currency" v={draft.currency.toUpperCase()} />
+            </dl>
+          </div>
+        </aside>
       </div>
 
-      <aside className="lg:sticky lg:top-4 lg:self-start">
-        <div
-          className="mx-auto w-72 overflow-hidden rounded-[2.5rem] border-4 bg-background p-4 shadow-2xl"
-          style={{ borderColor: selectedTheme.accent, boxShadow: `0 24px 70px ${selectedTheme.accent}22` }}
-        >
-          <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-secondary" />
-          <div
-            className="relative overflow-hidden rounded-[1.75rem] p-4 text-white"
-            style={{ backgroundImage: selectedTheme.background, backgroundSize: selectedTheme.backgroundSize }}
-          >
-            <div className="absolute inset-0 bg-black/20" />
-            <div className="relative">
-              <div className="flex items-center gap-2">
-                <span className="grid size-9 place-items-center rounded-full font-display text-black" style={{ background: selectedTheme.accent }}>{draft.name[0] ?? "N"}</span>
-                <div><strong className="block font-display text-sm">{draft.name}</strong><span className="font-mono text-[9px] text-white/70">{draft.custody} · {selectedTheme.name}</span></div>
-              </div>
-              <div className="mt-4 rounded-xl border border-white/15 bg-black/30 p-4 backdrop-blur-sm"><span className="font-mono text-[9px] text-white/70">STUDIO PREVIEW</span><div className="font-display text-3xl">$12,480.22</div><span className="text-xs text-white/70">demo balance</span></div>
-              <div className="mt-3 grid grid-cols-4 gap-1 text-center font-mono text-[9px]">{["Send", "Receive", "Swap", "Buy"].map((a) => <div key={a} className="rounded-lg border border-white/10 bg-black/25 py-2 backdrop-blur-sm">{a}</div>)}</div>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-1">{draft.chains.slice(0, 8).map((c) => <span key={c} className="rounded-full border border-border px-2 py-0.5 text-[9px]">{c}</span>)}</div>
-          <div className="mt-3 max-h-48 space-y-1 overflow-auto">{draft.features.map((f) => <div key={f} className="flex items-center gap-2 rounded-md bg-card px-2 py-1.5 text-xs"><Zap className="size-3" style={{ color: selectedTheme.accent }} />{f}</div>)}</div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-secondary"><div className="h-full transition-all" style={{ width: `${score}%`, background: selectedTheme.accent }} /></div>
-          <p className="mt-1 text-center font-mono text-[9px] text-muted-foreground">BUILD SCORE {score}/99</p>
+      <SafetyLimits />
+
+      {/* DEPLOY */}
+      <section className="border-t border-border bg-surface/60 px-5 py-16">
+        <div className="mx-auto max-w-3xl text-center">
+          <h2 className="text-3xl font-black sm:text-5xl">Ready to <span className="text-splash">ship it</span>?</h2>
+          <p className="mt-3 text-foreground">Deploy your build to the desktop web wallet, Android, or both.</p>
+          <Button variant="splash" size="xl" className="mt-8 w-full animate-pulse-ring sm:w-auto sm:px-20" onClick={() => navigate({ to: "/human/deploy" })}>
+            <Rocket className="size-6" /> Deploy wallet
+          </Button>
         </div>
-      </aside>
-    </main>
-  </WalletShell>;
+      </section>
+    </div>
+  );
+}
+
+function Stat({ label, value, accent }: { label: string; value: number; accent: string }) {
+  return (
+    <div className="glass rounded-2xl p-3">
+      <p className={`num text-3xl font-bold ${accent}`}>{value}</p>
+      <p className="text-xs text-foreground">{label}</p>
+    </div>
+  );
+}
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex justify-between gap-2"><dt className="text-foreground">{k}</dt><dd className="font-semibold">{v}</dd></div>
+  );
+}
+function Section({ kicker, title, icon, children }: { kicker: string; title: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section>
+      <div className="mb-4 flex items-center gap-3">
+        {icon}
+        <p className="num text-xs uppercase tracking-[0.25em] text-foreground">{kicker}</p>
+      </div>
+      <h2 className="mb-5 text-2xl font-bold sm:text-3xl">{title}</h2>
+      {children}
+    </section>
+  );
 }

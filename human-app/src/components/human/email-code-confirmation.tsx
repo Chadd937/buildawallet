@@ -2,52 +2,70 @@ import { useEffect, useState, type FormEvent } from "react";
 import { CheckCircle2, Loader2, Mail, MailCheck, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  getSession,
+  logout,
+  requestEmailConfirmation,
+  verifyEmailCode,
+} from "@/integrations/auth/client";
 
 type Stage = "email" | "sent" | "verified";
 
-/** Where the emailed sign-in link lands: the step right after /human/setup. */
 const AFTER_SETUP_PATH = "/human/setup";
 
-export function EmailCodeConfirmation({ onVerifiedChange, redirectPath = AFTER_SETUP_PATH, nextLabel = "your wallet build" }: { onVerifiedChange: (verified: boolean) => void; redirectPath?: string; nextLabel?: string }) {
+function confirmationError() {
+  if (typeof window === "undefined") return "";
+  const status = new URLSearchParams(window.location.search).get("auth");
+  if (status === "expired") return "That confirmation link expired. Request a new email below.";
+  if (status === "invalid")
+    return "That confirmation link is invalid or has already been used. Request a new email below.";
+  return "";
+}
+
+export function EmailCodeConfirmation({
+  onVerifiedChange,
+  redirectPath = AFTER_SETUP_PATH,
+  nextLabel = "your wallet build",
+}: {
+  onVerifiedChange: (verified: boolean) => void;
+  redirectPath?: string;
+  nextLabel?: string;
+}) {
   const [stage, setStage] = useState<Stage>("email");
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(confirmationError);
 
   useEffect(() => {
     let active = true;
-    void supabase.auth.getUser().then(({ data }) => {
-      if (!active) return;
-      const verified = Boolean(data.user?.email_confirmed_at);
-      if (verified) {
-        setEmail(data.user?.email ?? "");
-        setStage("verified");
-      }
-      onVerifiedChange(verified);
-      setBusy(false);
-    }).catch(() => {
-      if (!active) return;
-      setError("Sign-in could not be checked. Please try again.");
-      onVerifiedChange(false);
-      setBusy(false);
-    });
-    // Picks up a sign-in completed from the emailed link in another tab.
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!active) return;
-      const user = session?.user;
-      if (user?.email_confirmed_at) {
-        setEmail(user.email ?? "");
-        setStage("verified");
-        onVerifiedChange(true);
-      } else {
-        setStage("email");
+    const check = async () => {
+      try {
+        const session = await getSession();
+        if (!active) return;
+        const verified = session.authenticated && session.verified;
+        if (verified) {
+          setEmail(session.emailHint ?? "");
+          setStage("verified");
+          setError("");
+        }
+        onVerifiedChange(verified);
+      } catch {
+        if (!active) return;
+        setError("Sign-in could not be checked. Please try again.");
         onVerifiedChange(false);
+      } finally {
+        if (active) setBusy(false);
       }
-    });
+    };
+    void check();
+    const checkAfterReturn = () => void check();
+    window.addEventListener("focus", checkAfterReturn);
+    document.addEventListener("visibilitychange", checkAfterReturn);
     return () => {
       active = false;
-      sub.subscription.unsubscribe();
+      window.removeEventListener("focus", checkAfterReturn);
+      document.removeEventListener("visibilitychange", checkAfterReturn);
     };
   }, [onVerifiedChange]);
 
@@ -56,34 +74,52 @@ export function EmailCodeConfirmation({ onVerifiedChange, redirectPath = AFTER_S
     setBusy(true);
     setError("");
     const normalized = email.trim().toLowerCase();
-    const { error: sendError } = await supabase.auth.signInWithOtp({
-      email: normalized,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: `${window.location.origin}${redirectPath}`,
-      },
-    });
-    if (sendError) {
-      setError(sendError.message);
-    } else {
+    try {
+      await requestEmailConfirmation(normalized, redirectPath);
       setEmail(normalized);
+      setCode("");
       setStage("sent");
+    } catch (sendError) {
+      setError(
+        sendError instanceof Error ? sendError.message : "Could not send confirmation email.",
+      );
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
+  }
+
+  async function confirmCode(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await verifyEmailCode(email, code);
+      setStage("verified");
+      onVerifiedChange(true);
+    } catch (verifyError) {
+      setError(verifyError instanceof Error ? verifyError.message : "Could not confirm that code.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function changeEmail() {
     setBusy(true);
-    await supabase.auth.signOut();
+    await logout();
     setStage("email");
     setEmail("");
+    setCode("");
     setError("");
     onVerifiedChange(false);
     setBusy(false);
   }
 
   if (busy && stage === "email" && !email) {
-    return <div className="mt-2 flex h-12 items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Checking sign-in…</div>;
+    return (
+      <div className="mt-2 flex h-12 items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" /> Checking sign-in…
+      </div>
+    );
   }
 
   if (stage === "verified") {
@@ -92,11 +128,15 @@ export function EmailCodeConfirmation({ onVerifiedChange, redirectPath = AFTER_S
         <div className="flex min-w-0 items-center gap-3">
           <CheckCircle2 className="size-5 shrink-0 text-primary" />
           <div className="min-w-0">
-            <p className="text-sm font-semibold">Signed in</p>
-            <p className="truncate text-xs text-muted-foreground">{email}</p>
+            <p className="text-sm font-semibold">Email confirmed</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {email || "This browser is signed in to your BuildAWallet account."}
+            </p>
           </div>
         </div>
-        <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={changeEmail}>Change</Button>
+        <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={changeEmail}>
+          Change
+        </Button>
       </div>
     );
   }
@@ -106,7 +146,9 @@ export function EmailCodeConfirmation({ onVerifiedChange, redirectPath = AFTER_S
       {stage === "email" ? (
         <>
           <p className="mb-3 text-sm text-muted-foreground">
-            We'll email you a <span className="font-semibold text-foreground">sign-in link</span> (not a code). Open it on this device and you'll continue straight to {nextLabel}.
+            We&apos;ll email you a secure{" "}
+            <span className="font-semibold text-foreground">confirmation link</span> and a six-digit
+            backup code. The link returns directly to {nextLabel}.
           </p>
           <form onSubmit={sendLink} className="flex flex-col gap-3 sm:flex-row">
             <Input
@@ -120,7 +162,7 @@ export function EmailCodeConfirmation({ onVerifiedChange, redirectPath = AFTER_S
               required
             />
             <Button type="submit" disabled={busy || !email.trim()}>
-              {busy ? <Loader2 className="animate-spin" /> : <Mail />} Email me a sign-in link
+              {busy ? <Loader2 className="animate-spin" /> : <Mail />} Email confirmation link
             </Button>
           </form>
         </>
@@ -131,20 +173,64 @@ export function EmailCodeConfirmation({ onVerifiedChange, redirectPath = AFTER_S
             <div className="text-sm">
               <p className="font-semibold">Check your inbox</p>
               <p className="mt-1 text-muted-foreground">
-                We sent a sign-in link to <span className="font-semibold text-foreground">{email}</span>. Click the link in that email to sign in ,  it will bring you to {nextLabel} automatically.
+                We sent a confirmation link to{" "}
+                <span className="font-semibold text-foreground">{email}</span>. Open it to sign in
+                and return to {nextLabel}.
               </p>
               <p className="mt-2 text-muted-foreground">
-                Don't see it within a minute or two? Check your <span className="font-semibold text-foreground">spam or junk folder</span>.
+                You can also enter the six-digit code from the email here.
               </p>
             </div>
           </div>
+          <form onSubmit={confirmCode} className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <Input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              aria-label="Confirmation code"
+              maxLength={6}
+              value={code}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="000000"
+              className="h-11 flex-1 rounded-xl text-center font-mono tracking-[0.3em]"
+            />
+            <Button type="submit" disabled={busy || code.length !== 6}>
+              {busy ? <Loader2 className="animate-spin" /> : <CheckCircle2 />} Confirm code
+            </Button>
+          </form>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Don&apos;t see it within a minute or two? Check your{" "}
+            <span className="font-semibold text-foreground">spam or junk folder</span>.
+          </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void sendLink()}><RotateCcw /> Resend link</Button>
-            <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => { setStage("email"); setError(""); }}>Use another email</Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => void sendLink()}
+            >
+              <RotateCcw /> Resend email
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                setStage("email");
+                setError("");
+              }}
+            >
+              Use another email
+            </Button>
           </div>
         </div>
       )}
-      {error ? <p role="alert" className="mt-3 text-sm text-destructive">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="mt-3 text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

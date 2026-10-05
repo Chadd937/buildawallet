@@ -11,7 +11,7 @@ import { Conversation, ConversationContent, ConversationScrollButton } from "@/c
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { PromptInput, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { supabase } from "@/integrations/supabase/client";
+import { getSession } from "@/integrations/auth/client";
 import { useDraft } from "@/hooks/use-draft";
 import { containsWalletSecret } from "@/lib/ai/secrets";
 import guide from "@/assets/wallet-guide.png";
@@ -19,8 +19,8 @@ import guide from "@/assets/wallet-guide.png";
 const suggestions = ["Help me choose my chains", "Explain my safety limits", "How do I receive crypto safely?"];
 
 async function authHeaders() {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
+  const session = await getSession();
+  const token = session.accessToken;
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -35,11 +35,15 @@ export function WalletGuide() {
   useEffect(() => {
     if (!enabled) return;
     let active = true;
-    void supabase.from("human_ai_conversations").select("messages").maybeSingle().then(({ data }) => {
-      if (!active) return;
-      setInitialMessages(Array.isArray(data?.messages) ? data.messages as unknown as UIMessage[] : []);
-      setLoaded(true);
-    });
+    void authHeaders()
+      .then((headers) => fetch("/api/human-ai", { headers, credentials: "include", cache: "no-store" }))
+      .then((response) => response.ok ? response.json() : { messages: [] })
+      .then((data) => {
+        if (!active) return;
+        setInitialMessages(Array.isArray(data?.messages) ? data.messages as UIMessage[] : []);
+        setLoaded(true);
+      })
+      .catch(() => { if (active) setLoaded(true); });
     return () => { active = false; };
   }, [enabled]);
 
@@ -62,8 +66,8 @@ function WalletGuideChat({ open, setOpen, initialMessages, context }: { open: bo
   useEffect(() => { if (open) requestAnimationFrame(() => inputRef.current?.focus()); }, [open]);
 
   async function clearConversation() {
-    const { error: clearError } = await supabase.from("human_ai_conversations").delete().not("user_id", "is", null);
-    if (clearError) {
+    const response = await fetch("/api/human-ai", { method: "DELETE", headers: await authHeaders(), credentials: "include" });
+    if (!response.ok) {
       toast.error("Conversation could not be cleared.");
       return;
     }

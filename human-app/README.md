@@ -13,4 +13,4 @@ npm run preview
 
 The app uses the standard Cloudflare Vite plugin. Its production bundle is `dist/server/wrangler.json`, with assets in `dist/client`.
 
-See `INTEGRATION.md` for the Cloudflare cutover, database migrations, sign-in configuration and release limitations. Server secrets are excluded from Git. The Supabase URL and publishable key in `src/integrations/supabase/public-config.json` are public browser configuration, not administrative credentials.
+See `INTEGRATION.md` for the Cloudflare cutover, database migrations, first-party sign-in configuration and release limitations. Server secrets are excluded from Git. The browser does not receive a Supabase key; PostgreSQL access remains server-only.

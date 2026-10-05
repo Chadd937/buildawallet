@@ -1,13 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAccountAuth } from "@/integrations/auth/auth-middleware";
 
 const QUOTE_HOURS = 24;
 
 export const getAccountOverview = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAccountAuth])
   .handler(async ({ context }) => {
-    const db = context.supabase;
+    const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
     const [account, keys, usage, payments, quotes] = await Promise.all([
       db.from("api_accounts").select("plan_id,quota,used,expires_at").eq("user_id", context.userId).maybeSingle(),
       db.from("api_account_keys").select("id,name,token_hint,created_at,last_used_at,revoked_at").eq("user_id", context.userId).order("created_at", { ascending: false }),
@@ -27,7 +27,7 @@ export const getAccountOverview = createServerFn({ method: "GET" })
   });
 
 export const claimFreeUnits = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAccountAuth])
   .handler(async ({ context }) => {
     const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
     const { FREE_UNITS, FREE_PLAN_ID } = await import("./config");
@@ -43,7 +43,7 @@ export const claimFreeUnits = createServerFn({ method: "POST" })
   });
 
 export const createAccountKey = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAccountAuth])
   .validator((input) => z.object({ name: z.string().trim().min(1).max(40) }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -57,7 +57,7 @@ export const createAccountKey = createServerFn({ method: "POST" })
   });
 
 export const revokeAccountKey = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAccountAuth])
   .validator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -67,7 +67,7 @@ export const revokeAccountKey = createServerFn({ method: "POST" })
   });
 
 export const createCheckoutQuote = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAccountAuth])
   .validator((input) => z.object({ planId: z.enum(["builder", "pro", "scale"]), chain: z.enum(["base", "solana"]), payer: z.string().trim().min(26).max(64) }).parse(input))
   .handler(async ({ data, context }) => {
     const { machineChain, validAddress } = await import("./chains");
@@ -83,7 +83,7 @@ export const createCheckoutQuote = createServerFn({ method: "POST" })
   });
 
 export const confirmCheckout = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAccountAuth])
   .validator((input) => z.object({ quoteId: z.string().uuid(), tx: z.string().trim().min(40).max(120) }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");

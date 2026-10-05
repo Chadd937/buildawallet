@@ -63,7 +63,7 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const path = new URL(request.url).pathname;
-      const aliases: Record<string,string> = {"/pricing":"/nonhuman/pricing","/docs":"/nonhuman/api","/docs/api":"/nonhuman/api","/api-docs":"/nonhuman/api","/pay":"/nonhuman/dashboard"};
+      const aliases: Record<string,string> = {"/login":"/human/setup","/signin":"/human/setup","/account":"/human/setup","/pricing":"/nonhuman/pricing","/docs":"/nonhuman/api","/docs/api":"/nonhuman/api","/api-docs":"/nonhuman/api","/pay":"/nonhuman/dashboard"};
       if (aliases[path]) return Response.redirect(new URL(aliases[path],request.url),302);
       const discovery = await discoveryResponse(path);
       if (discovery) return discovery;

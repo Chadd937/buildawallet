@@ -1,16 +1,11 @@
 const LEGAL_VERSION = "2026-10-03-v1";
 const COOKIE_NAME = "baw_legal_accept";
 
-const GATED_PATHS = [
-  "/",
-  "/human",
-  "/human/",
-  "/pay",
-  "/pricing",
-];
-
+// The website legal acknowledgment is a front-door gate for the public landing
+// page. HUMAN deep links (especially email-confirmation returns) must not be
+// intercepted and redirected away from the builder flow.
 function isGatedPath(pathname) {
-  return GATED_PATHS.includes(pathname) || pathname.startsWith("/human/");
+  return pathname === "/";
 }
 
 function hasAccepted(request) {
@@ -18,7 +13,29 @@ function hasAccepted(request) {
   return cookie.split(";").some((part) => part.trim() === `${COOKIE_NAME}=${LEGAL_VERSION}`);
 }
 
-function gateHtml() {
+function safeReturnTo(value) {
+  if (typeof value !== "string") return "/";
+  const candidate = value.trim();
+  if (!candidate.startsWith("/") || candidate.startsWith("//") || candidate.includes("\\")) return "/";
+  try {
+    const parsed = new URL(candidate, "https://buildawallet.invalid");
+    if (parsed.origin !== "https://buildawallet.invalid") return "/";
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return "/";
+  }
+}
+
+function escapeHtmlAttribute(value) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function gateHtml(returnTo = "/") {
+  const safeTarget = escapeHtmlAttribute(safeReturnTo(returnTo));
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -44,6 +61,7 @@ function gateHtml() {
   <div class="notice"><strong>Privacy baseline:</strong> BuildAWallet does not sell personal information or share it for cross-context behavioral advertising, and does not use session-replay, keystroke-recording, or advertising-pixel tracking on its own pages. Wallet recovery phrases and private keys must never be submitted to BuildAWallet.</div>
   <form method="post" action="/legal/accept">
     <input type="hidden" name="policy_version" value="${LEGAL_VERSION}">
+    <input type="hidden" name="return_to" value="${safeTarget}">
     <div class="check">
       <input id="agree" name="agree" type="checkbox" value="yes" required>
       <label for="agree">I am at least 18 years old (or the age of legal majority where I live), I have read and agree to the <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>, and I acknowledge the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</label>
@@ -64,6 +82,7 @@ export async function onRequest(context) {
     const form = await request.formData();
     const agreed = form.get("agree") === "yes";
     const version = form.get("policy_version");
+    const returnTo = safeReturnTo(form.get("return_to"));
     if (!agreed || version !== LEGAL_VERSION) {
       return new Response("Terms and Privacy acknowledgment is required.", {
         status: 400,
@@ -73,7 +92,7 @@ export async function onRequest(context) {
     return new Response(null, {
       status: 303,
       headers: {
-        "Location": "/",
+        "Location": returnTo,
         "Set-Cookie": `${COOKIE_NAME}=${LEGAL_VERSION}; Max-Age=31536000; Path=/; HttpOnly; Secure; SameSite=Lax`,
         "Cache-Control": "no-store",
       },
@@ -81,7 +100,8 @@ export async function onRequest(context) {
   }
 
   if ((request.method === "GET" || request.method === "HEAD") && isGatedPath(url.pathname) && !hasAccepted(request)) {
-    return new Response(request.method === "HEAD" ? null : gateHtml(), {
+    const returnTo = safeReturnTo(`${url.pathname}${url.search}`);
+    return new Response(request.method === "HEAD" ? null : gateHtml(returnTo), {
       status: 200,
       headers: {
         "Content-Type": "text/html; charset=utf-8",

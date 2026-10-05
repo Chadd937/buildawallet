@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "vitest run",
+    "test": "vitest run && node --test scripts/deployment-config.test.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "deploy": "bash scripts/deploy.sh"

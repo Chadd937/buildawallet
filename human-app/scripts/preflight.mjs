@@ -1,8 +1,5 @@
-try {
-  process.loadEnvFile();
-} catch (error) {
-  if (error.code !== "ENOENT") throw error;
-}
+import { loadDeploymentConfig } from "./deployment-config.mjs";
+const { values: env } = loadDeploymentConfig();
 const required = [
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
@@ -10,19 +7,21 @@ const required = [
   "OPENAI_API_KEY",
   "OPENAI_MODEL",
 ];
-const missing = required.filter((name) => !process.env[name]);
+const missing = required.filter((name) => !env[name]);
 if (missing.length)
-  throw new Error(`Deployment stopped. Missing server configuration: ${missing.join(", ")}`);
-const url = process.env.SUPABASE_URL;
+  throw new Error(
+    `Deployment stopped. Add these settings to human-app/.env or .dev.vars: ${missing.join(", ")}. Do not commit secret values.`,
+  );
+const url = env.SUPABASE_URL;
 if (!/^https:\/\//.test(url)) throw new Error("Supabase must use HTTPS");
-if (process.env.OPENAI_BASE_URL && !/^https:\/\//.test(process.env.OPENAI_BASE_URL))
+if (env.OPENAI_BASE_URL && !/^https:\/\//.test(env.OPENAI_BASE_URL))
   throw new Error("The AI endpoint must use HTTPS");
 const headers = {
   "content-type": "application/json",
-  apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  apikey: env.SUPABASE_SERVICE_ROLE_KEY,
 };
-if (!process.env.SUPABASE_SERVICE_ROLE_KEY.startsWith("sb_secret_"))
-  headers.authorization = `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`;
+if (!env.SUPABASE_SERVICE_ROLE_KEY.startsWith("sb_secret_"))
+  headers.authorization = `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`;
 for (const table of [
   "machine_challenges",
   "machine_sessions",

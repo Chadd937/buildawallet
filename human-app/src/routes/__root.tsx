@@ -15,6 +15,7 @@ import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { LegalEntryGate } from "@/components/legal-entry-gate";
 import { SiteFooter } from "@/components/site-footer";
+import { WalletGuide } from "@/components/human/wallet-guide";
 import studioBackdrop from "@/assets/studio-hero.jpg";
 
 function NotFoundComponent() {
@@ -143,6 +144,7 @@ function RootComponent() {
         <Outlet />
       </div>
       <SiteFooter />
+      <WalletGuide />
       <LegalEntryGate isLanding={isLanding} />
       <Toaster richColors position="top-center" />
     </QueryClientProvider>

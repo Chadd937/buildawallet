@@ -1,6 +1,6 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { Bot, MessageCircle, RotateCcw } from "lucide-react";
+import { Bot, LoaderCircle, MessageCircle, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -32,16 +32,21 @@ const suggestions = [
 
 export function WalletGuide() {
   const path = useRouterState({ select: (state) => state.location.pathname });
-  const enabled = path === "/human/studio" || path === "/human/wallet";
   const { draft } = useDraft();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!open) return;
     let active = true;
-    void fetch("/api/human-ai", { credentials: "include", cache: "no-store" })
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    void fetch("/api/human-ai", {
+      credentials: "include",
+      cache: "no-store",
+      signal: controller.signal,
+    })
       .then((response) => (response.ok ? response.json() : { messages: [] }))
       .then((data) => {
         if (!active) return;
@@ -49,28 +54,86 @@ export function WalletGuide() {
         setLoaded(true);
       })
       .catch(() => {
-        if (active) setLoaded(true);
-      });
+        if (active) {
+          setInitialMessages([]);
+          setLoaded(true);
+        }
+      })
+      .finally(() => clearTimeout(timeout));
     return () => {
       active = false;
+      clearTimeout(timeout);
+      controller.abort();
     };
-  }, [enabled]);
+  }, [open]);
 
-  if (!enabled || !loaded) return null;
+  function changeOpen(next: boolean) {
+    if (next) setLoaded(false);
+    setOpen(next);
+  }
+
   return (
-    <WalletGuideChat
-      key={initialMessages.map((m) => m.id).join(":") || "new"}
-      open={open}
-      setOpen={setOpen}
-      initialMessages={initialMessages}
-      context={{
-        path,
-        walletName: draft.name,
-        chains: draft.chains,
-        features: draft.features,
-        currency: draft.currency,
-      }}
-    />
+    <>
+      {(!open || !loaded) && (
+        <div
+          className={`fixed right-4 z-40 flex items-center gap-3 sm:right-5 ${path === "/human/wallet" ? "bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-[calc(1.25rem+env(safe-area-inset-bottom))]" : "bottom-[calc(1.25rem+env(safe-area-inset-bottom))]"}`}
+        >
+          <button
+            type="button"
+            onClick={() => changeOpen(true)}
+            disabled={open}
+            className="relative max-w-[calc(100vw-7.5rem)] rounded-2xl rounded-br-md border border-primary/30 bg-background/95 px-3 py-2 text-left text-xs text-foreground shadow-lg backdrop-blur-md transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-wait"
+            aria-label="Chat with Byte"
+          >
+            <span
+              aria-hidden="true"
+              className="absolute -right-1.5 top-1/2 size-2.5 -translate-y-1/2 rotate-45 border-r border-t border-primary/30 bg-background"
+            />
+            <span className="relative block font-semibold">
+              {open ? "Opening Byte…" : "Hi, I’m Byte!"}
+            </span>
+            <span className="relative mt-0.5 block text-muted-foreground">
+              Your wallet & API guide.
+            </span>
+          </button>
+          <Button
+            type="button"
+            aria-label="Open Byte chat"
+            title="Open Byte chat"
+            onClick={() => changeOpen(true)}
+            disabled={open}
+            className="size-14 shrink-0 rounded-full p-0 shadow-neon"
+          >
+            {open ? (
+              <LoaderCircle className="size-6 animate-spin" aria-hidden="true" />
+            ) : (
+              <img
+                src={guide}
+                alt="Byte"
+                width={816}
+                height={816}
+                className="size-12 object-contain"
+              />
+            )}
+          </Button>
+        </div>
+      )}
+      {loaded && (
+        <WalletGuideChat
+          key={initialMessages.map((m) => m.id).join(":") || "new"}
+          open={open}
+          setOpen={changeOpen}
+          initialMessages={initialMessages}
+          context={{
+            path,
+            walletName: draft.name,
+            chains: draft.chains,
+            features: draft.features,
+            currency: draft.currency,
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -131,22 +194,6 @@ function WalletGuideChat({
 
   return (
     <>
-      {!open && (
-        <Button
-          aria-label="Open Byte wallet guide"
-          title="Open Byte wallet guide"
-          onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-40 size-14 rounded-full p-0 shadow-neon"
-        >
-          <img
-            src={guide}
-            alt="Byte wallet guide"
-            width={816}
-            height={816}
-            className="size-12 object-contain"
-          />
-        </Button>
-      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogPrimitive.Portal>
           <DialogPrimitive.Content
@@ -167,7 +214,7 @@ function WalletGuideChat({
                   id="byte-description"
                   className="truncate text-xs text-foreground"
                 >
-                  Wallet guide · never share recovery words
+                  Wallet & API guide · keep your keys private
                 </DialogDescription>
               </div>
               <div className="flex shrink-0 items-center">
@@ -186,8 +233,8 @@ function WalletGuideChat({
                     type="button"
                     size="icon"
                     variant="ghost"
-                    aria-label="Close Byte wallet guide"
-                    title="Close Byte wallet guide"
+                    aria-label="Close Byte chat"
+                    title="Close Byte chat"
                   >
                     <span aria-hidden="true">×</span>
                   </Button>

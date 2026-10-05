@@ -30,8 +30,14 @@
   },
   "vars": {
     "AUTH_COOKIE_NAME": "baw_human_session",
-    "AUTH_TABLE_PREFIX": "human"
+    "AUTH_TABLE_PREFIX": "human",
+    "AI_PROVIDER": "workers-ai",
+    "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct-fast"
   },
+  "ai": { "binding": "AI" },
+  "ratelimits": [
+    { "name": "REQUEST_RATE_LIMITER", "namespace_id": "8127543", "simple": { "limit": 60, "period": 60 } }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

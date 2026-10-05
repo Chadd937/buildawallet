@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import ts from "typescript";
 
-export const publicNames = ["AUTH_COOKIE_NAME", "AUTH_TABLE_PREFIX"];
+export const publicNames = ["AUTH_COOKIE_NAME", "AUTH_TABLE_PREFIX", "AI_PROVIDER", "AI_MODEL"];
 export const secretNames = [
   "OPENAI_API_KEY",
   "OPENAI_MODEL",
@@ -65,6 +65,22 @@ export function prepareDeploymentConfig(builtConfig, sourceConfig, values) {
 
 export function deploymentSecrets(values) {
   return Object.fromEntries(
-    secretNames.filter((name) => values[name]).map((name) => [name, values[name]]),
+    secretNames.filter((name) => values[name] &&
+      (!name.startsWith("OPENAI_") || values.AI_PROVIDER === "openai"))
+      .map((name) => [name, values[name]]),
   );
+}
+
+export function validateAiDeployment(config, values) {
+  const provider = values.AI_PROVIDER || "workers-ai";
+  if (provider === "workers-ai") {
+    if (config.ai?.binding !== "AI") throw new Error("Cloudflare Workers AI binding AI is missing");
+    if (!values.AI_MODEL?.startsWith("@cf/")) throw new Error("Set AI_MODEL to a Cloudflare Workers AI text model");
+  } else if (provider === "openai") {
+    const missing = ["OPENAI_API_KEY", "OPENAI_MODEL"].filter((name) => !values[name]);
+    if (missing.length) throw new Error(`OpenAI was selected. Add these private settings to human-app/.env or .dev.vars: ${missing.join(", ")}`);
+    if (values.OPENAI_BASE_URL && !/^https:\/\//.test(values.OPENAI_BASE_URL))
+      throw new Error("The AI endpoint must use HTTPS");
+  } else throw new Error("AI_PROVIDER must be workers-ai or openai");
+  return provider;
 }

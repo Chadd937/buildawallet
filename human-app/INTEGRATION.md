@@ -20,13 +20,15 @@ Original `agent-pay/`, `cloudflare-human/`, static site and native Android sourc
 
 ## AI guide and wallet secrets
 
-Byte uses same-origin `/api/human-ai` with the existing login cookie. Configure `OPENAI_API_KEY` and `OPENAI_MODEL` in the server environment, optionally `OPENAI_BASE_URL` for an HTTPS Responses API-compatible endpoint. These settings are for the guide, independently of authentication. Provider compatibility and paid inference still require a live check.
+Byte uses same-origin `/api/human-ai` with the existing login cookie. Its default `AI_PROVIDER=workers-ai` uses the original Cloudflare AI binding and `AI_MODEL=@cf/meta/llama-3.1-8b-instruct-fast`. Provider SSE is translated into the app's streaming chat protocol; completed conversations retain their existing D1 account scope, and failed or aborted answers are not saved. The original 60 requests per minute AI limiter is retained and keyed by the verified account. No OpenAI key is required.
+
+An optional OpenAI-compatible provider requires an explicit `AI_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_MODEL` and optionally an HTTPS `OPENAI_BASE_URL`. Authentication remains independent of that selection. Actual inference and provider quotas still require a live check.
 
 Wallet keys remain locally derived and encrypted. Recognizable recovery phrases and labeled private keys are refused in chat on both client and server. Detection cannot recognize every possible secret format. Conversation history is scoped to the verified Login account in D1.
 
 ## Deploy
 
-On your Cloudflare-authenticated machine, keep or create local `human-app/.env` using `.env.example` as a guide. Do not overwrite existing settings or commit secret values.
+On your Cloudflare-authenticated machine, the Cloudflare AI defaults work without a local `.env`. Keep any existing optional RPC settings private, using `.env.example` as a guide. Do not overwrite existing settings or commit secret values.
 
 ```sh
 cd ~/buildawallet
@@ -34,7 +36,7 @@ npm --prefix human-app ci --legacy-peer-deps --no-audit --no-fund
 npm run deploy
 ```
 
-Deployment resolves real D1 IDs from the account, verifies the existing Login schema, creates the app database only if missing, and applies app migrations before publishing. It uploads AI/RPC secrets through stdin. Generated bindings are written only to ignored `dist/server/wrangler.json`. Cookie name and database selection must correspond to the existing deployed Login Worker. App deployment does not deploy or change that separate Worker.
+Deployment resolves real D1 IDs from the account, verifies the existing Login schema, creates the app database only if missing, and applies app migrations before publishing. It uploads supplied optional provider/RPC secrets through stdin, skipping that step if there are none. Generated bindings are written only to ignored `dist/server/wrangler.json`. Cookie name and database selection must correspond to the existing deployed Login Worker. App deployment does not deploy or change that separate Worker.
 
 Use this deployment script for publishing. Running Wrangler directly against a fresh build skips binding resolution and migrations. Cloudflare Pages publishing only `static/` continues to publish the legacy site and cannot run the new app's server functions. The old `agent-pay` deployment script also restores the earlier backend.
 

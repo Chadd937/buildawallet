@@ -14,7 +14,12 @@ import { spawnSync } from 'node:child_process';
 import { loadDeploymentConfig, deploymentSecrets } from './scripts/deployment-config.mjs';
 const { values } = loadDeploymentConfig();
 const configPath = 'dist/server/wrangler.json';
-const result = spawnSync('npx',['wrangler','secret','bulk','--config',configPath],{input:JSON.stringify(deploymentSecrets(values)),stdio:['pipe','inherit','inherit']});
+const secrets = deploymentSecrets(values);
+if (!Object.keys(secrets).length) {
+  console.log('No optional provider/RPC secrets to upload. Workers AI uses its binding.');
+  process.exit(0);
+}
+const result = spawnSync('npx',['wrangler','secret','bulk','--config',configPath],{input:JSON.stringify(secrets),stdio:['pipe','inherit','inherit']});
 if (result.status !== 0) process.exit(result.status ?? 1);
 JS
 npx wrangler deploy --config dist/server/wrangler.json

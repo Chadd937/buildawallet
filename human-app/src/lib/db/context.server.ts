@@ -21,6 +21,18 @@ export interface WorkerEnvironment {
   AUTH_DB?: Database;
   AUTH_COOKIE_NAME?: string;
   AUTH_TABLE_PREFIX?: string;
+  AI_PROVIDER?: string;
+  AI_MODEL?: string;
+  AI?: WorkersAi;
+  REQUEST_RATE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
+}
+
+export interface WorkersAi {
+  run(model: string, input: {
+    messages: { role: "system" | "user" | "assistant"; content: string }[];
+    stream: true;
+    max_tokens: number;
+  }): Promise<ReadableStream<Uint8Array>>;
 }
 
 const requestEnvironment = new AsyncLocalStorage<WorkerEnvironment>();

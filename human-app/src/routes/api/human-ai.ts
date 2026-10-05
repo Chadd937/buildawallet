@@ -1,4 +1,4 @@
-import { appDatabase } from "@/lib/db/context.server";
+import { appDatabase, workerEnvironment } from "@/lib/db/context.server";
 import { createFileRoute } from "@tanstack/react-router";
 import { convertToModelMessages, safeValidateUIMessages, type UIMessage } from "ai";
 import { z } from "zod";
@@ -88,29 +88,36 @@ async function post(request: Request) {
 
   const messages = validated.data as UIMessage[];
   const pageContext = JSON.stringify(parsed.data.context);
-  const modelMessages = await convertToModelMessages(messages);
-  const apiKey = process.env["OPENAI_API_KEY"];
-  const model = process.env["OPENAI_MODEL"];
-  const baseURL = process.env["OPENAI_BASE_URL"];
-  if (!apiKey || !model) return json(503, "The wallet guide is not configured yet.");
-
+  const env = workerEnvironment();
+  if (env.REQUEST_RATE_LIMITER) {
+    const limit = await env.REQUEST_RATE_LIMITER.limit({ key: `human-ai:${account.userId}` });
+    if (!limit.success) return json(429, "Please wait before sending another wallet-guide message.");
+  }
   const historyDatabase = appDatabase();
-  const { createHumanAiResponse } = await import("@/lib/ai/responses.server");
-  return createHumanAiResponse(
-    request,
-    { apiKey, model, ...(baseURL ? { baseURL } : {}) },
-    modelMessages,
-    messages,
-    pageContext,
-    async (completed) => {
-      const clean = completed.slice(-60);
-      try {
-        await saveConversation(account.userId, clean, historyDatabase);
-      } catch {
-        console.error("Wallet guide history could not be saved");
-      }
-    },
-  );
+  const save = async (completed: UIMessage[]) => {
+    try {
+      await saveConversation(account.userId, completed.slice(-60), historyDatabase);
+    } catch {
+      console.error("Wallet guide history could not be saved");
+    }
+  };
+  try {
+    if ((env.AI_PROVIDER || "workers-ai") === "workers-ai") {
+      if (!env.AI || !env.AI_MODEL) return json(503, "The wallet guide is not configured yet.");
+      const { createWorkersAiResponse } = await import("@/lib/ai/workers-ai.server");
+      return await createWorkersAiResponse(request, env.AI, env.AI_MODEL, messages, pageContext, save);
+    }
+    if (env.AI_PROVIDER !== "openai") return json(503, "The wallet guide is not configured yet.");
+    const apiKey = process.env["OPENAI_API_KEY"];
+    const model = process.env["OPENAI_MODEL"];
+    const baseURL = process.env["OPENAI_BASE_URL"];
+    if (!apiKey || !model) return json(503, "The wallet guide is not configured yet.");
+    const { createHumanAiResponse } = await import("@/lib/ai/responses.server");
+    return createHumanAiResponse(request, { apiKey, model, ...(baseURL ? { baseURL } : {}) },
+      await convertToModelMessages(messages), messages, pageContext, save);
+  } catch {
+    return json(503, "The wallet guide could not answer right now.");
+  }
 }
 
 export const Route = createFileRoute("/api/human-ai")({

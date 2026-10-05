@@ -14,7 +14,7 @@ const activate = (id: string, tx: string) => db.query("SELECT activate_api_check
 beforeAll(async () => {
   db = new PGlite();
   await db.exec("CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role; CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY); CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT NULL::uuid $$;");
-  for (const file of ["0000_create_machine_api_billing.sql", "0001_add_atomic_machine_api_meter_v2.sql", "0002_machine_human_api_accounts.sql", "0003_create_human_ai_conversation.sql", "0004_match_plan_allowances.sql", "0005_atomic_payment_redemption.sql"]) {
+  for (const file of ["0000_create_machine_api_billing.sql", "0001_add_atomic_machine_api_meter_v2.sql", "0002_machine_human_api_accounts.sql", "0003_create_human_ai_conversation.sql", "0004_match_plan_allowances.sql", "0005_atomic_payment_redemption.sql", "0006_external_email_auth.sql"]) {
     await db.exec(readFileSync(`drizzle/migrations/${file}`, "utf8"));
   }
 }, 30_000);

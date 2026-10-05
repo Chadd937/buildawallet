@@ -1,4 +1,4 @@
-> Current production app source: `human-app/`. It includes the updated HUMAN and machine flows. Read [human-app/INTEGRATION.md](human-app/INTEGRATION.md) before deploying; the new billing backend uses Supabase/PostgreSQL, and the older deployment instructions below describe the legacy implementation.
+> Current production app source: `human-app/`. It includes the updated HUMAN and machine flows. Read [human-app/INTEGRATION.md](human-app/INTEGRATION.md) before deploying; first-party email authentication is provided by `Chadd937/cloudflare-email-auth`, while the billing data backend uses server-only Supabase/PostgreSQL access.
 
 # BuildAWallet.xyz
 

@@ -14,4 +14,15 @@ describe("App routing", () => {
 
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
   });
+
+  it("resolves email confirmation returns to both account destinations", () => {
+    const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
+
+    const setupReturn = new URL("https://buildawallet.xyz/human/setup?auth=confirmed");
+    const dashboardReturn = new URL("https://buildawallet.xyz/nonhuman/dashboard?auth=confirmed");
+    expect(router.matchRoutes(setupReturn.pathname).at(-1)?.routeId).toBe("/human/setup");
+    expect(router.matchRoutes(dashboardReturn.pathname).at(-1)?.routeId).toBe(
+      "/nonhuman/dashboard",
+    );
+  });
 });

@@ -11,20 +11,20 @@ The uploaded full app is integrated into `human-app/` under the canonical reposi
 - Made receipt redemption and entitlement activation one database transaction, with a shared receipt ledger across both checkout flows. Fixed one-use challenge consumption. Exhausted credentials are refused before upstream reads or transaction dispatch, and broadcast attempts reserve their unit before dispatch.
 - Replaced Byte's hardcoded separate Worker URL with same-origin `/api/human-ai`, and replaced its editor gateway with configurable provider credentials. Added client/server checks against recognizable wallet secrets entering chat. Removed heavyweight Markdown diagram/syntax plugins from the wallet guide while retaining Markdown and tables.
 - Removed invented stablecoin prices and token balance fallbacks. Missing quotes remain unavailable; selected dollar-based send limits block sends when their quote is unavailable, and checks run again at confirmation.
-- Kept wallet keys locally derived and encrypted. Magic-link UI requests a link back to setup and mentions spam; the web legal gate appears only on the landing, while Android uses its own acceptance record.
-- Updated CI, build scripts, Cloudflare configuration, environment examples, backend readiness checks and cutover instructions. Server environment files are excluded from Git; only the uploaded publishable Supabase connection data is retained in public configuration.
+- Kept wallet keys locally derived and encrypted. The first-party Cloudflare email UI requests a confirmation link back to setup, provides a six-digit fallback code and mentions spam; the web legal gate appears only on the landing, while Android uses its own acceptance record.
+- Updated CI, build scripts, Cloudflare configuration, environment examples, backend readiness checks and cutover instructions. Server environment files are excluded from Git, and the browser receives no Supabase configuration.
 
 ## Checks completed locally
 
 - Full application production build and strict TypeScript check.
-- 20 app tests, including actual PostgreSQL migration execution via PGlite, receipt replay/rollback, quota enforcement, rate limiting, known-address derivation, server-wallet response/storage behavior, legal-gate and magic-link UI behavior, bounded JSON bodies, secret rejection and price failures.
+- App tests include actual PostgreSQL migration execution via PGlite, receipt replay/rollback, quota enforcement, rate limiting, known-address derivation, server-wallet response/storage behavior, legal-gate and confirmation-link UI behavior, bounded JSON bodies, secret rejection and price failures.
 - Legacy machine Worker typecheck and all 34 existing tests.
 - Built Worker runtime dispatch checks: HTTP 200 on 23 page, discovery and free API routes; MCP lists 52 tools.
 - Wrangler dry-run packaging succeeds. These are local runtime and code checks, not a mainnet payment or browser/phone visual review.
 
 ## Production work still blocked or unverified
 
-This environment is not authenticated to Cloudflare. The uploaded environment contains public Supabase settings, but no `SUPABASE_SERVICE_ROLE_KEY`, provider key or model configuration. The deployment readiness check stops before publishing because those are missing. Database migrations and the Supabase magic-link redirect allowlist still need to be applied or confirmed in the real account.
+This environment is not authenticated to Cloudflare and contains no deployment secrets. The app needs the server-side PostgreSQL key, AI configuration and the shared auth signing key. The separate email-auth Worker needs its D1 binding, Resend key, email-hash pepper and the same signing key. Both auth migrations and app migration `0006` must be applied before publishing.
 
 The app uses PostgreSQL rather than the old D1 billing records. Any active legacy customer access requires reconciliation; the integration preserves the original databases and code but does not migrate live customer data automatically.
 

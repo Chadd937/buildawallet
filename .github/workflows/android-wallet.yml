@@ -95,5 +95,5 @@ jobs:
             out/BuildAWallet-Wallet.apk \
             out/BuildAWallet-Wallet.apk.sha256 \
             --target "${GITHUB_SHA}" \
-            --title "BuildAWallet Android Wallet v1" \
-            --notes "Owner-signed BuildAWallet HUMAN Android wallet. Verify the SHA-256 asset before installation."
+            --title "BuildAWallet Android Wallet" \
+            --notes "Owner-signed BuildAWallet Android wallet. Verify the SHA-256 asset before installation."

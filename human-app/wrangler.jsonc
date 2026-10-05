@@ -30,6 +30,7 @@
   },
   "vars": {
     "SUPABASE_URL": "https://vfvidjzggojmptbxnqep.supabase.co",
-    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_N7njpNGZT14RM3ySDccEhg_qcmoVsER"
+    "AUTH_JWT_ISSUER": "buildawallet-auth",
+    "AUTH_JWT_AUDIENCE": "buildawallet-app"
   }
 }

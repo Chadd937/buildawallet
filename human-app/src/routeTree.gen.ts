@@ -10,10 +10,12 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdvertisingRouteImport } from './routes/advertising'
 import { Route as HumanRouteImport } from './routes/human'
 import { Route as NonhumanRouteImport } from './routes/nonhuman'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PrivacyChoicesRouteImport } from './routes/privacy-choices'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ApiHumanAiRouteImport } from './routes/api/human-ai'
 import { Route as HumanIndexRouteImport } from './routes/human.index'
@@ -38,6 +40,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdvertisingRoute = AdvertisingRouteImport.update({
+  id: '/advertising',
+  path: '/advertising',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HumanRoute = HumanRouteImport.update({
   id: '/human',
   path: '/human',
@@ -56,6 +63,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const PrivacyChoicesRoute = PrivacyChoicesRouteImport.update({
   id: '/privacy-choices',
   path: '/privacy-choices',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsRoute = TermsRouteImport.update({
@@ -151,10 +163,12 @@ const ApiPublicMachineSplatRoute = ApiPublicMachineSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/advertising': typeof AdvertisingRoute
   '/human': typeof HumanRouteWithChildren
   '/nonhuman': typeof NonhumanRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/privacy-choices': typeof PrivacyChoicesRoute
+  '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/api/human-ai': typeof ApiHumanAiRoute
   '/human/android': typeof HumanAndroidRoute
@@ -176,8 +190,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/advertising': typeof AdvertisingRoute
   '/privacy': typeof PrivacyRoute
   '/privacy-choices': typeof PrivacyChoicesRoute
+  '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/api/human-ai': typeof ApiHumanAiRoute
   '/human/android': typeof HumanAndroidRoute
@@ -200,10 +216,12 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/advertising': typeof AdvertisingRoute
   '/human': typeof HumanRouteWithChildren
   '/nonhuman': typeof NonhumanRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/privacy-choices': typeof PrivacyChoicesRoute
+  '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/api/human-ai': typeof ApiHumanAiRoute
   '/human/android': typeof HumanAndroidRoute
@@ -227,10 +245,12 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/advertising'
     | '/human'
     | '/nonhuman'
     | '/privacy'
     | '/privacy-choices'
+    | '/support'
     | '/terms'
     | '/api/human-ai'
     | '/human/android'
@@ -252,8 +272,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/advertising'
     | '/privacy'
     | '/privacy-choices'
+    | '/support'
     | '/terms'
     | '/api/human-ai'
     | '/human/android'
@@ -275,10 +297,12 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/advertising'
     | '/human'
     | '/nonhuman'
     | '/privacy'
     | '/privacy-choices'
+    | '/support'
     | '/terms'
     | '/api/human-ai'
     | '/human/android'
@@ -301,10 +325,12 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdvertisingRoute: typeof AdvertisingRoute
   HumanRoute: typeof HumanRouteWithChildren
   NonhumanRoute: typeof NonhumanRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
   PrivacyChoicesRoute: typeof PrivacyChoicesRoute
+  SupportRoute: typeof SupportRoute
   TermsRoute: typeof TermsRoute
   ApiHumanAiRoute: typeof ApiHumanAiRoute
   ApiPublicOpenapiRoute: typeof ApiPublicOpenapiRoute
@@ -318,6 +344,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/advertising': {
+      id: '/advertising'
+      path: '/advertising'
+      fullPath: '/advertising'
+      preLoaderRoute: typeof AdvertisingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/human': {
@@ -346,6 +379,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy-choices'
       fullPath: '/privacy-choices'
       preLoaderRoute: typeof PrivacyChoicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terms': {
@@ -525,10 +565,12 @@ const NonhumanRouteWithChildren = NonhumanRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdvertisingRoute: AdvertisingRoute,
   HumanRoute: HumanRouteWithChildren,
   NonhumanRoute: NonhumanRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
   PrivacyChoicesRoute: PrivacyChoicesRoute,
+  SupportRoute: SupportRoute,
   TermsRoute: TermsRoute,
   ApiHumanAiRoute: ApiHumanAiRoute,
   ApiPublicOpenapiRoute: ApiPublicOpenapiRoute,

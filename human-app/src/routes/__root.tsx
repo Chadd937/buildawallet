@@ -14,6 +14,7 @@ import { type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { LegalEntryGate } from "@/components/legal-entry-gate";
+import { SiteFooter } from "@/components/site-footer";
 import studioBackdrop from "@/assets/studio-hero.jpg";
 
 function NotFoundComponent() {
@@ -141,6 +142,7 @@ function RootComponent() {
       <div className="relative z-10">
         <Outlet />
       </div>
+      <SiteFooter />
       <LegalEntryGate isLanding={isLanding} />
       <Toaster richColors position="top-center" />
     </QueryClientProvider>

@@ -79,3 +79,5 @@ solely based on what the user wants, as many features as options."
 - Frontend uses the BuildAWallet wallet favicon and standard Vite plugins. Unused editor metadata, telemetry hooks and the obsolete alternate dependency lockfile were removed on 2026-10-04.
 
 - The October 4 full app import is under human-app and builds a Cloudflare Worker rather than a static SPA. On October 5, first-party Cloudflare Email Auth/D1 replaced Supabase Auth; PostgreSQL remains server-only for billing, metering and Byte history. Legacy backends and Android sources remain preserved. Database migrations, live authentication, real payments and a new signed WebView APK still need production validation.
+
+- The October 5 homepage uses the supplied full-screen Human/Machine design with its shared Legal, Human and Machine footer. Support is available at `/support`, and `/advertising` routes to it. The first-party account flow and wallet code stay in place.

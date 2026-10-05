@@ -1,4 +1,4 @@
-import { findLoginDatabase } from "./cloudflare-databases.mjs";
+import { findLoginDatabase, databaseId, loginCookieName } from "./cloudflare-databases.mjs";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -12,7 +12,7 @@ function wrangler(args, json = false) {
   if (result.status !== 0) throw new Error("Cloudflare command failed. Deployment stopped.");
   return json ? JSON.parse(result.stdout) : null;
 }
-const { config, values } = loadDeploymentConfig();
+const { config, values, overrides } = loadDeploymentConfig();
 let databases = wrangler(["d1", "list", "--json"], true);
 const authName = values.AUTH_DATABASE_NAME;
 const auth = findLoginDatabase(databases, authName, wrangler);
@@ -23,23 +23,19 @@ if (!databases.some((db) => db.name === appName)) {
 }
 const appMatches = databases.filter((db) => db.name === appName);
 if (appMatches.length !== 1) throw new Error("Cannot identify one application D1 database");
-const id = (db) => {
-  const identifier = db.uuid || db.id;
-  if (!identifier) throw new Error("D1 database ID is missing");
-  return identifier;
-};
 const path = "dist/server/wrangler.json";
 const built = prepareDeploymentConfig(JSON.parse(readFileSync(path, "utf8")), config, values);
 built.vars.AUTH_TABLE_PREFIX = auth.prefix;
+built.vars.AUTH_COOKIE_NAME = loginCookieName(auth.prefix, values, overrides);
 built.d1_databases = [
   {
     binding: "DB",
     database_name: appName,
-    database_id: id(appMatches[0]),
+    database_id: databaseId(appMatches[0]),
     migrations_dir: fileURLToPath(new URL("../migrations/", import.meta.url)),
     migrations_table: "baw_app_migrations",
   },
-  { binding: "AUTH_DB", database_name: auth.db.name, database_id: id(auth.db) },
+  { binding: "AUTH_DB", database_name: auth.db.name, database_id: databaseId(auth.db) },
 ];
 writeFileSync(path, JSON.stringify(built, null, 2));
 console.log(

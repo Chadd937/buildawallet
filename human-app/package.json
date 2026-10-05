@@ -13,7 +13,8 @@
     "test": "vitest run && node --test scripts/*.test.mjs",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "deploy": "bash scripts/deploy.sh"
+    "deploy": "bash scripts/deploy.sh",
+    "inspect:login": "node scripts/inspect-login.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"

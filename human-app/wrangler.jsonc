@@ -36,7 +36,7 @@
     {
       "binding": "DB",
       "database_name": "buildawallet",
-      "database_id": "00000000-0000-4000-8000-000000000001",
+      "database_id": "f9bc91c2-f66f-4fbe-a099-8913952584e3",
       "migrations_dir": "migrations",
       "migrations_table": "baw_app_migrations"
     },

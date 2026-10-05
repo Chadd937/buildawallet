@@ -83,3 +83,5 @@ solely based on what the user wants, as many features as options."
 - The October 5 homepage uses the supplied full-screen Human/Machine design with its shared Legal, Human and Machine footer. Support is available at `/support`, and `/advertising` routes to it. The first-party account flow and wallet code stay in place.
 
 - Cloudflare deployment reads public settings from Wrangler and local settings from `.env`, `.dev.vars` or the shell. It resolves the existing Login D1 database and cookie contract, adds application tables with a separate migration journal, and uploads only AI/RPC secrets. It does not require an app authentication signing key or reset login tables.
+
+- The owner confirmed existing D1 databases named `buildawallet` and `buildawallet-production`. Schema inspection uses real database IDs from the account, so Wrangler cannot substitute development placeholders. The original HUMAN email login uses the `baw_human_session` cookie; the extracted auth schema defaults to `site_session`.

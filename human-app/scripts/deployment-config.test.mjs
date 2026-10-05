@@ -39,11 +39,12 @@ test("local settings resolve consistently and never become public vars", (t) => 
     ".dev.vars":
       "AUTH_COOKIE_NAME=dev_cookie\nOPENAI_API_KEY=dev-secret\nBASE_RPC_URL=auth-secret\n",
   });
-  const { config, values } = loadDeploymentConfig({
+  const { config, values, overrides } = loadDeploymentConfig({
     appDirectory,
     environment: { OPENAI_API_KEY: "shell-secret" },
   });
   assert.equal(values.AUTH_COOKIE_NAME, "dev_cookie");
+  assert.equal(overrides.AUTH_COOKIE_NAME, "dev_cookie");
   assert.equal(values.OPENAI_API_KEY, "shell-secret");
   const builtConfig = {
     name: "test-worker",

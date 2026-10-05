@@ -1,8 +1,27 @@
+export function databaseId(db) {
+  const identifier = db.uuid || db.id;
+  if (!identifier) throw new Error(`Missing Cloudflare D1 ID for ${db.name}`);
+  return identifier;
+}
+
+export function loginCookieName(prefix, values, overrides) {
+  if (Object.hasOwn(overrides, "AUTH_COOKIE_NAME")) {
+    if (!values.AUTH_COOKIE_NAME) throw new Error("AUTH_COOKIE_NAME must not be empty");
+    return values.AUTH_COOKIE_NAME;
+  }
+  return prefix === "human" ? "baw_human_session" : "site_session";
+}
+
 export function findLoginDatabase(databases, authName, wrangler) {
   const candidates = databases.filter((db) =>
     authName
       ? db.name === authName
-      : ["buildawallet-auth", "buildawallet-email-auth", "buildawallet"].includes(db.name),
+      : [
+          "buildawallet-auth",
+          "buildawallet-email-auth",
+          "buildawallet",
+          "buildawallet-production",
+        ].includes(db.name),
   );
   const authMatches = [];
   for (const db of candidates) {
@@ -10,7 +29,7 @@ export function findLoginDatabase(databases, authName, wrangler) {
       [
         "d1",
         "execute",
-        db.name,
+        databaseId(db),
         "--remote",
         "--json",
         "--command",
@@ -26,7 +45,7 @@ export function findLoginDatabase(databases, authName, wrangler) {
         [
           "d1",
           "execute",
-          db.name,
+          databaseId(db),
           "--remote",
           "--json",
           "--command",
@@ -45,7 +64,7 @@ export function findLoginDatabase(databases, authName, wrangler) {
           [
             "d1",
             "execute",
-            db.name,
+            databaseId(db),
             "--remote",
             "--json",
             "--command",

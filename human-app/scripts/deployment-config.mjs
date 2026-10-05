@@ -34,15 +34,17 @@ export function loadDeploymentConfig({
       .map((name) => [name, String(config.vars[name])]),
   );
   // Shell values take precedence over .dev.vars, then .env, then Wrangler vars.
+  const overrides = {};
   for (const filename of [".env", ".dev.vars"]) {
     try {
-      Object.assign(values, parseEnv(readFileSync(new URL(filename, appDirectory), "utf8")));
+      Object.assign(overrides, parseEnv(readFileSync(new URL(filename, appDirectory), "utf8")));
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
   }
-  Object.assign(values, environment);
-  return { config, values };
+  Object.assign(overrides, environment);
+  Object.assign(values, overrides);
+  return { config, values, overrides };
 }
 
 export function prepareDeploymentConfig(builtConfig, sourceConfig, values) {

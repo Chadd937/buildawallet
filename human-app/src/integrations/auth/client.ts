@@ -21,7 +21,7 @@ function emailHint() {
 }
 
 export async function getSession(): Promise<AuthSession> {
-  const response = await fetch("/auth/session", {
+  const response = await fetch("/api/human/account", {
     credentials: "include",
     cache: "no-store",
     headers: { accept: "application/json" },
@@ -34,7 +34,7 @@ export async function getSession(): Promise<AuthSession> {
 
 export async function requestEmailConfirmation(email: string, next: string) {
   const normalized = email.trim().toLowerCase();
-  const response = await fetch("/auth/email/request", {
+  const response = await fetch("/api/human/account/email", {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json", accept: "application/json" },
@@ -47,7 +47,7 @@ export async function requestEmailConfirmation(email: string, next: string) {
 }
 
 export async function verifyEmailCode(email: string, code: string) {
-  const response = await fetch("/auth/email/verify", {
+  const response = await fetch("/api/human/account/verify", {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json", accept: "application/json" },
@@ -59,6 +59,6 @@ export async function verifyEmailCode(email: string, code: string) {
 }
 
 export async function logout() {
-  await fetch("/auth/logout", { method: "POST", credentials: "include" });
+  await fetch("/api/human/account/logout", { method: "POST", credentials: "include" });
   if (typeof window !== "undefined") window.localStorage.removeItem(EMAIL_HINT_KEY);
 }

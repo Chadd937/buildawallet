@@ -54,6 +54,21 @@ it("honors the configured original cookie name", async () => {
     ),
   ).resolves.toEqual({ userId: "email-hash" });
 });
+it("validates the production HUMAN schema and baw_human_session cookie", async () => {
+  db.sqlite.exec(
+    "CREATE TABLE human_email_accounts(email_hash TEXT PRIMARY KEY,created_at INTEGER NOT NULL,verified_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL); CREATE TABLE human_sessions(token_hash TEXT PRIMARY KEY,email_hash TEXT NOT NULL,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL);",
+  );
+  db.sqlite.prepare("INSERT INTO human_email_accounts VALUES('human-email-hash',1,1,1)").run();
+  db.sqlite.prepare("INSERT INTO human_sessions VALUES(?,'human-email-hash',1,?,1)")
+    .run(hash, Math.floor(Date.now() / 1000) + 3600);
+  const humanAccount = () => withWorkerEnvironment(
+    { AUTH_DB: db, AUTH_TABLE_PREFIX: "human", AUTH_COOKIE_NAME: "baw_human_session" },
+    () => accountFromRequest(request({ cookie: `baw_human_session=${token}` })),
+  );
+  await expect(humanAccount()).resolves.toEqual({ userId: "human-email-hash" });
+  db.sqlite.exec("DELETE FROM human_sessions");
+  await expect(humanAccount()).rejects.toThrow("expired");
+});
 it("rejects cross-site writes and accepts same-origin writes", async () => {
   await expect(account(request({ origin: "https://other.example" }, "POST"))).rejects.toThrow(
     "same-origin",

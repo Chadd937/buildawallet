@@ -29,8 +29,8 @@
     }
   },
   "vars": {
-    "AUTH_COOKIE_NAME": "site_session",
-    "AUTH_TABLE_PREFIX": "auth"
+    "AUTH_COOKIE_NAME": "baw_human_session",
+    "AUTH_TABLE_PREFIX": "human"
   },
   "d1_databases": [
     {
@@ -42,8 +42,8 @@
     },
     {
       "binding": "AUTH_DB",
-      "database_name": "buildawallet-auth",
-      "database_id": "00000000-0000-4000-8000-000000000002"
+      "database_name": "buildawallet",
+      "database_id": "f9bc91c2-f66f-4fbe-a099-8913952584e3"
     }
   ]
 }

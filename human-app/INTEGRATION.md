@@ -4,13 +4,15 @@
 
 `human-app/` is the full TanStack Start application for `/`, `/human/*`, `/nonhuman/*`, machine APIs, MCP, discovery and legal pages. It includes the supplied Human/Machine homepage and shared footer. The production Worker is `buildawallet-agent-pay`.
 
-The separate `Chadd937/cloudflare-email-auth` software remains the exclusive login provider. Its Worker must own the more-specific `buildawallet.xyz/auth/*` route, while this app owns `buildawallet.xyz/*`. Existing Cloudflare Access policies must allow the intended public entry and email-code flow.
+The original HUMAN email login in `human_worker.py` remains the exclusive login provider. Its existing `buildawallet-human-api` Worker owns the more-specific `buildawallet.xyz/api/*` route. This app owns `buildawallet.xyz/*` plus `/api/public/*` and `/api/human-ai`, leaving `/api/human/account` and its `/email`, `/verify` and `/logout` endpoints with the original Worker. Existing Cloudflare Access policies must allow the intended public entry and email-code flow.
 
 ## Login and storage
 
 The Login project uses a Secure, HttpOnly, SameSite=Lax browser cookie with a random token. Only its hash is stored in D1. This app reads that existing session through its `AUTH_DB` binding, checks expiry and the verified account, and uses the stable protected email hash to scope account data. Unsafe requests also require the same origin. Login does not require a second token or shared signing key. Login tables, account records, email pepper and Resend secrets stay with the existing Login Worker.
 
-`AUTH_COOKIE_NAME` must match that Worker. The extracted `auth_*` repository defaults to `site_session`; the original `human_*` HUMAN login uses `baw_human_session`. Deployment selects that schema default unless you explicitly override the cookie name locally. `AUTH_DATABASE_NAME` selects its existing D1 database. Deployment can discover a unique Login database among `buildawallet-auth`, `buildawallet-email-auth`, `buildawallet` and `buildawallet-production`; set the exact name if different or ambiguous. Both the extracted `auth_*` schema and the original `human_*` email-login schema are supported. No login table-reset migration is executed by this app.
+October 5 production schema inspection confirmed that the `buildawallet` database (`f9bc91c2-f66f-4fbe-a099-8913952584e3`) holds `human_sessions` and `human_email_accounts`, matching the original HUMAN email login. `buildawallet-production` has no login tables. Source bindings now point `DB` and `AUTH_DB` at `buildawallet`, with `AUTH_TABLE_PREFIX=human` and `AUTH_COOKIE_NAME=baw_human_session`.
+
+`AUTH_COOKIE_NAME` must match the existing Worker. Deployment selects the schema's cookie default unless you explicitly override it locally. `AUTH_DATABASE_NAME` can select a different existing D1 database; automatic discovery still checks the account for a unique matching schema. The session validator also understands the extracted `auth_*` schema, but this release's frontend calls the original HUMAN endpoints above. No login table-reset migration is executed by this app.
 
 Application billing, quotas, rate counters, API keys and Byte history use the app's `DB` D1 binding. `APP_DATABASE_NAME` defaults to `buildawallet`. `migrations/baw_0001_app_data.sql` only adds app tables and triggers, with the separate `baw_app_migrations` journal. Payment receipt reservation, quote consumption and plan activation are atomic; one receipt cannot activate both purchase flows. Quota decisions and account usage audit events are also atomic.
 

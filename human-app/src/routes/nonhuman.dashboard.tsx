@@ -5,7 +5,7 @@ import { KeyRound, Loader2, LogOut, Plus, ReceiptText, Trash2, Wallet } from "lu
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { getSession, logout } from "@/integrations/auth/client";
 import { EmailCodeConfirmation } from "@/components/human/email-code-confirmation";
 import { Badge, Code, CopyButton, PageHero, Panel, Section } from "@/components/machine/ui";
 import { Button } from "@/components/ui/button";
@@ -26,9 +26,13 @@ function Dashboard() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [email, setEmail] = useState("");
   useEffect(() => {
-    void supabase.auth.getUser().then(({ data }) => { setSignedIn(Boolean(data.user)); setEmail(data.user?.email ?? ""); });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => { setSignedIn(Boolean(session?.user)); setEmail(session?.user?.email ?? ""); });
-    return () => sub.subscription.unsubscribe();
+    let active = true;
+    void getSession().then((session) => {
+      if (!active) return;
+      setSignedIn(session.authenticated && session.verified);
+      setEmail(session.emailHint ?? "");
+    }).catch(() => { if (active) setSignedIn(false); });
+    return () => { active = false; };
   }, []);
   const onVerified = useCallback((v: boolean) => { if (v) setSignedIn(true); }, []);
   const qc = useQueryClient();
@@ -46,8 +50,8 @@ function Dashboard() {
         ) : (
           <>
             <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 md:px-10">
-              <p className="truncate text-sm text-muted-foreground">Signed in as <b className="text-foreground">{email}</b></p>
-              <Button variant="ghost" size="sm" onClick={async () => { await qc.cancelQueries(); qc.clear(); await supabase.auth.signOut(); setSignedIn(false); }}><LogOut /> Sign out</Button>
+              <p className="truncate text-sm text-muted-foreground">Signed in with <b className="text-foreground">{email || "a verified email"}</b></p>
+              <Button variant="ghost" size="sm" onClick={async () => { await qc.cancelQueries(); qc.clear(); await logout(); setSignedIn(false); setEmail(""); }}><LogOut /> Sign out</Button>
             </div>
             <SignedIn />
           </>

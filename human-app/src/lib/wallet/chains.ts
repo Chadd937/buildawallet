@@ -1,6 +1,6 @@
 export type ChainFamily = "evm" | "solana" | "bitcoin" | "tron";
 
-export type TokenDef = { symbol: string; name: string; address: string; decimals: number };
+export type TokenDef = { symbol: string; name: string; address: string; decimals: number; custom?: boolean };
 
 export type ChainDef = {
   id: string;

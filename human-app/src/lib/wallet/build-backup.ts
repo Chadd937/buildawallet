@@ -46,5 +46,9 @@ export function parseBuildBackup(text: string): Draft {
     sessionLimitUsd: num(b.sessionLimitUsd, 100, 100000, DEFAULT_DRAFT.sessionLimitUsd),
     currency: typeof b.currency === "string" && (CURRENCIES as readonly string[]).includes(b.currency) ? (b.currency as Draft["currency"]) : DEFAULT_DRAFT.currency,
     platform: b.platform === "web" || b.platform === "android" ? b.platform : "both",
+    walletStyle: (["minimal", "trader", "neon", "classic", "glass", "gallery"] as const).includes(b.walletStyle as Draft["walletStyle"]) ? b.walletStyle as Draft["walletStyle"] : DEFAULT_DRAFT.walletStyle,
+    navigationStyle: (["bottom", "icons", "floating", "text"] as const).includes(b.navigationStyle as Draft["navigationStyle"]) ? b.navigationStyle as Draft["navigationStyle"] : DEFAULT_DRAFT.navigationStyle,
+    assetStyle: (["compact", "detailed", "visual"] as const).includes(b.assetStyle as Draft["assetStyle"]) ? b.assetStyle as Draft["assetStyle"] : DEFAULT_DRAFT.assetStyle,
+    actionStyle: (["duo", "toolbar", "round"] as const).includes(b.actionStyle as Draft["actionStyle"]) ? b.actionStyle as Draft["actionStyle"] : DEFAULT_DRAFT.actionStyle,
   };
 }

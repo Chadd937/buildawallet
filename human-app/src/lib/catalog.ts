@@ -93,6 +93,10 @@ export type Draft = {
   sessionLimitUsd: number;
   currency: (typeof CURRENCIES)[number];
   platform: "web" | "android" | "both";
+  walletStyle: "minimal" | "trader" | "neon" | "classic" | "glass" | "gallery";
+  navigationStyle: "bottom" | "icons" | "floating" | "text";
+  assetStyle: "compact" | "detailed" | "visual";
+  actionStyle: "duo" | "toolbar" | "round";
 };
 
 export const DEFAULT_DRAFT: Draft = {
@@ -108,6 +112,10 @@ export const DEFAULT_DRAFT: Draft = {
   sessionLimitUsd: 5000,
   currency: "usd",
   platform: "both",
+  walletStyle: "classic",
+  navigationStyle: "bottom",
+  assetStyle: "detailed",
+  actionStyle: "duo",
 };
 
 export const skinById = (id: string) => SKINS.find((s) => s.id === id) ?? SKINS[0]!;

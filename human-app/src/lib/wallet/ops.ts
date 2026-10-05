@@ -11,6 +11,9 @@ import { solanaRpc } from "./rpc.functions";
 const ERC20 = [
   "function balanceOf(address) view returns (uint256)",
   "function transfer(address to, uint256 amount) returns (bool)",
+  "function symbol() view returns (string)",
+  "function name() view returns (string)",
+  "function decimals() view returns (uint8)",
 ];
 
 export type Holding = { chainId: string; symbol: string; name: string; amount: string; raw: bigint; decimals: number; token?: TokenDef };
@@ -141,7 +144,7 @@ export async function fetchHoldings(chain: ChainDef, a: PublicAddresses): Promis
     const p = await evmProvider(chain);
     const [bal, ...toks] = await Promise.all([
       p.getBalance(addr),
-      ...chain.tokens.map((t) => (new Contract(t.address, ERC20, p).getFunction("balanceOf")(addr) as Promise<bigint>)),
+      ...chain.tokens.map((t) => (new Contract(t.address, ERC20, p).getFunction("balanceOf")(addr) as Promise<bigint>).catch(() => 0n)),
     ]);
     return [native(bal), ...chain.tokens.map((t, i) => tok(t, toks[i] ?? 0n))];
   }
@@ -177,8 +180,10 @@ export async function fetchPrices(ids: string[], currency: string): Promise<Reco
   const j = (await r.json()) as Record<string, Record<string, number>>;
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(j)) {
-    const price = v[currency];
-    if (typeof price === "number" && Number.isFinite(price) && price > 0) out[k] = price;
+    const quote = v[currency];
+    if (typeof quote === "number" && Number.isFinite(quote)) {
+      out[k] = quote;
+    }
   }
   return out;
 }
@@ -191,6 +196,34 @@ export function validateRecipient(chain: ChainDef, to: string) {
     try { btc.Address(btc.NETWORK).decode(to); return true; } catch { return false; }
   }
   try { tronAddressToHex(to); return true; } catch { return false; }
+}
+
+export function validateTokenAddress(chain: ChainDef, address: string) {
+  if (chain.family === "bitcoin") return false;
+  if (chain.family === "evm") return isAddress(address);
+  if (chain.family === "solana") return validSolAddress(address);
+  try { tronAddressToHex(address); return true; } catch { return false; }
+}
+
+export async function fetchTokenMetadata(chain: ChainDef, address: string): Promise<Pick<TokenDef, "symbol" | "name" | "decimals">> {
+  if (!validateTokenAddress(chain, address)) throw new Error(`That isn't a valid ${chain.name} token address.`);
+  if (chain.family === "evm") {
+    const p = await evmProvider(chain);
+    const contract = new Contract(address, ERC20, p);
+    const [symbol, name, decimals] = await Promise.all([
+      contract.getFunction("symbol")() as Promise<string>,
+      contract.getFunction("name")() as Promise<string>,
+      contract.getFunction("decimals")() as Promise<number>,
+    ]);
+    return { symbol: symbol.slice(0, 16), name: name.slice(0, 64), decimals: Number(decimals) };
+  }
+  if (chain.family === "solana") {
+    const account = await sol<{ value?: { data: { parsed?: { info?: { decimals?: number } } } } }>("getParsedAccountInfo", [address, { commitment: "confirmed" }]);
+    const decimals = account.value?.data.parsed?.info?.decimals;
+    if (typeof decimals !== "number") throw new Error("Solana mint metadata unavailable. Enter the token details manually.");
+    return { symbol: "TOKEN", name: "Custom SPL token", decimals };
+  }
+  return { symbol: "TOKEN", name: "Custom TRC20 token", decimals: 6 };
 }
 
 /* ================= Fee estimate ================= */

@@ -1,20 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useDraft } from "@/hooks/use-draft";
 import { skinVars } from "@/components/human/phone-preview";
 import { Onboarding, UnlockScreen } from "@/components/wallet/onboarding";
 import { Dashboard } from "@/components/wallet/dashboard";
 import { eraseVault, getVaultMeta, isDeviceVault, unlockVault, type VaultMeta } from "@/lib/wallet/vault";
-import "@/styles/wallet-premium.css";
 
 export const Route = createFileRoute("/human/wallet")({
   head: () => ({
     meta: [
-      { title: "Your wallet ,  BuildAWallet" },
+      { title: "Your wallet — BuildAWallet" },
       { name: "description", content: "Self-custody multichain wallet: Ethereum, Base, Arbitrum, Optimism, Polygon, BNB, Avalanche, Solana, Bitcoin and Tron." },
-      { property: "og:title", content: "Your wallet ,  BuildAWallet" },
+      { property: "og:title", content: "Your wallet — BuildAWallet" },
       { property: "og:description", content: "Your own self-custody multichain wallet, running in your browser." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -41,51 +42,26 @@ function WalletPage() {
     return <div className="grid min-h-screen place-items-center"><Loader2 className="size-8 animate-spin text-primary" /></div>;
   }
 
-  if (!phrase) {
-    return (
-      <div style={skinVars(draft.skin)} className="studio-background skin-foreground min-h-screen">
-        <header className="mx-auto flex max-w-7xl items-center justify-between px-4 pt-5">
-          <a href="/human/studio" className="font-display text-sm font-bold">BUILD<span className="skin-accent-text">A</span>WALLET</a>
-          <span className="rounded-full border px-3 py-1 text-xs skin-border text-foreground">Mainnet · self-custody</span>
-        </header>
-        {meta && !forcing ? (
-          <UnlockScreen name={meta.walletName || draft.name} avatar={draft.avatar} onUnlock={setPhrase}
-            onForget={async () => { if (confirm("Remove the encrypted wallet from this browser and restore from your phrase?")) { await eraseVault(); setMeta(null); setForcing(true); } }} />
-        ) : (
-          <Onboarding draft={forcing ? { ...draft, custody: "restore" } : draft} onImportBuild={(d) => update(d)} onReady={async (p) => { setMeta(await getVaultMeta()); setForcing(false); setPhrase(p); }} />
-        )}
-      </div>
-    );
-  }
-
   return (
-    <div style={skinVars(draft.skin)} className="wallet-premium-shell min-h-screen skin-foreground">
-      <header className="wallet-premium-topbar">
-        <div className="wallet-premium-brand">
-          <a href="/" aria-label="BuildAWallet home" className="wallet-premium-mark">B</a>
-          <div>
-            <a href="/human/wallet" className="wallet-premium-brandname">BuildAWallet</a>
-            <span className="wallet-premium-product">Web3 Wallet</span>
+    <div style={skinVars(draft.skin)} className="human-product wallet-app studio-background skin-foreground min-h-screen bg-background/45">
+      <header className="border-b skin-border skin-surface">
+        <div className="mx-auto grid max-w-[1500px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <a href="/human/studio" className="shrink-0 font-display text-sm font-bold">BUILD<span className="skin-accent-text">A</span>WALLET</a>
+            <span className="hidden h-5 w-px skin-surface sm:block" />
+            <p className="truncate text-xs skin-muted">{draft.avatar} {draft.name}</p>
           </div>
-        </div>
-
-        <div className="wallet-premium-account">
-          <span className="wallet-premium-avatar" aria-hidden="true">{draft.avatar}</span>
-          <div className="min-w-0">
-            <strong className="block truncate text-sm">{draft.name || "My Wallet"}</strong>
-            <span className="wallet-premium-subtle">Mainnet portfolio</span>
-          </div>
-        </div>
-
-        <div className="wallet-premium-topactions">
-          <span className="wallet-premium-security"><ShieldCheck className="size-4" /> Keys stay local</span>
-          <a href="/human/studio" className="wallet-premium-customize"><SlidersHorizontal className="size-4" /> Customize</a>
+          <span className="flex shrink-0 items-center gap-2 text-xs font-semibold"><span className="size-2 rounded-full bg-success" />Mainnet · local signing</span>
         </div>
       </header>
-
-      <div className="wallet-premium-stage">
+      {phrase ? (
         <Dashboard draft={draft} phrase={phrase} onLock={lock} onErased={() => { setPhrase(null); setMeta(null); }} />
-      </div>
+      ) : meta && !forcing ? (
+        <UnlockScreen name={meta.walletName || draft.name} avatar={draft.avatar} onUnlock={setPhrase}
+          onForget={async () => { if (confirm("Remove the encrypted wallet from this browser and restore from your phrase?")) { await eraseVault(); setMeta(null); setForcing(true); } }} />
+      ) : (
+        <Onboarding draft={forcing ? { ...draft, custody: "restore" } : draft} onImportBuild={(d) => update(d)} onReady={async (p) => { setMeta(await getVaultMeta()); setForcing(false); setPhrase(p); }} />
+      )}
     </div>
   );
 }

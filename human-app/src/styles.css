@@ -41,6 +41,7 @@
   --color-success: var(--success);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-wallet-frame: var(--wallet-frame);
 
   --animate-marquee: marquee 28s linear infinite;
   --animate-float: float 5s ease-in-out infinite;
@@ -84,6 +85,30 @@
   --shadow-neon: 0 0 0 1px oklch(0.92 0.22 125 / 40%), 0 10px 40px -10px oklch(0.92 0.22 125 / 55%);
   --shadow-pop: 0 0 0 1px oklch(0.7 0.25 350 / 45%), 0 10px 40px -10px oklch(0.7 0.25 350 / 55%);
   --shadow-card: 0 20px 50px -25px oklch(0 0 0 / 80%);
+  --shadow-wallet-device: 0 28px 80px -22px oklch(0 0 0 / 92%);
+  --wallet-frame: oklch(0.09 0.006 250);
+}
+
+.human-product {
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+
+.human-product .wallet-heading {
+  background: none;
+  color: inherit;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+}
+
+.wallet-app :where(h1, h2, h3) {
+  background: none;
+  color: inherit;
+  font-family: "Space Grotesk", system-ui, sans-serif;
+}
+
+@media (min-width: 1440px) {
+  .byte-open .human-product {
+    margin-right: 360px;
+  }
 }
 
 @layer base {

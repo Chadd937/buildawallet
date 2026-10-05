@@ -44,28 +44,29 @@ export function Onboarding({ draft, onReady, onImportBuild }: { draft: Draft; on
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-12 text-foreground">
+    <div className="mx-auto max-w-4xl px-4 py-10 text-foreground sm:px-6 sm:py-16">
       <div className="mb-8 text-center">
-        <p className="num text-xs uppercase tracking-widest text-primary">Choose how to begin</p>
-        <h1 className="mt-2 text-3xl font-black sm:text-4xl">Open your wallet your way</h1>
-        <p className="mt-2 text-sm text-foreground">Your keys are created and encrypted on this device. They never go to our servers.</p>
+        <div className="mx-auto mb-4 grid size-11 place-items-center rounded-lg border skin-border skin-surface"><ShieldCheck className="size-5 skin-accent-text" /></div>
+        <p className="text-xs font-bold uppercase tracking-[0.16em] skin-accent-text">Secure wallet setup</p>
+        <h1 className="wallet-heading mt-2 text-3xl font-bold sm:text-4xl">Choose how to open your wallet</h1>
+        <p className="mx-auto mt-3 max-w-xl text-sm skin-muted">Keys are created and encrypted on this device. BuildAWallet never receives them.</p>
       </div>
-      <div className="mb-8 grid gap-3 sm:grid-cols-3">
+      <div className="mb-10 grid gap-3 sm:grid-cols-3">
         {(["fresh", "restore", "build"] as const).map((m) => {
           const details = m === "fresh" ? [WandSparkles, "Create new", "Generate new recovery words"] : m === "restore" ? [KeyRound, "Restore phrase", "Use 12 or 24 words"] : [FileUp, "Import build", "Load your Studio choices"];
           const Icon = details[0] as typeof WandSparkles;
-          return <Button key={m} type="button" variant={mode === m ? "skin" : "skinGhost"} onClick={() => { setMode(m); setStep(m === "fresh" ? "show" : "password"); }} className="h-auto min-h-28 flex-col whitespace-normal p-4 text-center">
-            <Icon className="size-7" /><span className="font-bold">{details[1] as string}</span><span className="text-xs font-normal text-foreground">{details[2] as string}</span>
+          return <Button key={m} type="button" variant="skinGhost" onClick={() => { setMode(m); setStep(m === "fresh" ? "show" : "password"); }} className={`h-auto min-h-36 flex-col items-start whitespace-normal rounded-lg p-5 text-left ${mode === m ? "border-current skin-accent-text skin-surface" : ""}`}>
+            <span className="grid size-10 place-items-center rounded-lg border skin-border skin-surface"><Icon className="size-5" /></span><span className="mt-2 font-bold">{details[1] as string}</span><span className="text-xs font-normal skin-muted">{details[2] as string}</span>
           </Button>;
         })}
       </div>
 
       {mode === "build" && (
         <section>
-          <h1 className="text-3xl font-bold">Import a build backup</h1>
-          <p className="mt-2 text-sm text-foreground">Load the .buildawallet.json file you saved on the deploy page. It restores your wallet's name, look, chains, power-ups and limits. Then create new keys or restore your phrase.</p>
-          <label className="mt-6 flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed p-8 text-sm font-semibold skin-border skin-surface">
-            <FileUp className="size-6" /> Choose build backup file
+          <h1 className="wallet-heading text-2xl font-bold">Import a build backup</h1>
+          <p className="mt-2 text-sm skin-muted">Load your Studio build file. It restores the design, networks, power-ups, and limits—never keys.</p>
+          <label className="mt-6 flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-8 text-sm font-semibold skin-border skin-surface">
+            <span className="grid size-11 place-items-center rounded-lg border skin-border"><FileUp className="size-5" /></span> Choose build backup file
             <input type="file" accept=".json,application/json" className="sr-only" onChange={async (e) => {
               const f = e.target.files?.[0];
               if (!f) return;
@@ -83,7 +84,7 @@ export function Onboarding({ draft, onReady, onImportBuild }: { draft: Draft; on
         <section>
           {buildMsg && (
             <p className="mb-4 rounded-xl border px-3 py-2 text-sm skin-border skin-surface">
-              <span className="skin-accent-text">{buildMsg}</span> ,  new keys below, or{" "}
+              <span className="skin-accent-text">{buildMsg}</span> — new keys below, or{" "}
               <button type="button" className="underline" onClick={() => { setMode("restore"); setStep("password"); }}>use my existing phrase</button>.
             </p>
           )}
@@ -94,8 +95,8 @@ export function Onboarding({ draft, onReady, onImportBuild }: { draft: Draft; on
               ))}
             </div>
           )}
-          <h1 className="text-3xl font-bold">Your recovery phrase</h1>
-          <p className="mt-2 text-sm text-foreground">Write these {words.length} words on paper, in order. Anyone with them controls your funds. Never type them into a website or share them.</p>
+          <h1 className="wallet-heading text-2xl font-bold">Your recovery phrase</h1>
+          <p className="mt-2 text-sm skin-muted">Write these {words.length} words on paper, in order. Anyone with them controls your funds. Never share them.</p>
           <div className="relative mt-6">
             <ol className={`grid grid-cols-3 gap-2 ${reveal ? "" : "select-none blur-md"}`}>
               {words.map((w, i) => (
@@ -117,7 +118,7 @@ export function Onboarding({ draft, onReady, onImportBuild }: { draft: Draft; on
 
       {mode === "fresh" && step === "verify" && (
         <section>
-          <h1 className="text-3xl font-bold">Prove you saved it</h1>
+          <h1 className="wallet-heading text-2xl font-bold">Confirm your backup</h1>
           <p className="mt-2 text-sm text-foreground">Type the requested words.</p>
           <div className="mt-6 space-y-3">
             {checks.map((i) => (
@@ -136,8 +137,8 @@ export function Onboarding({ draft, onReady, onImportBuild }: { draft: Draft; on
 
       {mode !== "build" && step === "password" && (
         <section>
-          <h1 className="text-3xl font-bold">{mode === "fresh" ? "Open your wallet" : "Restore your wallet"}</h1>
-          <p className="mt-2 text-sm text-foreground">Your phrase is encrypted on this device only, with a key that never leaves this browser. Your phrase is the backup.</p>
+          <h1 className="wallet-heading text-2xl font-bold">{mode === "fresh" ? "Open your wallet" : "Restore your wallet"}</h1>
+          <p className="mt-2 text-sm skin-muted">Your phrase is encrypted on this device only. It remains your permanent backup.</p>
           {mode === "restore" && (
             <Textarea autoCapitalize="none" autoComplete="off" spellCheck={false} rows={4} placeholder="Enter your 12 or 24 words separated by spaces"
               value={restoreText} onChange={(e) => setRestoreText(e.target.value)} className="num mt-5 rounded-xl" />

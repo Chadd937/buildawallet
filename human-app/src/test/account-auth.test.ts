@@ -1,39 +1,76 @@
 // @vitest-environment node
-import { SignJWT } from "jose";
-import { afterEach, expect, it } from "vitest";
-import { verifyAccountToken } from "@/integrations/auth/auth-middleware";
-
-const key = "test-only-shared-account-signing-key";
-
-afterEach(() => {
-  delete process.env["AUTH_SESSION_SIGNING_KEY"];
-  delete process.env["AUTH_JWT_ISSUER"];
-  delete process.env["AUTH_JWT_AUDIENCE"];
+import { createHash } from "node:crypto";
+import { beforeEach, afterEach, expect, it } from "vitest";
+import { accountFromRequest } from "@/integrations/auth/account.server";
+import { withWorkerEnvironment, workerEnvironment } from "@/lib/db/context.server";
+import { TestD1 } from "./d1-fixture";
+let db: TestD1;
+const token = "original-login-session-token-".padEnd(43, "a");
+const hash = createHash("sha256").update(token).digest("hex");
+const request = (headers: Record<string, string> = {}, method = "GET") =>
+  new Request("https://buildawallet.xyz/api/human-ai", {
+    method,
+    headers: { cookie: `site_session=${token}`, ...headers },
+  });
+const account = (req = request()) =>
+  withWorkerEnvironment({ AUTH_DB: db }, () => accountFromRequest(req));
+beforeEach(() => {
+  db = new TestD1();
+  // Schema and epoch-seconds contract from Chadd937/cloudflare-email-auth.
+  db.sqlite.exec(
+    "CREATE TABLE auth_email_accounts(email_hash TEXT PRIMARY KEY,created_at INTEGER,verified_at INTEGER,last_seen_at INTEGER); CREATE TABLE auth_sessions(token_hash TEXT PRIMARY KEY,email_hash TEXT,created_at INTEGER,expires_at INTEGER,last_seen_at INTEGER);",
+  );
+  db.sqlite.prepare("INSERT INTO auth_email_accounts VALUES('email-hash',1,1,1)").run();
+  db.sqlite
+    .prepare("INSERT INTO auth_sessions VALUES(?,'email-hash',1,?,1)")
+    .run(hash, Math.floor(Date.now() / 1000) + 3600);
 });
-
-it("accepts the Login Worker account token contract", async () => {
-  process.env["AUTH_SESSION_SIGNING_KEY"] = key;
-  const subject = "4b7a4c2e-f995-5c18-8d3f-729e08482803";
-  const token = await new SignJWT({ verified: true })
-    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setIssuer("buildawallet-auth")
-    .setAudience("buildawallet-app")
-    .setSubject(subject)
-    .setIssuedAt()
-    .setExpirationTime("5m")
-    .sign(new TextEncoder().encode(key));
-  await expect(verifyAccountToken(token)).resolves.toMatchObject({ userId: subject });
+afterEach(() => db.close());
+it("accepts the original Login cookie and uses its stable account identity", async () => {
+  await expect(account()).resolves.toEqual({ userId: "email-hash" });
 });
-
-it("rejects an account token for another app", async () => {
-  process.env["AUTH_SESSION_SIGNING_KEY"] = key;
-  const token = await new SignJWT({ verified: true })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuer("buildawallet-auth")
-    .setAudience("another-app")
-    .setSubject("4b7a4c2e-f995-5c18-8d3f-729e08482803")
-    .setIssuedAt()
-    .setExpirationTime("5m")
-    .sign(new TextEncoder().encode(key));
-  await expect(verifyAccountToken(token)).rejects.toThrow();
+it("rejects expired, revoked and unverified sessions", async () => {
+  db.sqlite.exec("UPDATE auth_sessions SET expires_at=1");
+  await expect(account()).rejects.toThrow("expired");
+  db.sqlite
+    .prepare("UPDATE auth_sessions SET expires_at=?")
+    .run(Math.floor(Date.now() / 1000) + 3600);
+  db.sqlite.exec("UPDATE auth_email_accounts SET verified_at=0");
+  await expect(account()).rejects.toThrow();
+  db.sqlite.exec("DELETE FROM auth_sessions");
+  await expect(account()).rejects.toThrow();
+});
+it("does not trust browser account flags or unrelated bearer credentials", async () => {
+  await expect(
+    account(
+      request({ cookie: "authenticated=true; verified=true", authorization: "Bearer invented" }),
+    ),
+  ).rejects.toThrow();
+});
+it("honors the configured original cookie name", async () => {
+  await expect(
+    withWorkerEnvironment({ AUTH_DB: db, AUTH_COOKIE_NAME: "baw_session" }, () =>
+      accountFromRequest(request({ cookie: `baw_session=${token}` })),
+    ),
+  ).resolves.toEqual({ userId: "email-hash" });
+});
+it("rejects cross-site writes and accepts same-origin writes", async () => {
+  await expect(account(request({ origin: "https://other.example" }, "POST"))).rejects.toThrow(
+    "same-origin",
+  );
+  await expect(account(request({}, "DELETE"))).rejects.toThrow("same-origin");
+  await expect(account(request({ origin: "https://buildawallet.xyz" }, "POST"))).resolves.toEqual({
+    userId: "email-hash",
+  });
+});
+it("isolates Worker bindings between asynchronous requests", async () => {
+  const values = await Promise.all(
+    ["first", "second"].map((name) =>
+      withWorkerEnvironment({ AUTH_COOKIE_NAME: name }, async () => {
+        await Promise.resolve();
+        return workerEnvironment().AUTH_COOKIE_NAME;
+      }),
+    ),
+  );
+  expect(values).toEqual(["first", "second"]);
 });

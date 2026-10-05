@@ -1,3 +1,4 @@
+import { withWorkerEnvironment, type WorkerEnvironment } from "./lib/db/context.server";
 import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
@@ -12,9 +13,22 @@ async function machineResponse(request: Request) {
 
 async function discoveryResponse(path: string) {
   const { llms, offer, openapi } = await import("./lib/machine/spec");
-  if (path === "/openapi.json" || path === "/machine/openapi.json") return Response.json(openapi, { headers: { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
-  if (path === "/.well-known/agent.json" || path === "/agent-offer.json") return Response.json(offer, { headers: { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
-  if (path === "/llms.txt") return new Response(llms, { headers: { "content-type": "text/plain; charset=utf-8", "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
+  if (path === "/openapi.json" || path === "/machine/openapi.json")
+    return Response.json(openapi, {
+      headers: { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" },
+    });
+  if (path === "/.well-known/agent.json" || path === "/agent-offer.json")
+    return Response.json(offer, {
+      headers: { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" },
+    });
+  if (path === "/llms.txt")
+    return new Response(llms, {
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "access-control-allow-origin": "*",
+        "cache-control": "public, max-age=300",
+      },
+    });
   return null;
 }
 
@@ -61,23 +75,37 @@ function isH3SwallowedErrorBody(body: string): boolean {
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
-    try {
-      const path = new URL(request.url).pathname;
-      const aliases: Record<string,string> = {"/login":"/human/setup","/signin":"/human/setup","/account":"/human/setup","/pricing":"/nonhuman/pricing","/docs":"/nonhuman/api","/docs/api":"/nonhuman/api","/api-docs":"/nonhuman/api","/pay":"/nonhuman/dashboard"};
-      if (aliases[path]) return Response.redirect(new URL(aliases[path],request.url),302);
-      const discovery = await discoveryResponse(path);
-      if (discovery) return discovery;
-      if (path === "/mcp") { const { handleMcp } = await import("./lib/machine/mcp.server"); return await handleMcp(request); }
-      if (machinePath(path)) return await machineResponse(request);
-      const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
-    } catch (error) {
-      console.error(error);
-      return new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
-    }
+    return withWorkerEnvironment(env as WorkerEnvironment, async () => {
+      try {
+        const path = new URL(request.url).pathname;
+        const aliases: Record<string, string> = {
+          "/login": "/human/setup",
+          "/signin": "/human/setup",
+          "/account": "/human/setup",
+          "/pricing": "/nonhuman/pricing",
+          "/docs": "/nonhuman/api",
+          "/docs/api": "/nonhuman/api",
+          "/api-docs": "/nonhuman/api",
+          "/pay": "/nonhuman/dashboard",
+        };
+        if (aliases[path]) return Response.redirect(new URL(aliases[path], request.url), 302);
+        const discovery = await discoveryResponse(path);
+        if (discovery) return discovery;
+        if (path === "/mcp") {
+          const { handleMcp } = await import("./lib/machine/mcp.server");
+          return await handleMcp(request);
+        }
+        if (machinePath(path)) return await machineResponse(request);
+        const handler = await getServerEntry();
+        const response = await handler.fetch(request, env, ctx);
+        return await normalizeCatastrophicSsrResponse(response);
+      } catch (error) {
+        console.error(error);
+        return new Response(renderErrorPage(), {
+          status: 500,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        });
+      }
+    });
   },
 };

@@ -147,8 +147,8 @@ export function EmailCodeConfirmation({
         <>
           <p className="mb-3 text-sm text-muted-foreground">
             We&apos;ll email you a secure{" "}
-            <span className="font-semibold text-foreground">confirmation link</span> and a six-digit
-            backup code. The link returns directly to {nextLabel}.
+            <span className="font-semibold text-foreground">confirmation code</span>. Enter the
+            six-digit code below to continue to {nextLabel}.
           </p>
           <form onSubmit={sendLink} className="flex flex-col gap-3 sm:flex-row">
             <Input
@@ -162,7 +162,7 @@ export function EmailCodeConfirmation({
               required
             />
             <Button type="submit" disabled={busy || !email.trim()}>
-              {busy ? <Loader2 className="animate-spin" /> : <Mail />} Email confirmation link
+              {busy ? <Loader2 className="animate-spin" /> : <Mail />} Email confirmation code
             </Button>
           </form>
         </>
@@ -173,13 +173,11 @@ export function EmailCodeConfirmation({
             <div className="text-sm">
               <p className="font-semibold">Check your inbox</p>
               <p className="mt-1 text-muted-foreground">
-                We sent a confirmation link to{" "}
-                <span className="font-semibold text-foreground">{email}</span>. Open it to sign in
-                and return to {nextLabel}.
+                We sent a confirmation code to{" "}
+                <span className="font-semibold text-foreground">{email}</span>. Enter it below to
+                sign in and continue to {nextLabel}.
               </p>
-              <p className="mt-2 text-muted-foreground">
-                You can also enter the six-digit code from the email here.
-              </p>
+              <p className="mt-2 text-muted-foreground">Your code expires after ten minutes.</p>
             </div>
           </div>
           <form onSubmit={confirmCode} className="mt-4 flex flex-col gap-3 sm:flex-row">

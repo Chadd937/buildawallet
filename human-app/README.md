@@ -8,13 +8,12 @@ npm ci --legacy-peer-deps --no-audit --no-fund
 npm run build
 npm run typecheck
 npm test
-npm run preview
 ```
 
-The app uses the standard Cloudflare Vite plugin. Its production bundle is `dist/server/wrangler.json`, with assets in `dist/client`.
+The app uses Cloudflare Workers and D1. Your existing `Chadd937/cloudflare-email-auth` software exclusively owns `/auth/*`, email delivery, accounts and HttpOnly login cookies. The app validates those existing D1 sessions directly. It does not introduce a separate authentication token or signing secret.
 
-See `INTEGRATION.md` for the Cloudflare cutover, database migrations, first-party sign-in configuration and release limitations. Server secrets are excluded from Git. The browser does not receive a Supabase key; PostgreSQL access remains server-only.
+To deploy, keep or create an ignored `.env` inside `human-app`. Set `AUTH_DATABASE_NAME` to your existing Login D1 database name if it cannot be discovered automatically, and `AUTH_COOKIE_NAME` to the cookie configured on that Login Worker (`site_session` is the original software's default). Set `OPENAI_API_KEY` and `OPENAI_MODEL` for Byte. `APP_DATABASE_NAME` defaults to the existing `buildawallet` D1 database. Do not commit or share the filled file.
 
-To deploy, copy `.env.example` to `.env` inside `human-app` and fill `SUPABASE_SERVICE_ROLE_KEY`, `AUTH_SESSION_SIGNING_KEY`, `OPENAI_API_KEY` and `OPENAI_MODEL`. The signing key must match the separate `cloudflare-email-auth` Worker. Do not commit or share the filled file. Keep any existing `.env` rather than overwriting it with the example.
+`npm run deploy` checks settings, types and tests, builds the app, resolves real D1 IDs, applies additive app migrations, uploads AI/RPC secrets, deploys `buildawallet-agent-pay` and runs HTTP smoke checks. The login tables and the Login Worker's secrets are not reset. Public settings resolve from the shell, then `.dev.vars`, then `.env`, then `wrangler.jsonc`.
 
-`npm run deploy` checks the database, builds and tests the app, uploads server secrets and deploys `buildawallet-agent-pay` to `buildawallet.xyz`. Settings resolve from the shell, then `.dev.vars`, then `.env`, then the public values in `wrangler.jsonc`. The Supabase URL already defaults to the configured project. Public overrides are also written to the generated deployment config, so readiness checks and the deployed Worker use the same values. No secret values are written to public Worker vars.
+See `INTEGRATION.md` for the production cutover, migration boundaries and release limitations. The production bundle is `dist/server/wrangler.json`, with assets in `dist/client`. Build-only bundles contain development database IDs; publish using `npm run deploy`, which resolves the actual databases first.

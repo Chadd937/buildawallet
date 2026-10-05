@@ -1,8 +1,6 @@
 export type AuthSession = {
   authenticated: boolean;
   verified: boolean;
-  accountId?: string;
-  accessToken?: string;
   expiresIn?: number;
   emailHint?: string;
 };
@@ -57,7 +55,7 @@ export async function verifyEmailCode(email: string, code: string) {
   });
   const body = await responseBody(response);
   if (!response.ok) throw new Error(errorMessage(body, "Could not verify confirmation code"));
-  return body as AuthSession & { ok: true; redirectTo: string };
+  return body as AuthSession & { ok: true; redirectTo?: string };
 }
 
 export async function logout() {

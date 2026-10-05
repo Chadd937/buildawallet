@@ -29,8 +29,21 @@
     }
   },
   "vars": {
-    "SUPABASE_URL": "https://vfvidjzggojmptbxnqep.supabase.co",
-    "AUTH_JWT_ISSUER": "buildawallet-auth",
-    "AUTH_JWT_AUDIENCE": "buildawallet-app"
-  }
+    "AUTH_COOKIE_NAME": "site_session",
+    "AUTH_TABLE_PREFIX": "auth"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "buildawallet",
+      "database_id": "00000000-0000-4000-8000-000000000001",
+      "migrations_dir": "migrations",
+      "migrations_table": "baw_app_migrations"
+    },
+    {
+      "binding": "AUTH_DB",
+      "database_name": "buildawallet-auth",
+      "database_id": "00000000-0000-4000-8000-000000000002"
+    }
+  ]
 }

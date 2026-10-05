@@ -1,9 +1,11 @@
+import { appDatabase } from "@/lib/db/context.server";
 import { createFileRoute } from "@tanstack/react-router";
 import { convertToModelMessages, safeValidateUIMessages, type UIMessage } from "ai";
 import { z } from "zod";
 import { readJsonBody } from "@/lib/body";
 import { containsWalletSecret } from "@/lib/ai/secrets";
-import { accountFromRequest } from "@/integrations/auth/auth-middleware";
+import { conversation, clearConversation, saveConversation } from "@/lib/db/storage.server";
+import { accountFromRequest } from "@/integrations/auth/account.server";
 
 const requestSchema = z.object({
   messages: z.array(z.unknown()).max(60),
@@ -33,31 +35,25 @@ async function authenticatedAccount(request: Request) {
 async function get(request: Request) {
   const account = await authenticatedAccount(request);
   if (!account) return json(401, "Sign in to use the wallet guide.");
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
-    .from("human_ai_conversations")
-    .select("messages")
-    .eq("user_id", account.userId)
-    .maybeSingle();
-  if (error) return json(503, "Conversation history is unavailable.");
-  return Response.json(
-    { messages: Array.isArray(data?.messages) ? data.messages : [] },
-    {
-      headers: { "cache-control": "no-store" },
-    },
-  );
+  try {
+    return Response.json(
+      { messages: await conversation(account.userId) },
+      { headers: { "cache-control": "no-store" } },
+    );
+  } catch {
+    return json(503, "Conversation history is unavailable.");
+  }
 }
 
 async function remove(request: Request) {
   const account = await authenticatedAccount(request);
   if (!account) return json(401, "Sign in to use the wallet guide.");
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { error } = await supabaseAdmin
-    .from("human_ai_conversations")
-    .delete()
-    .eq("user_id", account.userId);
-  if (error) return json(503, "Conversation could not be cleared.");
-  return Response.json({ ok: true }, { headers: { "cache-control": "no-store" } });
+  try {
+    await clearConversation(account.userId);
+    return Response.json({ ok: true }, { headers: { "cache-control": "no-store" } });
+  } catch {
+    return json(503, "Conversation could not be cleared.");
+  }
 }
 
 async function post(request: Request) {
@@ -89,7 +85,6 @@ async function post(request: Request) {
         );
     }
   }
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
   const messages = validated.data as UIMessage[];
   const pageContext = JSON.stringify(parsed.data.context);
@@ -99,6 +94,7 @@ async function post(request: Request) {
   const baseURL = process.env["OPENAI_BASE_URL"];
   if (!apiKey || !model) return json(503, "The wallet guide is not configured yet.");
 
+  const historyDatabase = appDatabase();
   const { createHumanAiResponse } = await import("@/lib/ai/responses.server");
   return createHumanAiResponse(
     request,
@@ -108,12 +104,11 @@ async function post(request: Request) {
     pageContext,
     async (completed) => {
       const clean = completed.slice(-60);
-      const { error } = await supabaseAdmin.from("human_ai_conversations").upsert({
-        user_id: account.userId,
-        messages: JSON.parse(JSON.stringify(clean)),
-        updated_at: new Date().toISOString(),
-      });
-      if (error) console.error("Wallet guide history could not be saved", error.message);
+      try {
+        await saveConversation(account.userId, clean, historyDatabase);
+      } catch {
+        console.error("Wallet guide history could not be saved");
+      }
     },
   );
 }

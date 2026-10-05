@@ -21,29 +21,29 @@ function fixture(t, files) {
 const wrangler = `{
   // Wrangler supports JSONC comments and trailing commas.
   "name": "test-worker",
-  "vars": {"SUPABASE_URL": "https://configured.example",},
+  "vars": {"AUTH_COOKIE_NAME": "site_session",},
 }`;
 
-test("configured public URL is available without a local env file", (t) => {
+test("configured Login cookie is available without a local env file", (t) => {
   const appDirectory = fixture(t, { "wrangler.jsonc": wrangler });
   const { config, values } = loadDeploymentConfig({ appDirectory, environment: {} });
   assert.equal(config.name, "test-worker");
-  assert.equal(values.SUPABASE_URL, "https://configured.example");
+  assert.equal(values.AUTH_COOKIE_NAME, "site_session");
   assert.deepEqual(deploymentSecrets(values), {});
 });
 
 test("local settings resolve consistently and never become public vars", (t) => {
   const appDirectory = fixture(t, {
     "wrangler.jsonc": wrangler,
-    ".env": "SUPABASE_URL=https://env.example\nOPENAI_API_KEY=env-secret\nUNRELATED=private\n",
+    ".env": "AUTH_COOKIE_NAME=env_cookie\nOPENAI_API_KEY=env-secret\nUNRELATED=private\n",
     ".dev.vars":
-      "SUPABASE_URL=https://dev.example\nOPENAI_API_KEY=dev-secret\nAUTH_SESSION_SIGNING_KEY=auth-secret\n",
+      "AUTH_COOKIE_NAME=dev_cookie\nOPENAI_API_KEY=dev-secret\nBASE_RPC_URL=auth-secret\n",
   });
   const { config, values } = loadDeploymentConfig({
     appDirectory,
     environment: { OPENAI_API_KEY: "shell-secret" },
   });
-  assert.equal(values.SUPABASE_URL, "https://dev.example");
+  assert.equal(values.AUTH_COOKIE_NAME, "dev_cookie");
   assert.equal(values.OPENAI_API_KEY, "shell-secret");
   const builtConfig = {
     name: "test-worker",
@@ -51,12 +51,12 @@ test("local settings resolve consistently and never become public vars", (t) => 
     assets: { directory: "../client" },
   };
   const prepared = prepareDeploymentConfig(builtConfig, config, values);
-  assert.deepEqual(prepared.vars, { KEEP: "existing", SUPABASE_URL: "https://dev.example" });
+  assert.deepEqual(prepared.vars, { KEEP: "existing", AUTH_COOKIE_NAME: "dev_cookie" });
   assert.deepEqual(prepared.assets, builtConfig.assets);
   assert.equal(JSON.stringify(prepared).includes("secret"), false);
   assert.deepEqual(deploymentSecrets(values), {
     OPENAI_API_KEY: "shell-secret",
-    AUTH_SESSION_SIGNING_KEY: "auth-secret",
+    BASE_RPC_URL: "auth-secret",
   });
 });
 

@@ -4,7 +4,7 @@ import { ExternalLink, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
-const POLICY_VERSION = "2026-10-04-v2";
+const POLICY_VERSION = "2026-10-05-v3";
 const WEB_ACCEPTANCE_KEY = `buildawallet:web-legal:${POLICY_VERSION}`;
 const ANDROID_ACCEPTANCE_KEY = `buildawallet:android-legal:${POLICY_VERSION}`;
 const POLICY_ORIGIN = "https://buildawallet.xyz";

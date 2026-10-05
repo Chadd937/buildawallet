@@ -2,10 +2,8 @@ import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import ts from "typescript";
 
-export const publicNames = ["SUPABASE_URL", "AUTH_JWT_ISSUER", "AUTH_JWT_AUDIENCE"];
+export const publicNames = ["AUTH_COOKIE_NAME", "AUTH_TABLE_PREFIX"];
 export const secretNames = [
-  "SUPABASE_SERVICE_ROLE_KEY",
-  "AUTH_SESSION_SIGNING_KEY",
   "OPENAI_API_KEY",
   "OPENAI_MODEL",
   "OPENAI_BASE_URL",

@@ -1,0 +1,16 @@
+title = "BuildAWallet credential protection"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public USDC contracts, public Solana token account, documentation placeholder and retired public publishable key"
+regexTarget = "secret"
+regexes = [
+  '''^0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913$''',
+  '''^EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v$''',
+  '''^Hp6uUt3RmYYVmeSYyf6LpimgddHbL9QJ1LG9TbK5pJiQ$''',
+  '''^baw_live_YOUR_KEY$''',
+  '''^YOUR_API_KEY$''',
+  '''^sb_publishable_[A-Za-z0-9_-]+$''',
+]

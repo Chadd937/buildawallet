@@ -36,7 +36,9 @@ npm --prefix human-app ci --legacy-peer-deps --no-audit --no-fund
 npm run deploy
 ```
 
-Deployment resolves real D1 IDs from the account, verifies the existing Login schema, creates the app database only if missing, and applies app migrations before publishing. It uploads supplied optional provider/RPC secrets through stdin, skipping that step if there are none. Generated bindings are written only to ignored `dist/server/wrangler.json`. Cookie name and database selection must correspond to the existing deployed Login Worker. App deployment does not deploy or change that separate Worker.
+Deployment resolves real D1 IDs from the account, verifies the existing Login schema, creates the app database only if missing, and applies app migrations before publishing. Pending migrations and their `baw_app_migrations` journal entries are sent together through `wrangler d1 execute --remote --file`, using D1's SQL-file import parser to avoid the remote query splitter's trigger errors. Applied migration names are checked before and after import, and existing migrations are skipped. The temporary schema-only SQL file is removed afterwards. Do not manually use `d1 migrations apply` for these trigger-bearing app migrations.
+
+Deployment uploads supplied optional provider/RPC secrets through stdin, skipping that step if there are none. Generated bindings are written only to ignored `dist/server/wrangler.json`. Cookie name and database selection must correspond to the existing deployed Login Worker. App deployment does not deploy or change that separate Worker.
 
 Use this deployment script for publishing. Running Wrangler directly against a fresh build skips binding resolution and migrations. Cloudflare Pages publishing only `static/` continues to publish the legacy site and cannot run the new app's server functions. The old `agent-pay` deployment script also restores the earlier backend.
 

@@ -79,24 +79,24 @@ BEGIN SELECT RAISE(ABORT,'At most 10 active keys are allowed'); END;
 
 -- Receipt reservation, quote consumption and entitlement renewal are one statement.
 CREATE TRIGGER account_payment_validate BEFORE INSERT ON api_account_payments BEGIN
-  SELECT CASE WHEN NOT EXISTS (
+  SELECT (CASE WHEN NOT EXISTS (
     SELECT 1 FROM api_checkout_quotes q WHERE q.id=NEW.quote_id AND q.user_id=NEW.user_id
       AND q.chain=NEW.chain AND q.payer=NEW.payer AND q.plan_id=NEW.plan_id
       AND q.consumed_at IS NULL AND q.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')
       AND julianday(NEW.paid_at)>=julianday(q.created_at)-630.0/86400
-      AND NEW.amount_atomic=CASE q.plan_id WHEN 'builder' THEN '12000000' WHEN 'pro' THEN '39000000' WHEN 'scale' THEN '99000000' END
-  ) THEN RAISE(ABORT,'Invalid, expired or consumed checkout') END;
+      AND NEW.amount_atomic=(CASE q.plan_id WHEN 'builder' THEN '12000000' WHEN 'pro' THEN '39000000' WHEN 'scale' THEN '99000000' END)
+  ) THEN RAISE(ABORT,'Invalid, expired or consumed checkout') END);
   INSERT INTO api_payment_redemptions(chain,tx) VALUES(NEW.chain,NEW.tx);
 END;
 CREATE TRIGGER account_payment_activate AFTER INSERT ON api_account_payments BEGIN
   UPDATE api_checkout_quotes SET consumed_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=NEW.quote_id;
   INSERT INTO api_accounts(user_id,plan_id,quota,used,expires_at)
     VALUES(NEW.user_id,NEW.plan_id,
-      CASE NEW.plan_id WHEN 'builder' THEN 100000 WHEN 'pro' THEN 500000 WHEN 'scale' THEN 2000000 END,
+      (CASE NEW.plan_id WHEN 'builder' THEN 100000 WHEN 'pro' THEN 500000 WHEN 'scale' THEN 2000000 END),
       0,strftime('%Y-%m-%dT%H:%M:%fZ','now','+30 days'))
     ON CONFLICT(user_id) DO UPDATE SET
       plan_id=excluded.plan_id,
-      quota=excluded.quota+CASE WHEN api_accounts.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now') THEN max(api_accounts.quota-api_accounts.used,0) ELSE 0 END,
+      quota=excluded.quota+(CASE WHEN api_accounts.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now') THEN max(api_accounts.quota-api_accounts.used,0) ELSE 0 END),
       used=0,
       expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',max(coalesce(api_accounts.expires_at,''),strftime('%Y-%m-%dT%H:%M:%fZ','now')),'+30 days'),
       updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now');

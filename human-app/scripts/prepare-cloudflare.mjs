@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { loadDeploymentConfig, prepareDeploymentConfig } from "./deployment-config.mjs";
+import { applyAppMigrations } from "./app-migrations.mjs";
 
 function wrangler(args, json = false) {
   const result = spawnSync("npx", ["wrangler", ...args], {
@@ -41,7 +42,12 @@ writeFileSync(path, JSON.stringify(built, null, 2));
 console.log(
   `Using existing Login D1 ${auth.db.name} (${auth.prefix} tables) and app D1 ${appName}. Cookie name: ${built.vars.AUTH_COOKIE_NAME}.`,
 );
-wrangler(["d1", "migrations", "apply", appName, "--remote", "--config", path]);
+applyAppMigrations(wrangler, {
+  database: databaseId(appMatches[0]),
+  configPath: path,
+  directory: fileURLToPath(new URL("../migrations/", import.meta.url)),
+  importPath: "dist/server/baw-migration-import.sql",
+});
 const expected = [
   "machine_challenges",
   "machine_sessions",

@@ -110,3 +110,23 @@ export async function verifySolanaReceipt(url: string, tx: string, payer: string
   }
   return result.blockTime;
 }
+
+const TRON_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+export async function verifyTronReceipt(url: string, tx: string, payer: string, earliest: number, amountAtomic: bigint): Promise<number> {
+  if (!/^[0-9a-fA-F]{64}$/.test(tx)) throw new Error("Invalid Tron transaction id");
+  const base = url.replace(/\/$/, "");
+  const endpoint = `${base}/v1/accounts/${DEV_TREASURY.tron}/transactions/trc20?only_confirmed=true&only_to=true&contract_address=${TRON_USDT}&limit=200&min_timestamp=${Math.max(0,(earliest-30)*1000)}&order_by=block_timestamp,desc`;
+  const response = await fetch(endpoint, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(12000) });
+  if (!response.ok) throw new Error("TronGrid unavailable");
+  const body: any = await response.json();
+  const match = (body.data ?? []).find((row: any) =>
+    String(row.transaction_id).toLowerCase() === tx.toLowerCase() &&
+    row.from === payer && row.to === DEV_TREASURY.tron &&
+    row.type === "Transfer" && row.token_info?.address === TRON_USDT &&
+    BigInt(row.value) === amountAtomic &&
+    Number(row.block_timestamp) >= (earliest - 30) * 1000 &&
+    row.confirmed !== false
+  );
+  if (match) return Math.floor(Number(match.block_timestamp) / 1000);
+  throw new Error("No matching Tron USDT transfer to the developer treasury");
+}

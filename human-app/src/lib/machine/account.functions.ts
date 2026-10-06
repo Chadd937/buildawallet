@@ -47,7 +47,7 @@ export const createCheckoutQuote = createServerFn({ method: "POST" })
     z
       .object({
         planId: z.enum(["builder", "pro", "scale"]),
-        chain: z.enum(["base", "solana"]),
+        chain: z.enum(["ethereum", "base", "arbitrum", "optimism", "polygon", "bnb", "avalanche", "solana", "bitcoin", "tron"]),
         payer: z.string().trim().min(26).max(64),
       })
       .parse(input),
@@ -58,7 +58,7 @@ export const createCheckoutQuote = createServerFn({ method: "POST" })
     if (!validAddress(chain, data.payer))
       throw new Error(`That is not a valid ${chain.name} wallet address.`);
     const { storeCheckoutQuote } = await import("@/lib/db/storage.server");
-    const payer = data.chain === "base" ? data.payer.toLowerCase() : data.payer;
+    const payer = chain.family === "evm" ? data.payer.toLowerCase() : data.payer;
     return storeCheckoutQuote(context.userId, data.planId, data.chain, payer);
   });
 
@@ -71,7 +71,7 @@ export const confirmCheckout = createServerFn({ method: "POST" })
     const { checkoutQuote, activateCheckout } = await import("@/lib/db/storage.server");
     const { planById } = await import("./config");
     const { machineChain, rpcUrl } = await import("./chains");
-    const { verifyBaseReceipt, verifySolanaReceipt, PendingReceipt } =
+    const { verifyEvmReceipt, verifySolanaReceipt, verifyTronReceipt, PendingReceipt } =
       await import("./receipts.server");
     const { txAlreadyUsed } = await import("./billing.server");
 
@@ -83,17 +83,22 @@ export const confirmCheckout = createServerFn({ method: "POST" })
     const plan = planById(quote.plan_id);
     const chain = machineChain(quote.chain);
     if (!plan || !chain) throw new Error("Invalid checkout");
-    const tx = quote.chain === "base" ? data.tx.toLowerCase() : data.tx;
+    const tx = chain.family === "evm" ? data.tx.toLowerCase() : data.tx;
     if (await txAlreadyUsed(quote.chain, tx))
       throw new Error("That transaction has already been used.");
 
     const earliest = Math.floor(new Date(quote.created_at).getTime() / 1000) - 600;
     let paidAt: number;
     try {
-      paidAt =
-        quote.chain === "base"
-          ? await verifyBaseReceipt(rpcUrl(chain), tx, quote.payer, earliest, plan.amountAtomic)
-          : await verifySolanaReceipt(rpcUrl(chain), tx, quote.payer, earliest, plan.amountAtomic);
+      if (chain.family === "evm") {
+        paidAt = await verifyEvmReceipt(rpcUrl(chain), chain, tx, quote.payer, earliest, plan.amountAtomic);
+      } else if (chain.family === "solana") {
+        paidAt = await verifySolanaReceipt(rpcUrl(chain), tx, quote.payer, earliest, plan.amountAtomic);
+      } else if (chain.family === "tron") {
+        paidAt = await verifyTronReceipt(rpcUrl(chain), tx, quote.payer, earliest, plan.amountAtomic);
+      } else {
+        throw new Error("Bitcoin subscription verification is not enabled yet; use an EVM, Solana, or Tron payment.");
+      }
     } catch (error) {
       if (error instanceof PendingReceipt)
         return {

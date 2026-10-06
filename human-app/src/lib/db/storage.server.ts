@@ -208,7 +208,7 @@ export async function activateWalletPayment(
   const normalized = chain === "base" ? tx.toLowerCase() : tx;
   const results = await appDatabase().batch([
     statement(
-      "INSERT INTO machine_payments(id,chain,tx,wallet,plan_id,amount_atomic,paid_at) VALUES(?,?,?,?,?,?,?)",
+      "INSERT INTO machine_prepaid_payments(id,chain,tx,wallet,plan_id,amount_atomic,paid_at) VALUES(?,?,?,?,?,?,?)",
       randomUUID(),
       chain,
       normalized,

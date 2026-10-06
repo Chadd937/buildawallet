@@ -233,7 +233,8 @@ function OwnerTreasury() {
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
               Last read: {new Date(snapshot.observedAt).toLocaleString()}. Balances include on-chain
-              deposits and withdrawals; recorded receipts below are a separate payment ledger.
+              deposits and withdrawals. Plan payments stay in these collectors until you approve a
+              withdrawal; API usage deducts customer units without moving these funds.
             </p>
             <section className="mt-8 rounded-3xl border border-border bg-surface/95 p-6 sm:p-8">
               <h2 className="text-2xl font-bold">Withdraw on your device</h2>
@@ -402,8 +403,9 @@ function OwnerTreasury() {
               </p>
               <p className="mt-3 text-sm leading-6">
                 Subscriptions include current account and agent plans plus preserved legacy
-                receipts. Pay-per-call records start with this treasury release; they do not
-                reconstruct older settlements or unrelated deposits.
+                receipts. Historical per-call receipts are retained, but new per-call blockchain
+                payments are retired. This ledger does not reconstruct older unrecorded settlements
+                or unrelated deposits.
               </p>
               {snapshot.ledger.error && (
                 <p className="mt-4 text-sm text-destructive">{snapshot.ledger.error}</p>

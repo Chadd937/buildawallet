@@ -1,3 +1,5 @@
+> Current production source: `human-app/`. Billing uses prepaid API units, with income accumulated at the owner collectors and device-approved withdrawals. Per-call blockchain payments are retired. See [the current app guide](human-app/README.md). The older architecture described below is preserved for reference.
+
 > Current production app source: `human-app/`. It includes the updated HUMAN and machine flows. Read [human-app/INTEGRATION.md](human-app/INTEGRATION.md) before deploying; first-party email authentication is provided by `Chadd937/cloudflare-email-auth`, while the billing data backend uses server-only Supabase/PostgreSQL access.
 
 # BuildAWallet.xyz

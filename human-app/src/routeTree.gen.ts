@@ -34,6 +34,7 @@ import { Route as NonhumanChainsRouteImport } from './routes/nonhuman.chains'
 import { Route as NonhumanDashboardRouteImport } from './routes/nonhuman.dashboard'
 import { Route as NonhumanMcpRouteImport } from './routes/nonhuman.mcp'
 import { Route as NonhumanPayPerCallRouteImport } from './routes/nonhuman.pay-per-call'
+import { Route as NonhumanPrepaidRouteImport } from './routes/nonhuman.prepaid'
 import { Route as NonhumanPricingRouteImport } from './routes/nonhuman.pricing'
 import { Route as NonhumanWalletsRouteImport } from './routes/nonhuman.wallets'
 import { Route as ApiPublicOpenapiRouteImport } from './routes/api/public/openapi'
@@ -164,6 +165,11 @@ const NonhumanPayPerCallRoute = NonhumanPayPerCallRouteImport.update({
   path: '/pay-per-call',
   getParentRoute: () => NonhumanRoute,
 } as any)
+const NonhumanPrepaidRoute = NonhumanPrepaidRouteImport.update({
+  id: '/prepaid',
+  path: '/prepaid',
+  getParentRoute: () => NonhumanRoute,
+} as any)
 const NonhumanPricingRoute = NonhumanPricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
@@ -208,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/nonhuman/dashboard': typeof NonhumanDashboardRoute
   '/nonhuman/mcp': typeof NonhumanMcpRoute
   '/nonhuman/pay-per-call': typeof NonhumanPayPerCallRoute
+  '/nonhuman/prepaid': typeof NonhumanPrepaidRoute
   '/nonhuman/pricing': typeof NonhumanPricingRoute
   '/nonhuman/wallets': typeof NonhumanWalletsRoute
   '/blog/': typeof BlogIndexRoute
@@ -237,6 +244,7 @@ export interface FileRoutesByTo {
   '/nonhuman/dashboard': typeof NonhumanDashboardRoute
   '/nonhuman/mcp': typeof NonhumanMcpRoute
   '/nonhuman/pay-per-call': typeof NonhumanPayPerCallRoute
+  '/nonhuman/prepaid': typeof NonhumanPrepaidRoute
   '/nonhuman/pricing': typeof NonhumanPricingRoute
   '/nonhuman/wallets': typeof NonhumanWalletsRoute
   '/blog': typeof BlogIndexRoute
@@ -269,6 +277,7 @@ export interface FileRoutesById {
   '/nonhuman/dashboard': typeof NonhumanDashboardRoute
   '/nonhuman/mcp': typeof NonhumanMcpRoute
   '/nonhuman/pay-per-call': typeof NonhumanPayPerCallRoute
+  '/nonhuman/prepaid': typeof NonhumanPrepaidRoute
   '/nonhuman/pricing': typeof NonhumanPricingRoute
   '/nonhuman/wallets': typeof NonhumanWalletsRoute
   '/blog/': typeof BlogIndexRoute
@@ -302,6 +311,7 @@ export interface FileRouteTypes {
     | '/nonhuman/dashboard'
     | '/nonhuman/mcp'
     | '/nonhuman/pay-per-call'
+    | '/nonhuman/prepaid'
     | '/nonhuman/pricing'
     | '/nonhuman/wallets'
     | '/blog/'
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/nonhuman/dashboard'
     | '/nonhuman/mcp'
     | '/nonhuman/pay-per-call'
+    | '/nonhuman/prepaid'
     | '/nonhuman/pricing'
     | '/nonhuman/wallets'
     | '/blog'
@@ -362,6 +373,7 @@ export interface FileRouteTypes {
     | '/nonhuman/dashboard'
     | '/nonhuman/mcp'
     | '/nonhuman/pay-per-call'
+    | '/nonhuman/prepaid'
     | '/nonhuman/pricing'
     | '/nonhuman/wallets'
     | '/blog/'
@@ -566,6 +578,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NonhumanPayPerCallRouteImport
       parentRoute: typeof NonhumanRoute
     }
+    '/nonhuman/prepaid': {
+      id: '/nonhuman/prepaid'
+      path: '/prepaid'
+      fullPath: '/nonhuman/prepaid'
+      preLoaderRoute: typeof NonhumanPrepaidRouteImport
+      parentRoute: typeof NonhumanRoute
+    }
     '/nonhuman/pricing': {
       id: '/nonhuman/pricing'
       path: '/pricing'
@@ -623,6 +642,7 @@ interface NonhumanRouteChildren {
   NonhumanDashboardRoute: typeof NonhumanDashboardRoute
   NonhumanMcpRoute: typeof NonhumanMcpRoute
   NonhumanPayPerCallRoute: typeof NonhumanPayPerCallRoute
+  NonhumanPrepaidRoute: typeof NonhumanPrepaidRoute
   NonhumanPricingRoute: typeof NonhumanPricingRoute
   NonhumanWalletsRoute: typeof NonhumanWalletsRoute
   NonhumanIndexRoute: typeof NonhumanIndexRoute
@@ -634,6 +654,7 @@ const NonhumanRouteChildren: NonhumanRouteChildren = {
   NonhumanDashboardRoute: NonhumanDashboardRoute,
   NonhumanMcpRoute: NonhumanMcpRoute,
   NonhumanPayPerCallRoute: NonhumanPayPerCallRoute,
+  NonhumanPrepaidRoute: NonhumanPrepaidRoute,
   NonhumanPricingRoute: NonhumanPricingRoute,
   NonhumanWalletsRoute: NonhumanWalletsRoute,
   NonhumanIndexRoute: NonhumanIndexRoute,

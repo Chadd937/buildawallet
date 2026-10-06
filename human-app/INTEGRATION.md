@@ -48,4 +48,17 @@ Base and Solana collectors are preserved. Supplied optional RPC secrets do not c
 
 Tests execute the production migration and queries against SQLite with the same D1 batch transaction boundary. They check original cookie sessions, expiry/revocation, cross-site write refusal, account isolation, payment rollback/replay prevention, quotas, rate limiting, key derivation and one-time opt-in wallet generation. Production build, strict typecheck and Wrangler dry-run check packaging; controlled RPC tests do not prove mainnet operation.
 
-A real email-code login on the production domain, D1 binding configuration, funded USDC purchase, paid x402 call, signed wallet transfers, live Byte streaming and installation of a newly signed Android APK still need production verification. A downloaded WebView project is not an APK. The existing native Android project remains separate.
+A real email-code login on the production domain, D1 binding configuration, funded USDC prepaid purchase, metered requests, owner withdrawals, signed wallet transfers, live Byte streaming and installation of a newly signed Android APK still need production verification. A downloaded WebView project is not an APK. The existing native Android project remains separate.
+
+## Prepaid billing cutover
+
+Active discovery, MCP and customer pages use prepaid service units only. No
+per-request blockchain settlement runs. Old x402 endpoints reject all payment
+payloads with 410; their old page redirects to `/nonhuman/prepaid`. Original
+`agent-pay/` and historical static sources are retained but are not deployed
+by this app. Do not redeploy the old Worker to the production service.
+
+The owner treasury shows original and new prepaid payment records together.
+Migration 0003 adds a wallet receipt table at current prices and replaces the
+account validation trigger; it neither rewrites old receipts nor resets keys
+or quotas. Checkout is restricted to the configured Base and Solana collectors.

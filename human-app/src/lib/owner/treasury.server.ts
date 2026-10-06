@@ -32,7 +32,7 @@ export async function treasuryLedger(): Promise<TreasurySnapshot["ledger"]> {
   const db = appDatabase();
   const existing = await db
     .prepare(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('api_account_payments','machine_payments','human_payments','treasury_x402_receipts')",
+      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('api_account_payments','machine_payments','machine_prepaid_payments','human_payments','treasury_x402_receipts')",
     )
     .all<{ name: string }>();
   const tables = new Set(existing.results.map((row) => row.name));
@@ -41,10 +41,12 @@ export async function treasuryLedger(): Promise<TreasurySnapshot["ledger"]> {
       "SELECT 'Account subscription' AS source,chain,tx,payer,plan_id AS plan,amount_atomic AS amountAtomic,paid_at AS paidAt FROM api_account_payments",
     tables.has("machine_payments") &&
       "SELECT 'Agent subscription' AS source,chain,tx,wallet AS payer,plan_id AS plan,amount_atomic AS amountAtomic,paid_at AS paidAt FROM machine_payments",
+    tables.has("machine_prepaid_payments") &&
+      "SELECT 'Agent subscription' AS source,chain,tx,wallet AS payer,plan_id AS plan,amount_atomic AS amountAtomic,paid_at AS paidAt FROM machine_prepaid_payments",
     tables.has("human_payments") &&
       "SELECT 'Legacy subscription' AS source,chain,tx,wallet AS payer,NULL AS plan,amount_atomic AS amountAtomic,strftime('%Y-%m-%dT%H:%M:%fZ',paid_at,'unixepoch') AS paidAt FROM human_payments",
     tables.has("treasury_x402_receipts") &&
-      "SELECT 'Agent pay per call' AS source,chain,tx,payer,NULL AS plan,amount_atomic AS amountAtomic,paid_at AS paidAt FROM treasury_x402_receipts",
+      "SELECT 'Historical pay per call' AS source,chain,tx,payer,NULL AS plan,amount_atomic AS amountAtomic,paid_at AS paidAt FROM treasury_x402_receipts",
   ]
     .filter(Boolean)
     .join(" UNION ALL ");

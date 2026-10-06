@@ -1,6 +1,6 @@
 # BuildAWallet app
 
-The full TanStack Start app for the HUMAN wallet, machine dashboard, API, MCP and x402 service. Canonical source: `Chadd937/buildawallet`, branch `main`.
+The full TanStack Start app for the HUMAN wallet, machine dashboard, prepaid API and MCP service. Canonical source: `Chadd937/buildawallet`, branch `main`.
 
 ```sh
 cd human-app
@@ -43,11 +43,9 @@ uploads `OWNER_EMAIL_HASH` as a Cloudflare secret. Sign in normally through
 
 Collectors remain the configured Base and Solana addresses. The page reads live
 USDC and ETH/SOL balances and reports current account subscriptions, agent
-subscriptions and preserved legacy payments. The additive treasury migration
-records new successful x402 settlements; older pay-per-call receipts are not
-reconstructed. Reporting failures do not make a successfully paid caller pay
-again, so receipt totals may be incomplete after a storage outage. Collector
-balances include all on-chain activity and are separate from recorded income.
+subscriptions and preserved legacy payments. Per-call blockchain payments are retired. Historical x402 receipts remain
+visible; older unrecorded receipts are not reconstructed. Collector balances
+include all on-chain activity and are separate from recorded income.
 
 To withdraw, connect the existing collector account in an EIP-1193 Ethereum
 wallet for Base or Phantom for Solana. The app reviews the address, amount and
@@ -61,3 +59,22 @@ This does not add a new fee, change payment destinations, create new collector
 keys, or custody customer wallets. Receiving addresses and on-chain transfers
 remain public. A new collector requires a separate explicit payment-routing
 change after its device-held keys are backed up.
+
+## Prepaid collection
+
+Customers pay once for service units, then requests deduct those units in D1.
+No facilitator settlement or customer wallet debit occurs per API request.
+Income stays at the existing Base/Solana collectors until the owner approves
+a withdrawal in `/owner`. Units are service credits, not customer custody or
+a cryptocurrency balance. The current plan prices in `config.ts` are preserved.
+
+`/nonhuman/prepaid` explains setup. Old `/nonhuman/pay-per-call` bookmarks
+redirect there. Retired `/machine/x402/*` routes return HTTP 410 with prepaid
+migration guidance, even if a payment signature is supplied. `wallet_payg` is
+removed from MCP discovery; old callers get the same retirement guidance.
+
+The additive `baw_0003_prepaid_plans.sql` migration aligns activation with the
+current 15/49/149 USDC prices. Historical receipts, login data, existing keys,
+entitlements, quota usage and global receipt replay reservations remain intact.
+Plan purchases are enabled only for configured Base and Solana collectors;
+reads still cover all ten networks. Create a fresh checkout before paying.

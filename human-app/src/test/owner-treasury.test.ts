@@ -42,6 +42,7 @@ beforeEach(() => {
   db = new TestD1();
   db.sqlite.exec(readFileSync("migrations/baw_0001_app_data.sql", "utf8"));
   db.sqlite.exec(readFileSync("migrations/baw_0002_treasury_receipts.sql", "utf8"));
+  db.sqlite.exec(readFileSync("migrations/baw_0003_prepaid_plans.sql", "utf8"));
   db.sqlite.exec(
     "CREATE TABLE human_email_accounts(email_hash TEXT PRIMARY KEY, verified_at INTEGER); CREATE TABLE human_sessions(token_hash TEXT PRIMARY KEY,email_hash TEXT,expires_at INTEGER);",
   );
@@ -131,7 +132,7 @@ it("records only settled exact fees to the configured collectors and deduplicate
   const ledger = await run(treasuryLedger);
   expect(ledger.receipts).toHaveLength(1);
   expect(ledger.totals).toEqual([
-    { source: "Agent pay per call", chain: "base", count: 1, amountAtomic: "10000" },
+    { source: "Historical pay per call", chain: "base", count: 1, amountAtomic: "10000" },
   ]);
 });
 it("retains legacy subscription receipts and exact atomic totals above JS integer precision", async () => {

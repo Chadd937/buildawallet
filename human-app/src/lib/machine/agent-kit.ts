@@ -1,7 +1,15 @@
 import { ORIGIN } from "./config";
 
 /** Dependencies an agent installs before running the local wallet kit. */
-export const KIT_DEPENDENCIES = ["@scure/bip39", "@scure/bip32", "@scure/base", "@scure/btc-signer", "@noble/hashes", "@noble/curves", "ethers"] as const;
+export const KIT_DEPENDENCIES = [
+  "@scure/bip39",
+  "@scure/bip32",
+  "@scure/base",
+  "@scure/btc-signer",
+  "@noble/hashes",
+  "@noble/curves",
+  "ethers",
+] as const;
 
 export const KIT_PATHS = {
   evm: "m/44'/60'/0'/0/0",
@@ -83,22 +91,30 @@ console.log(JSON.stringify({
 export const kitManifest = () => ({
   mode: "local",
   custody: "agent-only",
-  summary: "Create a multichain wallet on your own machine. BuildAWallet never sees the recovery phrase or private keys.",
+  summary:
+    "Create a multichain wallet on your own machine. BuildAWallet never sees the recovery phrase or private keys.",
   install: `npm i ${KIT_DEPENDENCIES.join(" ")}`,
   download: `${ORIGIN}/machine/v1/wallets/kit.mjs`,
   run: "node baw-agent-wallet.mjs",
   derivationPaths: KIT_PATHS,
-  compatibility: "Standard BIP-39 / BIP-44 / BIP-84 / SLIP-10 paths ,  the same phrase restores in MetaMask, Phantom, Trust, Electrum-style BTC wallets and the BuildAWallet human app.",
-  networks: { evm: ["ethereum", "base", "arbitrum", "optimism", "polygon", "bnb", "avalanche"], solana: ["solana"], bitcoin: ["bitcoin"], tron: ["tron"] },
+  compatibility:
+    "Standard BIP-39 / BIP-44 / BIP-84 / SLIP-10 paths ,  the same phrase restores in MetaMask, Phantom, Trust, Electrum-style BTC wallets and the BuildAWallet human app.",
+  networks: {
+    evm: ["ethereum", "base", "arbitrum", "optimism", "polygon", "bnb", "avalanche"],
+    solana: ["solana"],
+    bitcoin: ["bitcoin"],
+    tron: ["tron"],
+  },
   afterCreation: [
-    "Fund the Base or Solana address with USDC to pay per call through x402.",
-    "Read balances: GET /machine/v1/{chain}/wallet/{address} with an API key, or /machine/x402/wallet for $0.01 per read.",
+    "Buy a prepaid API plan with Base or Solana USDC and obtain a bearer API key.",
+    "Read balances: GET /machine/v1/{chain}/wallet/{address} with an API key. Each request uses backend units without another blockchain payment.",
     "Send funds: POST /machine/v1/{base|solana}/transaction/prepare, sign locally, then POST .../broadcast.",
   ],
   serverGenerated: {
     endpoint: `${ORIGIN}/machine/v1/wallets/generate`,
     method: "POST",
     body: { acknowledgeCustodyRisk: true, words: 12 },
-    warning: "Opt-in only. The phrase is generated in memory, returned once over TLS, and never stored or logged ,  but it does exist briefly on BuildAWallet servers. Prefer the local kit.",
+    warning:
+      "Opt-in only. The phrase is generated in memory, returned once over TLS, and never stored or logged ,  but it does exist briefly on BuildAWallet servers. Prefer the local kit.",
   },
 });

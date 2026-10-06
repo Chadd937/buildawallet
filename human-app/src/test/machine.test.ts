@@ -11,7 +11,6 @@ vi.mock("@/lib/machine/billing.server", () => ({
   revokeApiKey: vi.fn(),
   statusForSession: vi.fn(),
 }));
-vi.mock("@/lib/machine/x402.server", () => ({ paid: vi.fn() }));
 import { handleMachineRequest } from "@/lib/machine/router.server";
 import { handleWalletRoute } from "@/lib/machine/wallets.server";
 import { isValidMnemonic, deriveAccounts, publicAddresses } from "@/lib/wallet/derive";

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,8 +37,14 @@ test("file import records the app migration once and preserves existing login da
   // A failed standard Wrangler migration can leave its empty journal behind.
   db.exec(journalSql);
   applyAppMigrations(wrangler, options);
-  assert.equal(db.prepare("SELECT name FROM baw_app_migrations").get().name, migrationName);
-  assert.equal(db.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type='trigger'").get().n, 7);
+  assert.deepEqual(
+    db.prepare("SELECT name FROM baw_app_migrations ORDER BY name").all().map((row) => row.name),
+    readdirSync(migrationDirectory).filter((name) => name.endsWith(".sql")).sort(),
+  );
+  for (const name of ["account_payment_validate", "account_payment_activate", "prepaid_payment_reserve", "prepaid_payment_activate"]) {
+    assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name=?").get(name), `${name} is installed`);
+  }
+  assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='machine_prepaid_payments'").get());
   assert.equal(db.prepare("SELECT token_hash FROM human_sessions").get().token_hash, "existing-session");
   assert.equal(db.prepare("SELECT name FROM d1_migrations").get().name, "original-login-migration");
   assert.equal(existsSync(options.importPath), false);

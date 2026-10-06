@@ -17,6 +17,7 @@ import {
   saveConversation,
   clearConversation,
 } from "@/lib/db/storage.server";
+import { PLANS } from "@/lib/machine/config";
 import { createSession, issueChallenge, sha256 } from "@/lib/machine/billing.server";
 let db: TestD1;
 const user = "login-account-hash";
@@ -27,6 +28,7 @@ const activate = (id: string, tx: string, owner = user) =>
 beforeEach(() => {
   db = new TestD1();
   db.sqlite.exec(readFileSync("migrations/baw_0001_app_data.sql", "utf8"));
+  db.sqlite.exec(readFileSync("migrations/baw_0003_prepaid_plans.sql", "utf8"));
 });
 afterEach(() => db.close());
 
@@ -44,7 +46,7 @@ describe("D1 payment and quota database", () => {
           "builder",
           "0xpayment1",
           new Date().toISOString(),
-          12_000_000n,
+          PLANS.builder.amountAtomic,
         ),
       ),
     ).rejects.toThrow();
@@ -96,7 +98,7 @@ describe("D1 payment and quota database", () => {
         "scale",
         "0xpayment3",
         new Date().toISOString(),
-        99_000_000n,
+        PLANS.scale.amountAtomic,
       ),
     );
     db.sqlite

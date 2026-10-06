@@ -1,20 +1,60 @@
 import { authenticate } from "./auth.server";
-import { consumeApiKey, confirmPayment, issueApiKey, issueChallenge, revokeApiKey, session, statusForSession } from "./billing.server";
+import {
+  consumeApiKey,
+  confirmPayment,
+  issueApiKey,
+  issueChallenge,
+  revokeApiKey,
+  session,
+  statusForSession,
+} from "./billing.server";
 import { MACHINE_CHAINS, machineChain, rpcUrl, validAddress } from "./chains";
-import { BASE_COLLECTOR, BASE_USDC, PLANS, SOLANA_COLLECTOR, SOLANA_USDC, planById, publicPlans } from "./config";
-import { configuredNetworks, portfolio, readStablecoin, readTransaction, readWallet, snapshot } from "./data.server";
+import {
+  BASE_COLLECTOR,
+  BASE_USDC,
+  PLANS,
+  SOLANA_COLLECTOR,
+  SOLANA_USDC,
+  planById,
+  publicPlans,
+  PREPAID_BILLING,
+} from "./config";
+import {
+  configuredNetworks,
+  portfolio,
+  readStablecoin,
+  readTransaction,
+  readWallet,
+  snapshot,
+} from "./data.server";
 import { apiError, cors, json, objectBody } from "./http";
 import { PendingReceipt, verifyBaseReceipt, verifySolanaReceipt } from "./receipts.server";
-import { broadcastBaseTransaction, broadcastSolanaTransaction, prepareBaseTransaction, prepareSolanaTransaction, type PrepareIntent } from "./transactions.server";
-import { paid } from "./x402.server";
+import {
+  broadcastBaseTransaction,
+  broadcastSolanaTransaction,
+  prepareBaseTransaction,
+  prepareSolanaTransaction,
+  type PrepareIntent,
+} from "./transactions.server";
 import { handleWalletRoute } from "./wallets.server";
 
-const segments = (request: Request) => new URL(request.url).pathname.replace(/^\/api\/public(?=\/machine(?:\/|$))/, "").split("/").filter(Boolean);
+const segments = (request: Request) =>
+  new URL(request.url).pathname
+    .replace(/^\/api\/public(?=\/machine(?:\/|$))/, "")
+    .split("/")
+    .filter(Boolean);
 const authError = () => json({ error: "Valid bearer credential required" }, 401, cors);
-const subscriptionRead = async (request: Request, cost: number, work: () => Promise<unknown>, chain = "", reserveBeforeWork = false) => {
+const subscriptionRead = async (
+  request: Request,
+  cost: number,
+  work: () => Promise<unknown>,
+  chain = "",
+  reserveBeforeWork = false,
+) => {
   const access = await consumeApiKey(request, 0);
   if (!access) return authError();
-  if (cost > 0 && access.remaining < cost) return json({ error: "API unit quota exhausted" }, 429, cors);
+  if (cost > 0 && access.remaining < cost)
+    return json({ error: "API unit quota exhausted" }, 429, cors);
   let usage: Awaited<ReturnType<typeof consumeApiKey>> = access;
   if (reserveBeforeWork && cost > 0) {
     usage = await consumeApiKey(request, cost, { endpoint: new URL(request.url).pathname, chain });
@@ -22,69 +62,254 @@ const subscriptionRead = async (request: Request, cost: number, work: () => Prom
     if (!usage.allowed) return json({ error: "API unit quota exhausted" }, 429, cors);
   }
   const result = await work();
-  if (!reserveBeforeWork && cost > 0) usage = await consumeApiKey(request, cost, { endpoint: new URL(request.url).pathname, chain });
+  if (!reserveBeforeWork && cost > 0)
+    usage = await consumeApiKey(request, cost, { endpoint: new URL(request.url).pathname, chain });
   if (!usage) return authError();
-  if (!usage.allowed) return json({ error: "API unit quota exhausted", usage: { plan: usage.plan_id, used: usage.used, remaining: usage.remaining, quota: usage.quota } }, 429, cors);
-  return json({ ...result as object, usage: { plan: usage.plan_id, used: usage.used, remaining: usage.remaining, quota: usage.quota, expiresAt: usage.expires_at } }, 200, cors);
+  if (!usage.allowed)
+    return json(
+      {
+        error: "API unit quota exhausted",
+        usage: {
+          plan: usage.plan_id,
+          used: usage.used,
+          remaining: usage.remaining,
+          quota: usage.quota,
+        },
+      },
+      429,
+      cors,
+    );
+  return json(
+    {
+      ...(result as object),
+      usage: {
+        plan: usage.plan_id,
+        used: usage.used,
+        remaining: usage.remaining,
+        quota: usage.quota,
+        expiresAt: usage.expires_at,
+      },
+    },
+    200,
+    cors,
+  );
 };
 export async function handleMachineRequest(request: Request) {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   try {
     const parts = segments(request);
     if (parts[0] !== "machine") return json({ error: "Not found" }, 404, cors);
-    if (parts[1] === "x402" && parts[2] === "wallet" && request.method === "GET") {
-      return paid(request, async () => { const url = new URL(request.url); return json(await readWallet(url.searchParams.get("chain") ?? "", url.searchParams.get("address") ?? ""), 200, cors); });
+    if (parts[1] === "x402" || parts[1] === "wallet" || parts[1] === "solana-wallet") {
+      return json(
+        {
+          error:
+            "Per-call blockchain payments have been retired. Buy prepaid API units and use a bearer API key.",
+          code: "per_call_payments_retired",
+          billing: PREPAID_BILLING,
+          replacement: "/machine/v1/{chain}/wallet/{address}",
+          paymentAccepted: false,
+        },
+        410,
+        cors,
+      );
     }
     if (parts[1] !== "v1") return json({ error: "Not found" }, 404, cors);
     const tail = parts.slice(2);
-    if (request.method === "GET" && tail[0] === "chains") return json({ chains: MACHINE_CHAINS.map(({ env: _env, fallback: _fallback, ...chain }) => chain), configured: configuredNetworks(), settlementChains: ["base", "solana"] }, 200, cors);
-    if (request.method === "GET" && tail[0] === "plans") return json({ plans: publicPlans(), payment: { base: { asset: BASE_USDC, collector: BASE_COLLECTOR }, solana: { asset: SOLANA_USDC, collector: SOLANA_COLLECTOR } } }, 200, cors);
+    if (request.method === "GET" && tail[0] === "chains")
+      return json(
+        {
+          chains: MACHINE_CHAINS.map(({ env: _env, fallback: _fallback, ...chain }) => chain),
+          configured: configuredNetworks(),
+          settlementChains: ["base", "solana"],
+        },
+        200,
+        cors,
+      );
+    if (request.method === "GET" && tail[0] === "plans")
+      return json(
+        {
+          plans: publicPlans(),
+          billing: PREPAID_BILLING,
+          payment: {
+            base: { asset: BASE_USDC, collector: BASE_COLLECTOR },
+            solana: { asset: SOLANA_USDC, collector: SOLANA_COLLECTOR },
+          },
+        },
+        200,
+        cors,
+      );
     if (request.method === "POST" && tail.join("/") === "auth/challenge") {
-      const body = await objectBody(request), chain = body["chain"], wallet = body["wallet"];
+      const body = await objectBody(request),
+        chain = body["chain"],
+        wallet = body["wallet"];
       const settlementChain = typeof chain === "string" ? machineChain(chain) : undefined;
-      if ((chain !== "base" && chain !== "solana") || typeof wallet !== "string" || !settlementChain || !validAddress(settlementChain, wallet)) throw new RangeError("Valid Base or Solana wallet required");
-      return json(await issueChallenge(chain, chain === "base" ? wallet.toLowerCase() : wallet), 200, cors);
+      if (
+        (chain !== "base" && chain !== "solana") ||
+        typeof wallet !== "string" ||
+        !settlementChain ||
+        !validAddress(settlementChain, wallet)
+      )
+        throw new RangeError("Valid Base or Solana wallet required");
+      return json(
+        await issueChallenge(chain, chain === "base" ? wallet.toLowerCase() : wallet),
+        200,
+        cors,
+      );
     }
     if (request.method === "POST" && tail.join("/") === "auth/verify") {
-      const body = await objectBody(request); if (typeof body["nonce"] !== "string" || typeof body["signature"] !== "string") throw new RangeError("nonce and signature required");
+      const body = await objectBody(request);
+      if (typeof body["nonce"] !== "string" || typeof body["signature"] !== "string")
+        throw new RangeError("nonce and signature required");
       return json(await authenticate(body["nonce"], body["signature"]), 200, cors);
     }
-    if (request.method === "GET" && tail[0] === "subscription") { const status = await statusForSession(request); return status ? json(status, 200, cors) : authError(); }
+    if (request.method === "GET" && tail[0] === "subscription") {
+      const status = await statusForSession(request);
+      return status ? json(status, 200, cors) : authError();
+    }
     if (request.method === "POST" && tail.join("/") === "subscription/confirm") {
-      const identity = await session(request); if (!identity) return authError(); const body = await objectBody(request), plan = planById(body["planId"]);
-      if (!plan || typeof body["tx"] !== "string") throw new RangeError("Valid planId and transaction required");
+      const identity = await session(request);
+      if (!identity) return authError();
+      const body = await objectBody(request),
+        plan = planById(body["planId"]);
+      if (!plan || typeof body["tx"] !== "string")
+        throw new RangeError("Valid planId and transaction required");
       const paymentChain = machineChain(identity.chain);
       if (!paymentChain) throw new RangeError("Unsupported payment chain");
-      const paidAt = identity.chain === "base" ? await verifyBaseReceipt(rpcUrl(paymentChain), body["tx"], identity.wallet, Math.floor(new Date(identity.issued_at).getTime() / 1000), plan.amountAtomic) : await verifySolanaReceipt(rpcUrl(paymentChain), body["tx"], identity.wallet, Math.floor(new Date(identity.issued_at).getTime() / 1000), plan.amountAtomic);
-      return json(await confirmPayment(request, body["tx"], plan.id, paidAt, plan.amountAtomic), 200, cors);
+      const paidAt =
+        identity.chain === "base"
+          ? await verifyBaseReceipt(
+              rpcUrl(paymentChain),
+              body["tx"],
+              identity.wallet,
+              Math.floor(new Date(identity.issued_at).getTime() / 1000),
+              plan.amountAtomic,
+            )
+          : await verifySolanaReceipt(
+              rpcUrl(paymentChain),
+              body["tx"],
+              identity.wallet,
+              Math.floor(new Date(identity.issued_at).getTime() / 1000),
+              plan.amountAtomic,
+            );
+      return json(
+        await confirmPayment(request, body["tx"], plan.id, paidAt, plan.amountAtomic),
+        200,
+        cors,
+      );
     }
-    if (tail.join("/") === "subscription/key" && request.method === "POST") { const result = await issueApiKey(request); return result ? json(result, 201, cors) : authError(); }
-    if (tail.join("/") === "subscription/key" && request.method === "DELETE") { const result = await revokeApiKey(request); return result ? json(result, 200, cors) : authError(); }
-    if (request.method === "GET" && tail[0] === "usage") { const usage = await consumeApiKey(request, 0); return usage ? json({ plan: usage.plan_id, quota: usage.quota, used: usage.used, remaining: usage.remaining, batchLimit: usage.batch_limit, expiresAt: usage.expires_at }, 200, cors) : authError(); }
-    if (tail[0] === "wallets") { const handled = await handleWalletRoute(request, tail.slice(1)); if (handled) return handled; }
-    if (request.method === "GET" && tail[0] === "portfolio" && tail[1]) return subscriptionRead(request, 1, () => portfolio(decodeURIComponent(tail[1]!)), "all");
+    if (tail.join("/") === "subscription/key" && request.method === "POST") {
+      const result = await issueApiKey(request);
+      return result ? json(result, 201, cors) : authError();
+    }
+    if (tail.join("/") === "subscription/key" && request.method === "DELETE") {
+      const result = await revokeApiKey(request);
+      return result ? json(result, 200, cors) : authError();
+    }
+    if (request.method === "GET" && tail[0] === "usage") {
+      const usage = await consumeApiKey(request, 0);
+      return usage
+        ? json(
+            {
+              plan: usage.plan_id,
+              quota: usage.quota,
+              used: usage.used,
+              remaining: usage.remaining,
+              batchLimit: usage.batch_limit,
+              expiresAt: usage.expires_at,
+            },
+            200,
+            cors,
+          )
+        : authError();
+    }
+    if (tail[0] === "wallets") {
+      const handled = await handleWalletRoute(request, tail.slice(1));
+      if (handled) return handled;
+    }
+    if (request.method === "GET" && tail[0] === "portfolio" && tail[1])
+      return subscriptionRead(request, 1, () => portfolio(decodeURIComponent(tail[1]!)), "all");
     const [chainId, kind, value] = tail;
     if (request.method === "GET" && value) {
-      if (kind === "wallet") return subscriptionRead(request, 1, () => readWallet(chainId ?? "", decodeURIComponent(value)), chainId);
-      if (kind === "stablecoin") return subscriptionRead(request, 1, () => readStablecoin(chainId ?? "", decodeURIComponent(value)), chainId);
-      if (kind === "transaction") return subscriptionRead(request, 1, () => readTransaction(chainId ?? "", decodeURIComponent(value)), chainId);
-      if (kind === "snapshot") return subscriptionRead(request, 1, () => snapshot(chainId ?? "", decodeURIComponent(value)), chainId);
+      if (kind === "wallet")
+        return subscriptionRead(
+          request,
+          1,
+          () => readWallet(chainId ?? "", decodeURIComponent(value)),
+          chainId,
+        );
+      if (kind === "stablecoin")
+        return subscriptionRead(
+          request,
+          1,
+          () => readStablecoin(chainId ?? "", decodeURIComponent(value)),
+          chainId,
+        );
+      if (kind === "transaction")
+        return subscriptionRead(
+          request,
+          1,
+          () => readTransaction(chainId ?? "", decodeURIComponent(value)),
+          chainId,
+        );
+      if (kind === "snapshot")
+        return subscriptionRead(
+          request,
+          1,
+          () => snapshot(chainId ?? "", decodeURIComponent(value)),
+          chainId,
+        );
     }
-    if (request.method === "POST" && (chainId === "base" || chainId === "solana") && kind === "transaction" && value === "prepare") {
-      const body = await objectBody(request) as PrepareIntent;
+    if (
+      request.method === "POST" &&
+      (chainId === "base" || chainId === "solana") &&
+      kind === "transaction" &&
+      value === "prepare"
+    ) {
+      const body = (await objectBody(request)) as PrepareIntent;
       const selectedChain = machineChain(chainId);
       if (!selectedChain) throw new RangeError("Unsupported transaction chain");
-      return subscriptionRead(request, 1, () => chainId === "base" ? prepareBaseTransaction(rpcUrl(selectedChain), body) : prepareSolanaTransaction(rpcUrl(selectedChain), body), chainId);
+      return subscriptionRead(
+        request,
+        1,
+        () =>
+          chainId === "base"
+            ? prepareBaseTransaction(rpcUrl(selectedChain), body)
+            : prepareSolanaTransaction(rpcUrl(selectedChain), body),
+        chainId,
+      );
     }
-    if (request.method === "POST" && (chainId === "base" || chainId === "solana") && kind === "transaction" && value === "broadcast") {
+    if (
+      request.method === "POST" &&
+      (chainId === "base" || chainId === "solana") &&
+      kind === "transaction" &&
+      value === "broadcast"
+    ) {
       const body = await objectBody(request);
       const selectedChain = machineChain(chainId);
       if (!selectedChain) throw new RangeError("Unsupported transaction chain");
-      return subscriptionRead(request, 1, () => chainId === "base" ? broadcastBaseTransaction(rpcUrl(selectedChain), String(body["signedTransaction"] ?? "")) : broadcastSolanaTransaction(rpcUrl(selectedChain), String(body["signedTransactionBase64"] ?? "")), chainId, true);
+      return subscriptionRead(
+        request,
+        1,
+        () =>
+          chainId === "base"
+            ? broadcastBaseTransaction(
+                rpcUrl(selectedChain),
+                String(body["signedTransaction"] ?? ""),
+              )
+            : broadcastSolanaTransaction(
+                rpcUrl(selectedChain),
+                String(body["signedTransactionBase64"] ?? ""),
+              ),
+        chainId,
+        true,
+      );
     }
     return json({ error: "Not found" }, 404, cors);
   } catch (error) {
-    if (error instanceof PendingReceipt) return json({ status: "pending", message: error.message }, 202, cors);
-    const response = apiError(error); Object.entries(cors).forEach(([key, value]) => response.headers.set(key, value)); return response;
+    if (error instanceof PendingReceipt)
+      return json({ status: "pending", message: error.message }, 202, cors);
+    const response = apiError(error);
+    Object.entries(cors).forEach(([key, value]) => response.headers.set(key, value));
+    return response;
   }
 }

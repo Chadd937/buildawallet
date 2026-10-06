@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { PAYMENT_CHAINS } from "./config";
 import { requireAccountAuth } from "@/integrations/auth/auth-middleware";
 
 export const getAccountOverview = createServerFn({ method: "GET" })
@@ -47,7 +48,7 @@ export const createCheckoutQuote = createServerFn({ method: "POST" })
     z
       .object({
         planId: z.enum(["builder", "pro", "scale"]),
-        chain: z.enum(["ethereum", "base", "arbitrum", "optimism", "polygon", "bnb", "avalanche", "solana", "bitcoin", "tron"]),
+        chain: z.enum(PAYMENT_CHAINS),
         payer: z.string().trim().min(26).max(64),
       })
       .parse(input),
@@ -91,13 +92,34 @@ export const confirmCheckout = createServerFn({ method: "POST" })
     let paidAt: number;
     try {
       if (chain.family === "evm") {
-        paidAt = await verifyEvmReceipt(rpcUrl(chain), chain, tx, quote.payer, earliest, plan.amountAtomic);
+        paidAt = await verifyEvmReceipt(
+          rpcUrl(chain),
+          chain,
+          tx,
+          quote.payer,
+          earliest,
+          plan.amountAtomic,
+        );
       } else if (chain.family === "solana") {
-        paidAt = await verifySolanaReceipt(rpcUrl(chain), tx, quote.payer, earliest, plan.amountAtomic);
+        paidAt = await verifySolanaReceipt(
+          rpcUrl(chain),
+          tx,
+          quote.payer,
+          earliest,
+          plan.amountAtomic,
+        );
       } else if (chain.family === "tron") {
-        paidAt = await verifyTronReceipt(rpcUrl(chain), tx, quote.payer, earliest, plan.amountAtomic);
+        paidAt = await verifyTronReceipt(
+          rpcUrl(chain),
+          tx,
+          quote.payer,
+          earliest,
+          plan.amountAtomic,
+        );
       } else {
-        throw new Error("Bitcoin subscription verification is not enabled yet; use an EVM, Solana, or Tron payment.");
+        throw new Error(
+          "Bitcoin subscription verification is not enabled yet; use an EVM, Solana, or Tron payment.",
+        );
       }
     } catch (error) {
       if (error instanceof PendingReceipt)

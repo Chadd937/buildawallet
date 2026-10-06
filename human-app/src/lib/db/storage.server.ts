@@ -175,7 +175,7 @@ export async function activateCheckout(
     statement(
       `INSERT INTO api_account_payments(id,user_id,quote_id,chain,tx,payer,plan_id,amount_atomic,paid_at)
       SELECT ?,q.user_id,q.id,q.chain,CASE WHEN q.chain='base' THEN lower(?) ELSE ? END,q.payer,q.plan_id,
-        CASE q.plan_id WHEN 'builder' THEN '12000000' WHEN 'pro' THEN '39000000' WHEN 'scale' THEN '99000000' END,?
+        CASE q.plan_id WHEN 'builder' THEN '15000000' WHEN 'pro' THEN '49000000' WHEN 'scale' THEN '149000000' END,?
       FROM api_checkout_quotes q WHERE q.id=? AND q.user_id=? RETURNING id`,
       randomUUID(),
       tx,

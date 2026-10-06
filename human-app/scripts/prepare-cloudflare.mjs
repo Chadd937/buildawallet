@@ -64,6 +64,7 @@ const expected = [
   "api_meter_requests",
   "api_rate_limits",
   "human_ai_conversations",
+  "treasury_x402_receipts",
   "account_payment_validate",
   "account_payment_activate",
   "machine_payment_reserve",

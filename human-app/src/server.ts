@@ -78,6 +78,12 @@ export default {
     return withWorkerEnvironment(env as WorkerEnvironment, async () => {
       try {
         const path = new URL(request.url).pathname;
+        const ownerPath = path === "/owner" || path.startsWith("/owner/");
+        if (ownerPath) {
+          const { handleOwnerRequest } = await import("./lib/owner/http.server");
+          const owner = await handleOwnerRequest(request);
+          if (owner) return owner;
+        }
         const aliases: Record<string, string> = {
           "/login": "/human/setup",
           "/signin": "/human/setup",
@@ -98,13 +104,24 @@ export default {
         if (machinePath(path)) return await machineResponse(request);
         const handler = await getServerEntry();
         const response = await handler.fetch(request, env, ctx);
-        return await normalizeCatastrophicSsrResponse(response);
+        const normalized = await normalizeCatastrophicSsrResponse(response);
+        if (ownerPath) {
+          const { ownerResponse } = await import("./lib/owner/auth.server");
+          return ownerResponse(normalized);
+        }
+        return normalized;
       } catch (error) {
         console.error(error);
-        return new Response(renderErrorPage(), {
+        const failed = new Response(renderErrorPage(), {
           status: 500,
           headers: { "content-type": "text/html; charset=utf-8" },
         });
+        const path = new URL(request.url).pathname;
+        if (path === "/owner" || path.startsWith("/owner/")) {
+          const { ownerResponse } = await import("./lib/owner/auth.server");
+          return ownerResponse(failed);
+        }
+        return failed;
       }
     });
   },

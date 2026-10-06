@@ -4,6 +4,7 @@ import ts from "typescript";
 
 export const publicNames = ["AUTH_COOKIE_NAME", "AUTH_TABLE_PREFIX", "AI_PROVIDER", "AI_MODEL"];
 export const secretNames = [
+  "OWNER_EMAIL_HASH",
   "OPENAI_API_KEY",
   "OPENAI_MODEL",
   "OPENAI_BASE_URL",

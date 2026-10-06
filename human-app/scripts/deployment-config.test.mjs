@@ -69,6 +69,14 @@ test("stale build cannot send secrets to a different Worker", () => {
   );
 });
 
+test("owner identity is uploaded only as a server secret", () => {
+  const hash = "a".repeat(64);
+  const values = { OWNER_EMAIL_HASH: hash, AI_PROVIDER: "workers-ai" };
+  const prepared = prepareDeploymentConfig({ name: "test-worker", vars: {} }, { name: "test-worker" }, values);
+  assert.equal(JSON.stringify(prepared).includes(hash), false);
+  assert.deepEqual(deploymentSecrets(values), { OWNER_EMAIL_HASH: hash });
+});
+
 test("invalid Wrangler configuration stops deployment", (t) => {
   const appDirectory = fixture(t, { "wrangler.jsonc": "{ invalid json }" });
   assert.throws(() => loadDeploymentConfig({ appDirectory, environment: {} }), /Cannot parse/);

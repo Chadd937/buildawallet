@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdvertisingRouteImport } from './routes/advertising'
 import { Route as HumanRouteImport } from './routes/human'
 import { Route as NonhumanRouteImport } from './routes/nonhuman'
+import { Route as OwnerRouteImport } from './routes/owner'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PrivacyChoicesRouteImport } from './routes/privacy-choices'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
@@ -56,6 +57,11 @@ const HumanRoute = HumanRouteImport.update({
 const NonhumanRoute = NonhumanRouteImport.update({
   id: '/nonhuman',
   path: '/nonhuman',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OwnerRoute = OwnerRouteImport.update({
+  id: '/owner',
+  path: '/owner',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -184,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/advertising': typeof AdvertisingRoute
   '/human': typeof HumanRouteWithChildren
   '/nonhuman': typeof NonhumanRouteWithChildren
+  '/owner': typeof OwnerRoute
   '/privacy': typeof PrivacyRoute
   '/privacy-choices': typeof PrivacyChoicesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -212,6 +219,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/advertising': typeof AdvertisingRoute
+  '/owner': typeof OwnerRoute
   '/privacy': typeof PrivacyRoute
   '/privacy-choices': typeof PrivacyChoicesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -243,6 +251,7 @@ export interface FileRoutesById {
   '/advertising': typeof AdvertisingRoute
   '/human': typeof HumanRouteWithChildren
   '/nonhuman': typeof NonhumanRouteWithChildren
+  '/owner': typeof OwnerRoute
   '/privacy': typeof PrivacyRoute
   '/privacy-choices': typeof PrivacyChoicesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -275,6 +284,7 @@ export interface FileRouteTypes {
     | '/advertising'
     | '/human'
     | '/nonhuman'
+    | '/owner'
     | '/privacy'
     | '/privacy-choices'
     | '/sitemap.xml'
@@ -303,6 +313,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/advertising'
+    | '/owner'
     | '/privacy'
     | '/privacy-choices'
     | '/sitemap.xml'
@@ -333,6 +344,7 @@ export interface FileRouteTypes {
     | '/advertising'
     | '/human'
     | '/nonhuman'
+    | '/owner'
     | '/privacy'
     | '/privacy-choices'
     | '/sitemap.xml'
@@ -364,6 +376,7 @@ export interface RootRouteChildren {
   AdvertisingRoute: typeof AdvertisingRoute
   HumanRoute: typeof HumanRouteWithChildren
   NonhumanRoute: typeof NonhumanRouteWithChildren
+  OwnerRoute: typeof OwnerRoute
   PrivacyRoute: typeof PrivacyRoute
   PrivacyChoicesRoute: typeof PrivacyChoicesRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
@@ -404,6 +417,13 @@ declare module '@tanstack/react-router' {
       path: '/nonhuman'
       fullPath: '/nonhuman'
       preLoaderRoute: typeof NonhumanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/owner': {
+      id: '/owner'
+      path: '/owner'
+      fullPath: '/owner'
+      preLoaderRoute: typeof OwnerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -628,6 +648,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdvertisingRoute: AdvertisingRoute,
   HumanRoute: HumanRouteWithChildren,
   NonhumanRoute: NonhumanRouteWithChildren,
+  OwnerRoute: OwnerRoute,
   PrivacyRoute: PrivacyRoute,
   PrivacyChoicesRoute: PrivacyChoicesRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,

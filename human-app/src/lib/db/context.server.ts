@@ -21,6 +21,7 @@ export interface WorkerEnvironment {
   AUTH_DB?: Database;
   AUTH_COOKIE_NAME?: string;
   AUTH_TABLE_PREFIX?: string;
+  OWNER_EMAIL_HASH?: string;
   AI_PROVIDER?: string;
   AI_MODEL?: string;
   AI?: WorkersAi;

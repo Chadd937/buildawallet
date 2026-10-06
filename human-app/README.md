@@ -21,3 +21,43 @@ Byte uses the existing Cloudflare Workers AI binding and `@cf/meta/llama-3.1-8b-
 See `INTEGRATION.md` for the production cutover, migration boundaries and release limitations. The production bundle is `dist/server/wrangler.json`, with assets in `dist/client`. Publish using `npm run deploy`, which verifies the account's current database IDs and applies additive app migrations first.
 
 Use `npm run inspect:login` to print database names, table names and Login table definitions from the existing account. It reads schema metadata only and does not create, reset or migrate any table.
+# Owner treasury
+
+The private `/owner` page uses the original HUMAN verified email session and a
+server-only owner identity. It is absent from public navigation, sitemap,
+OpenAPI and MCP. An unconfigured owner setting or any other account receives
+HTTP 404. Owner responses are private, non-cacheable and non-indexable.
+
+On your authenticated deployment machine:
+
+```bash
+cd ~/buildawallet/human-app
+npm run configure:owner
+npm run deploy
+```
+
+Enter the email you use with the original HUMAN login. Setup saves only its
+normalized SHA-256 identity in an ignored, mode-0600 environment file. Deployment
+uploads `OWNER_EMAIL_HASH` as a Cloudflare secret. Sign in normally through
+`/human/setup`, then open `https://buildawallet.xyz/owner` directly.
+
+Collectors remain the configured Base and Solana addresses. The page reads live
+USDC and ETH/SOL balances and reports current account subscriptions, agent
+subscriptions and preserved legacy payments. The additive treasury migration
+records new successful x402 settlements; older pay-per-call receipts are not
+reconstructed. Reporting failures do not make a successfully paid caller pay
+again, so receipt totals may be incomplete after a storage outage. Collector
+balances include all on-chain activity and are separate from recorded income.
+
+To withdraw, connect the existing collector account in an EIP-1193 Ethereum
+wallet for Base or Phantom for Solana. The app reviews the address, amount and
+fees; your device checks the exact transaction and your wallet signs and
+broadcasts only after approval. No treasury seed phrase or private key is
+accepted, stored or returned by the backend. Solana USDC withdrawals use the
+configured collection token account and can create the destination's USDC
+account, with its rent shown in the review. Leave ETH/SOL for fees.
+
+This does not add a new fee, change payment destinations, create new collector
+keys, or custody customer wallets. Receiving addresses and on-chain transfers
+remain public. A new collector requires a separate explicit payment-routing
+change after its device-held keys are backed up.

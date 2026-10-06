@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "deploy": "bash scripts/deploy.sh",
-    "inspect:login": "node scripts/inspect-login.mjs"
+    "inspect:login": "node scripts/inspect-login.mjs",
+    "configure:owner": "node scripts/configure-owner.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"

@@ -6,6 +6,16 @@ const login = await loginResponse.json();
 if (loginResponse.status !== 200 || login.authenticated !== false || login.verified !== false)
   throw new Error('The original HUMAN login session endpoint is unavailable or returned an unexpected anonymous session');
 console.log('PASS original HUMAN login endpoint');
+for (const path of ['/owner', '/owner/access', '/owner/treasury']) {
+  const response = await fetch(origin+path, { redirect: 'manual' });
+  if (response.status !== 404 || !response.headers.get('cache-control')?.includes('no-store'))
+    throw new Error('Anonymous owner access must be refused without caching');
+}
+const ownerWrite = await fetch(origin+'/owner/withdrawal/prepare', {
+  method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+});
+if (ownerWrite.status !== 404) throw new Error('Anonymous owner withdrawal preparation must be refused');
+console.log('PASS owner treasury is private');
 const blogDirectory = new URL('../../blog/data/', import.meta.url);
 const articles = readdirSync(blogDirectory)
   .filter((name) => name.endsWith('.json'))

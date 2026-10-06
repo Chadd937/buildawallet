@@ -1,4 +1,5 @@
-import { BASE_COLLECTOR, SOLANA_COLLECTOR, BASE_USDC, SOLANA_USDC } from "./config";
+import { BASE_USDC, SOLANA_USDC, DEV_TREASURY } from "./config";
+import type { MachineChain } from "./chains";
 
 export { BASE_USDC, SOLANA_USDC } from "./config";
 export { SOLANA_COLLECTOR_ATA } from "./config";
@@ -19,12 +20,13 @@ async function rpc(url: string, method: string, params: unknown[]): Promise<any>
   return data.result;
 }
 
-export async function verifyBaseReceipt(url: string, tx: string, payer: string, earliest: number, amountAtomic: bigint): Promise<number> {
-  if (!/^0x[0-9a-fA-F]{64}$/.test(tx)) throw new Error("Invalid Base transaction hash");
-  if (BigInt(await rpc(url, "eth_chainId", [])) !== 8453n) throw new Error("Base RPC network mismatch");
+export async function verifyEvmReceipt(url: string, chain: MachineChain, tx: string, payer: string, earliest: number, amountAtomic: bigint): Promise<number> {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(tx) || chain.family !== "evm" || !chain.chainId || !chain.stablecoin)
+    throw new Error("Invalid EVM payment");
+  if (BigInt(await rpc(url, "eth_chainId", [])) !== BigInt(chain.chainId)) throw new Error(`${chain.name} RPC network mismatch`);
   const receipt = await rpc(url, "eth_getTransactionReceipt", [tx]);
   if (!receipt) {
-    if (!await rpc(url, "eth_getTransactionByHash", [tx])) throw new Error("Transaction not found on Base");
+    if (!await rpc(url, "eth_getTransactionByHash", [tx])) throw new Error(`Transaction not found on ${chain.name}`);
     throw new PendingReceipt("Transaction is not confirmed yet");
   }
   if (receipt.status !== "0x1" || !receipt.blockNumber) throw new Error("Transaction failed");
@@ -32,20 +34,30 @@ export async function verifyBaseReceipt(url: string, tx: string, payer: string, 
     rpc(url, "eth_getTransactionByHash", [tx]), rpc(url, "eth_blockNumber", []),
     rpc(url, "eth_getBlockByNumber", [receipt.blockNumber, false]),
   ]);
-  if (!transaction || !block || BigInt(latest) - BigInt(receipt.blockNumber) < 2n) {
-    throw new PendingReceipt("Waiting for two Base confirmations");
-  }
-  if (String(transaction.from).toLowerCase() !== payer ||
-      String(transaction.to).toLowerCase() !== BASE_USDC.toLowerCase() ||
+  const confirmations = chain.id === "ethereum" ? 3n : 2n;
+  if (!transaction || !block || BigInt(latest) - BigInt(receipt.blockNumber) + 1n < confirmations)
+    throw new PendingReceipt(`Waiting for ${confirmations} ${chain.name} confirmations`);
+  if (String(transaction.from).toLowerCase() !== payer.toLowerCase() ||
+      String(transaction.to).toLowerCase() !== chain.stablecoin.address.toLowerCase() ||
       Number(BigInt(block.timestamp)) < earliest - 30) throw new Error("Payment does not belong to this session");
+  const treasury = DEV_TREASURY[chain.id as keyof typeof DEV_TREASURY];
   const paid = (receipt.logs ?? []).some((log: any) =>
-    String(log.address).toLowerCase() === BASE_USDC.toLowerCase() &&
+    String(log.address).toLowerCase() === chain.stablecoin!.address.toLowerCase() &&
     String(log.topics?.[0]).toLowerCase() === TRANSFER_TOPIC &&
     String(log.topics?.[1]).toLowerCase() === `0x${payer.slice(2).padStart(64, "0")}` &&
-    String(log.topics?.[2]).toLowerCase() === `0x${BASE_COLLECTOR.slice(2).toLowerCase().padStart(64, "0")}` &&
+    String(log.topics?.[2]).toLowerCase() === `0x${treasury.slice(2).toLowerCase().padStart(64, "0")}` &&
     BigInt(log.data) === amountAtomic);
-  if (!paid) throw new Error("No matching Base USDC transfer to the collector");
+  if (!paid) throw new Error(`No matching ${chain.stablecoin.symbol} transfer to the developer treasury`);
   return Number(BigInt(block.timestamp));
+}
+
+export async function verifyBaseReceipt(url: string, tx: string, payer: string, earliest: number, amountAtomic: bigint) {
+  const chain = {
+    id: "base", name: "Base", family: "evm" as const, symbol: "ETH", decimals: 18, chainId: 8453,
+    env: "BASE_RPC_URL", fallback: url, explorer: "https://basescan.org",
+    stablecoin: { symbol: "USDC", address: BASE_USDC, decimals: 6 },
+  };
+  return verifyEvmReceipt(url, chain, tx, payer, earliest, amountAtomic);
 }
 
 export async function verifySolanaReceipt(url: string, tx: string, payer: string, earliest: number, amountAtomic: bigint): Promise<number> {

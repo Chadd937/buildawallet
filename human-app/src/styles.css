@@ -212,3 +212,26 @@
 /* Dark-mode Swagger explorer: invert the light theme, keep syntax hues. */
 .swagger-dark .swagger-ui { filter: invert(0.9) hue-rotate(180deg); background: transparent; }
 .swagger-dark .swagger-ui .microlight, .swagger-dark .swagger-ui img { filter: invert(1) hue-rotate(180deg); }
+
+/* Readable long-form articles, including mobile comparison tables. */
+.blog-article { overflow-wrap: anywhere; line-height: 1.85; }
+.blog-article > * + * { margin-top: 1.4rem; }
+.blog-article h2 { margin-top: 2.5rem; font-size: 1.65rem; font-weight: 800; line-height: 1.35; }
+.blog-article h3 { margin-top: 2rem; font-size: 1.25rem; font-weight: 700; line-height: 1.4; }
+.blog-article h4 { font-size: 1.1rem; font-weight: 700; }
+.blog-article a { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+.blog-article a:hover { opacity: .8; }
+.blog-article ul, .blog-article ol { padding-left: 1.5rem; }
+.blog-article ul { list-style-type: disc; }
+.blog-article ol { list-style-type: decimal; }
+.blog-article li + li { margin-top: .5rem; }
+.blog-article li > p + p { margin-top: .75rem; }
+.blog-article blockquote { border-left: 3px solid var(--primary); padding-left: 1rem; color: var(--muted-foreground); }
+.blog-article code { border-radius: .3rem; background: var(--background); padding: .15rem .35rem; font-size: .85em; }
+.blog-article pre { overflow-x: auto; border: 1px solid var(--border); border-radius: 1rem; background: var(--background); padding: 1rem; }
+.blog-article pre code { padding: 0; }
+.blog-article table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: .875rem; line-height: 1.6; }
+.blog-article th, .blog-article td { border: 1px solid var(--border); padding: .75rem; text-align: left; vertical-align: top; }
+.blog-article th { background: var(--background); font-weight: 700; }
+.blog-article img { display: block; max-width: 100%; height: auto; margin: 1.5rem auto; border-radius: 1rem; }
+.blog-article hr { margin: 2rem 0; border-color: var(--border); }

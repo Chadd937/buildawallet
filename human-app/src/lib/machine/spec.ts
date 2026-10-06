@@ -66,6 +66,7 @@ export const llms = `# BuildAWallet.xyz
 - OpenAPI 3.1: ${ORIGIN}/openapi.json
 - Offer manifest: ${ORIGIN}/.well-known/agent.json
 - Human-readable docs: ${ORIGIN}/nonhuman
+- Wallet and agent guides: ${ORIGIN}/blog
 
 ## Get a wallet
 - Local (recommended, keys never leave you): GET ${ORIGIN}/machine/v1/wallets/kit then run ${ORIGIN}/machine/v1/wallets/kit.mjs

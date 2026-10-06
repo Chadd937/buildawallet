@@ -15,9 +15,12 @@ import { Route as HumanRouteImport } from './routes/human'
 import { Route as NonhumanRouteImport } from './routes/nonhuman'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PrivacyChoicesRouteImport } from './routes/privacy-choices'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ApiHumanAiRouteImport } from './routes/api/human-ai'
+import { Route as BlogIndexRouteImport } from './routes/blog.index'
+import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as HumanIndexRouteImport } from './routes/human.index'
 import { Route as HumanAndroidRouteImport } from './routes/human.android'
 import { Route as HumanDeployRouteImport } from './routes/human.deploy'
@@ -65,6 +68,11 @@ const PrivacyChoicesRoute = PrivacyChoicesRouteImport.update({
   path: '/privacy-choices',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SupportRoute = SupportRouteImport.update({
   id: '/support',
   path: '/support',
@@ -78,6 +86,16 @@ const TermsRoute = TermsRouteImport.update({
 const ApiHumanAiRoute = ApiHumanAiRouteImport.update({
   id: '/api/human-ai',
   path: '/api/human-ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogIndexRoute = BlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HumanIndexRoute = HumanIndexRouteImport.update({
@@ -168,9 +186,11 @@ export interface FileRoutesByFullPath {
   '/nonhuman': typeof NonhumanRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/privacy-choices': typeof PrivacyChoicesRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/api/human-ai': typeof ApiHumanAiRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/human/android': typeof HumanAndroidRoute
   '/human/deploy': typeof HumanDeployRoute
   '/human/setup': typeof HumanSetupRoute
@@ -183,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/nonhuman/pay-per-call': typeof NonhumanPayPerCallRoute
   '/nonhuman/pricing': typeof NonhumanPricingRoute
   '/nonhuman/wallets': typeof NonhumanWalletsRoute
+  '/blog/': typeof BlogIndexRoute
   '/human/': typeof HumanIndexRoute
   '/nonhuman/': typeof NonhumanIndexRoute
   '/api/public/openapi': typeof ApiPublicOpenapiRoute
@@ -193,9 +214,11 @@ export interface FileRoutesByTo {
   '/advertising': typeof AdvertisingRoute
   '/privacy': typeof PrivacyRoute
   '/privacy-choices': typeof PrivacyChoicesRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/api/human-ai': typeof ApiHumanAiRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/human/android': typeof HumanAndroidRoute
   '/human/deploy': typeof HumanDeployRoute
   '/human/setup': typeof HumanSetupRoute
@@ -208,6 +231,7 @@ export interface FileRoutesByTo {
   '/nonhuman/pay-per-call': typeof NonhumanPayPerCallRoute
   '/nonhuman/pricing': typeof NonhumanPricingRoute
   '/nonhuman/wallets': typeof NonhumanWalletsRoute
+  '/blog': typeof BlogIndexRoute
   '/human': typeof HumanIndexRoute
   '/nonhuman': typeof NonhumanIndexRoute
   '/api/public/openapi': typeof ApiPublicOpenapiRoute
@@ -221,9 +245,11 @@ export interface FileRoutesById {
   '/nonhuman': typeof NonhumanRouteWithChildren
   '/privacy': typeof PrivacyRoute
   '/privacy-choices': typeof PrivacyChoicesRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/api/human-ai': typeof ApiHumanAiRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/human/android': typeof HumanAndroidRoute
   '/human/deploy': typeof HumanDeployRoute
   '/human/setup': typeof HumanSetupRoute
@@ -236,6 +262,7 @@ export interface FileRoutesById {
   '/nonhuman/pay-per-call': typeof NonhumanPayPerCallRoute
   '/nonhuman/pricing': typeof NonhumanPricingRoute
   '/nonhuman/wallets': typeof NonhumanWalletsRoute
+  '/blog/': typeof BlogIndexRoute
   '/human/': typeof HumanIndexRoute
   '/nonhuman/': typeof NonhumanIndexRoute
   '/api/public/openapi': typeof ApiPublicOpenapiRoute
@@ -250,9 +277,11 @@ export interface FileRouteTypes {
     | '/nonhuman'
     | '/privacy'
     | '/privacy-choices'
+    | '/sitemap.xml'
     | '/support'
     | '/terms'
     | '/api/human-ai'
+    | '/blog/$slug'
     | '/human/android'
     | '/human/deploy'
     | '/human/setup'
@@ -265,6 +294,7 @@ export interface FileRouteTypes {
     | '/nonhuman/pay-per-call'
     | '/nonhuman/pricing'
     | '/nonhuman/wallets'
+    | '/blog/'
     | '/human/'
     | '/nonhuman/'
     | '/api/public/openapi'
@@ -275,9 +305,11 @@ export interface FileRouteTypes {
     | '/advertising'
     | '/privacy'
     | '/privacy-choices'
+    | '/sitemap.xml'
     | '/support'
     | '/terms'
     | '/api/human-ai'
+    | '/blog/$slug'
     | '/human/android'
     | '/human/deploy'
     | '/human/setup'
@@ -290,6 +322,7 @@ export interface FileRouteTypes {
     | '/nonhuman/pay-per-call'
     | '/nonhuman/pricing'
     | '/nonhuman/wallets'
+    | '/blog'
     | '/human'
     | '/nonhuman'
     | '/api/public/openapi'
@@ -302,9 +335,11 @@ export interface FileRouteTypes {
     | '/nonhuman'
     | '/privacy'
     | '/privacy-choices'
+    | '/sitemap.xml'
     | '/support'
     | '/terms'
     | '/api/human-ai'
+    | '/blog/$slug'
     | '/human/android'
     | '/human/deploy'
     | '/human/setup'
@@ -317,6 +352,7 @@ export interface FileRouteTypes {
     | '/nonhuman/pay-per-call'
     | '/nonhuman/pricing'
     | '/nonhuman/wallets'
+    | '/blog/'
     | '/human/'
     | '/nonhuman/'
     | '/api/public/openapi'
@@ -330,9 +366,12 @@ export interface RootRouteChildren {
   NonhumanRoute: typeof NonhumanRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
   PrivacyChoicesRoute: typeof PrivacyChoicesRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SupportRoute: typeof SupportRoute
   TermsRoute: typeof TermsRoute
   ApiHumanAiRoute: typeof ApiHumanAiRoute
+  BlogSlugRoute: typeof BlogSlugRoute
+  BlogIndexRoute: typeof BlogIndexRoute
   ApiPublicOpenapiRoute: typeof ApiPublicOpenapiRoute
   ApiPublicMachineSplatRoute: typeof ApiPublicMachineSplatRoute
 }
@@ -381,6 +420,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyChoicesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/support': {
       id: '/support'
       path: '/support'
@@ -400,6 +446,20 @@ declare module '@tanstack/react-router' {
       path: '/api/human-ai'
       fullPath: '/api/human-ai'
       preLoaderRoute: typeof ApiHumanAiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/': {
+      id: '/blog/'
+      path: '/blog'
+      fullPath: '/blog/'
+      preLoaderRoute: typeof BlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/blog/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/human/': {
@@ -570,9 +630,12 @@ const rootRouteChildren: RootRouteChildren = {
   NonhumanRoute: NonhumanRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
   PrivacyChoicesRoute: PrivacyChoicesRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   SupportRoute: SupportRoute,
   TermsRoute: TermsRoute,
   ApiHumanAiRoute: ApiHumanAiRoute,
+  BlogSlugRoute: BlogSlugRoute,
+  BlogIndexRoute: BlogIndexRoute,
   ApiPublicOpenapiRoute: ApiPublicOpenapiRoute,
   ApiPublicMachineSplatRoute: ApiPublicMachineSplatRoute,
 }

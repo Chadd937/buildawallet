@@ -10,6 +10,7 @@ const legalLinks = [
 ] as const;
 
 const productLinks = [
+  { to: "/blog", label: "Blog" },
   { to: "/human/setup", label: "Human wallet" },
   { to: "/human/studio", label: "Wallet Studio" },
   { to: "/human/wallet", label: "Web wallet" },

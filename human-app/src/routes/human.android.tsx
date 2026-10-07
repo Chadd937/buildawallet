@@ -45,7 +45,7 @@ function AndroidBuild() {
     if (ready) { setAppName(draft.name); setPkg(`xyz.buildawallet.${slug(draft.name)}`); }
   }, [ready, draft.name]);
 
-  const walletUrl = origin ? `${origin}/human/wallet` : "";
+  const walletUrl = origin ? `${origin}/human/wallet` : "";\n  const apkUrl = origin ? `${origin}/downloads/BuildAWallet-1.0.0.apk` : "";
   const secureWalletUrl = /^https:\/\//.test(walletUrl);
   const ok = appName.trim().length > 0 && validPackage(pkg) && /^\d+\.\d+\.\d+$/.test(version) && secureWalletUrl;
 
@@ -70,6 +70,18 @@ function AndroidBuild() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function downloadApk() {
+    if (!apkUrl) return;
+    const el = document.createElement("a");
+    el.href = apkUrl;
+    el.download = "BuildAWallet-1.0.0.apk";
+    document.body.appendChild(el);
+    el.click();
+    el.remove();
+    setStep(3);
+    toast.success("BuildAWallet Android APK download started");
   }
 
   return (
@@ -104,6 +116,15 @@ function AndroidBuild() {
                   <Toggle icon={<Smartphone className="size-5 text-zap" />} title="Open explorer links in browser" detail="Tapping a transaction link opens your phone's browser." checked={ext} onChange={setExt} />
                 </div>
                 <Button size="lg" variant="pop" className="mt-6 w-full" disabled={!ok} onClick={() => setStep(2)}>Continue</Button>
+                <div className="mt-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-semibold">Official BuildAWallet Android app</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Use the finished signed APK now. No Android Studio or build step required.</p>
+                    </div>
+                    <Button size="sm" variant="outline" disabled={!apkUrl} onClick={downloadApk}><Download />APK</Button>
+                  </div>
+                </div>
               </section>
             )}
 
@@ -127,17 +148,18 @@ function AndroidBuild() {
 
             {step === 3 && (
               <section className="glass rounded-3xl p-6">
-                <h2 className="text-xl font-bold">Install on your phone</h2>
+                <h2 className="text-xl font-bold">Install BuildAWallet on Android</h2>
                 <div className="mt-5 grid items-center gap-6 sm:grid-cols-[auto_1fr]">
-                  <div className="rounded-2xl bg-foreground p-4"><QRCodeSVG value={walletUrl} size={180} /></div>
+                  <div className="rounded-2xl bg-foreground p-4"><QRCodeSVG value={apkUrl || walletUrl} size={180} /></div>
                   <ol className="space-y-3 text-sm">
-                    <li><b>Right now:</b> scan to open your wallet on your phone, then choose "Add to Home screen" to install it.</li>
-                    <li><b>Signed APK:</b> open the downloaded project in Android Studio and choose Build › Generate Signed APK, or push it to GitHub and tag a release for an automatic signed APK.</li>
-                    <li><b>Same wallet:</b> restore with your recovery phrase on the phone. Keys never sync through any server.</li>
+                    <li><b>1. Download:</b> use the APK button below or scan the QR code with your Android phone.</li>
+                    <li><b>2. Install:</b> if Android asks, allow your browser to install apps from this source, then open BuildAWallet.</li>
+                    <li><b>3. Your keys:</b> the app keeps wallet data on the device. Your recovery phrase is never sent to BuildAWallet servers.</li>
                   </ol>
                 </div>
                 <div className="mt-6 flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={download}><Download />Download again</Button>
+                  <Button size="lg" variant="pop" onClick={downloadApk} disabled={!apkUrl}><Download />Download official APK</Button>
+                  <Button variant="outline" onClick={download}><Download />Build Android project</Button>
                   <Button asChild><Link to="/human/wallet">Open web wallet</Link></Button>
                 </div>
               </section>

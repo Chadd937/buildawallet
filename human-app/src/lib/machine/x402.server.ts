@@ -1,12 +1,10 @@
-import { x402HTTPResourceServer, x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { createCdpFacilitatorClient } from "@coinbase/cdp-sdk/x402";
+import { x402HTTPResourceServer, x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { appDatabase } from "@/lib/db/context.server";
 import { recordAgentPayment } from "./billing.server";
 import { BASE_COLLECTOR, BASE_MAINNET, SOLANA_COLLECTOR, SOLANA_MAINNET } from "./config";
-
-const FACILITATOR_URL = () => process.env["X402_FACILITATOR_URL"]?.trim() || "https://api.cdp.coinbase.com/platform/v2/x402";
-const FACILITATOR_AUTH = () => process.env["X402_FACILITATOR_AUTH"]?.trim() || "";
 
 type PaymentContext = {
   payload: any;
@@ -28,27 +26,15 @@ const adapter = (request: Request) => ({
 });
 
 function makeServer() {
-  const url = FACILITATOR_URL();
-  if (!url) return null;
-  const auth = FACILITATOR_AUTH();
-  const facilitator = new HTTPFacilitatorClient({
-    url,
-    ...(auth
-      ? {
-          createAuthHeaders: async () => {
-            const headers = { Authorization: `Bearer ${auth}` };
-            return { verify: headers, settle: headers, supported: headers };
-          },
-        }
-      : {}),
-  });
+  if (!process.env["CDP_API_KEY_ID"]?.trim() || !process.env["CDP_API_KEY_SECRET"]?.trim()) return null;
+  const facilitator = createCdpFacilitatorClient();
   return new x402ResourceServer(facilitator)
     .register(BASE_MAINNET, new ExactEvmScheme())
     .register(SOLANA_MAINNET, new ExactSvmScheme());
 }
 
 export function x402Configured() {
-  return Boolean(FACILITATOR_AUTH());
+  return Boolean(process.env["CDP_API_KEY_ID"]?.trim() && process.env["CDP_API_KEY_SECRET"]?.trim());
 }
 
 export async function x402Protect(
@@ -67,7 +53,7 @@ export async function x402Protect(
         {
           error: "Pay-per-call is not configured yet",
           code: "x402_facilitator_not_configured",
-          configure: "Set X402_FACILITATOR_AUTH and redeploy.",
+          configure: "Set CDP_API_KEY_ID and CDP_API_KEY_SECRET and redeploy.",
         },
         { status: 503 },
       ),

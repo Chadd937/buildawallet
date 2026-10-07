@@ -10,6 +10,8 @@ import {
   createMachineAccessQuote,
   activateMachineAccessQuote,
   machineAccessQuote,
+  agentAccountByWallet,
+  ensureAgentAccount,
 } from "./billing.server";
 import { MACHINE_CHAINS, machineChain, rpcUrl, validAddress } from "./chains";
 import {
@@ -157,6 +159,7 @@ export async function handleMachineRequest(request: Request) {
           quote: "POST /machine/v1/agent/quote",
           activate: "POST /machine/v1/agent/activate",
           x402: "PAYMENT-SIGNATURE on metered endpoints",
+          account: "GET /machine/v1/agent/account?chain={base|solana}&wallet={address}",
         },
         payment: {
           prepaid: true,
@@ -167,6 +170,30 @@ export async function handleMachineRequest(request: Request) {
         custody: "non-custodial",
         signing: "caller-controlled",
       }, 200, cors);
+    if (request.method === "GET" && tail.join("/") === "agent/account") {
+      const url = new URL(request.url);
+      const chain = url.searchParams.get("chain");
+      const wallet = url.searchParams.get("wallet");
+      if ((chain !== "base" && chain !== "solana") || !wallet)
+        throw new RangeError("chain and wallet query parameters are required");
+      const selected = machineChain(chain);
+      if (!selected || !validAddress(selected, wallet))
+        throw new RangeError("Valid Base or Solana wallet required");
+      const account = await agentAccountByWallet(chain, wallet);
+      return json(
+        account
+          ? {
+              ...account,
+              currency: "USDC",
+              settlementThresholdUSD: "1.00",
+              x402PriceUSD: "0.01",
+              ledger: "machine_agent_ledger",
+            }
+          : await ensureAgentAccount(chain, wallet),
+        200,
+        cors,
+      );
+    }
     if (request.method === "POST" && tail.join("/") === "agent/quote") {
       const body = await objectBody(request);
       const chain = body["chain"];

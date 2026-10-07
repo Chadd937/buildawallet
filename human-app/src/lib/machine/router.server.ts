@@ -57,6 +57,7 @@ const subscriptionRead = async (
 ) => {
   const access = await consumeApiKey(request, 0);
   let payment: Awaited<ReturnType<typeof x402Protect>> | null = null;
+  if (!access && request.headers.get("authorization")) return authError();
   if (!access && cost > 0) {
     payment = await x402Protect(request, "$0.01", "BuildAWallet machine API request");
     if (payment.kind === "error") {

@@ -28,6 +28,26 @@ const tools = [
     inputSchema: schema([], {}),
   },
   {
+    name: "agent_bootstrap",
+    title: "Machine bootstrap",
+    description: "Return machine-native discovery, payment rails and onboarding endpoints. Free.",
+    inputSchema: schema([], {}),
+  },
+  {
+    name: "agent_quote",
+    title: "Create access quote",
+    description: "Create a short-lived exact USDC quote for a wallet and prepaid plan. Free.",
+    inputSchema: schema(["chain", "wallet", "planId"], {
+      chain: { type: "string", enum: ["base", "solana"] }, wallet: { type: "string" }, planId: { type: "string", enum: ["builder", "pro", "scale"] },
+    }),
+  },
+  {
+    name: "agent_activate",
+    title: "Activate paid access",
+    description: "Verify the quoted USDC transaction and return a machine API key. Payment must be signed by the agent wallet.",
+    inputSchema: schema(["quoteId", "tx"], { quoteId: { type: "string" }, tx: { type: "string" } }),
+  },
+  {
     name: "api_usage",
     title: "API usage",
     description:
@@ -169,6 +189,9 @@ async function callTool(request: Request, name: string, args: Record<string, unk
       settlement: ["Base USDC", "Solana USDC"],
       chains: MACHINE_CHAINS.map((chain) => chain.id),
     });
+  if (name === "agent_bootstrap") return invoke(request, "/machine/v1/agent/bootstrap");
+  if (name === "agent_quote") return invoke(request, "/machine/v1/agent/quote", { method: "POST", body: { chain: args["chain"], wallet: args["wallet"], planId: args["planId"] } });
+  if (name === "agent_activate") return invoke(request, "/machine/v1/agent/activate", { method: "POST", body: { quoteId: args["quoteId"], tx: args["tx"] } });
   if (name === "api_usage") return invoke(request, "/machine/v1/usage");
   if (name === "wallet_local_kit") return invoke(request, "/machine/v1/wallets/kit");
   if (name === "portfolio")

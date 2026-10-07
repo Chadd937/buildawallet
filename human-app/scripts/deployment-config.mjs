@@ -74,6 +74,14 @@ export function deploymentSecrets(values) {
   );
 }
 
+export function validateX402Deployment(values) {
+  if (!values.X402_FACILITATOR_AUTH)
+    throw new Error("x402 production payments require X402_FACILITATOR_AUTH. Configure the CDP x402 facilitator bearer token before deployment.");
+  if (values.X402_FACILITATOR_URL && !/^https:\/\//.test(values.X402_FACILITATOR_URL))
+    throw new Error("X402_FACILITATOR_URL must use HTTPS");
+  return values.X402_FACILITATOR_URL || "https://api.cdp.coinbase.com/platform/v2/x402";
+}
+
 export function validateAiDeployment(config, values) {
   const provider = values.AI_PROVIDER || "workers-ai";
   if (provider === "workers-ai") {

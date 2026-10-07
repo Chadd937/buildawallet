@@ -60,6 +60,41 @@ export const openapi = {
   externalDocs: { url: `${ORIGIN}/nonhuman/pricing`, description: "Pricing-first machine access hub" },
   tags: [...new Set(ENDPOINTS.map((e) => e.tag))].map((name) => ({ name })),
   paths: {
+    "/machine/v1/agent/bootstrap": {
+      get: {
+        tags: ["Discovery"],
+        summary: "Machine-native bootstrap manifest",
+        responses: ok("Discovery, payment and onboarding metadata"),
+      },
+    },
+    "/machine/v1/agent/quote": {
+      post: {
+        tags: ["Machine checkout"],
+        summary: "Create a short-lived USDC access quote",
+        requestBody: body(
+          {
+            chain: { type: "string", enum: ["base", "solana"] },
+            wallet: { type: "string" },
+            planId: { type: "string", enum: ["builder", "pro", "scale"] },
+          },
+          ["chain", "wallet", "planId"],
+          { chain: "base", wallet: "0x…", planId: "pro" },
+        ),
+        responses: { "201": { description: "Exact payment requirements and activation URL" } },
+      },
+    },
+    "/machine/v1/agent/activate": {
+      post: {
+        tags: ["Machine checkout"],
+        summary: "Verify an exact USDC payment and mint a machine API key",
+        requestBody: body(
+          { quoteId: { type: "string" }, tx: { type: "string" } },
+          ["quoteId", "tx"],
+          { quoteId: "…", tx: "0x…" },
+        ),
+        responses: { "200": { description: "Active entitlement and baw_live_ API key" } },
+      },
+    },
     "/machine/v1/chains": {
       get: {
         tags: ["Discovery"],
@@ -300,11 +335,12 @@ export const offer = {
       stored: false,
     },
   },
-  billing: PREPAID_BILLING,
+  billing: { ...PREPAID_BILLING, machineBootstrap: `${ORIGIN}/machine/v1/agent/bootstrap`, quote: `${ORIGIN}/machine/v1/agent/quote`, activate: `${ORIGIN}/machine/v1/agent/activate` },
   plans: publicPlans(),
   unitCosts: Object.fromEntries(
     ENDPOINTS.filter((e) => e.units > 0).map((e) => [`${e.method} ${e.path}`, e.units]),
   ),
+  x402: { enabled: true, header: "PAYMENT-SIGNATURE", responseHeader: "PAYMENT-RESPONSE", price: "$0.01" },
   payment: {
     base: { asset: BASE_USDC, collector: BASE_COLLECTOR },
     solana: { asset: SOLANA_USDC, collector: SOLANA_COLLECTOR },
@@ -327,7 +363,7 @@ export const llms = `# BuildAWallet.xyz
 - Local (recommended, keys never leave you): GET ${ORIGIN}/machine/v1/wallets/kit then run ${ORIGIN}/machine/v1/wallets/kit.mjs
 - Server-made (opt-in): POST ${ORIGIN}/machine/v1/wallets/generate {"acknowledgeCustodyRisk":true}. Phrase returned once, never stored.
 
-## Prepaid access
+## Machine-native instant access\n- Bootstrap: GET ${ORIGIN}/machine/v1/agent/bootstrap\n- Quote: POST ${ORIGIN}/machine/v1/agent/quote with chain, wallet and planId.\n- Pay the exact USDC amount returned by the quote, then POST the transaction to ${ORIGIN}/machine/v1/agent/activate to receive a `baw_live_` API key.\n- Metered endpoints also accept x402 v2 `PAYMENT-SIGNATURE` for direct $0.01 USDC-per-request access when the facilitator is configured.\n\n## Prepaid access
 - Pay once for a block of service units. Every metered request deducts backend units, without a blockchain payment per call. Purchases and renewals settle in USDC on Base or Solana.
 - Subscribe: humans buy plans at ${ORIGIN}/nonhuman/dashboard (baw_acct_ keys). Agents can self-subscribe by wallet signature: POST /machine/v1/auth/challenge → /auth/verify → pay exact USDC → /subscription/confirm → /subscription/key (baw_live_ key).
 - Free: 1,000 units once for every new dashboard account.

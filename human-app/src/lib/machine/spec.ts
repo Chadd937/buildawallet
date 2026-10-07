@@ -7,6 +7,8 @@ import {
   SOLANA_USDC,
   publicPlans,
   PREPAID_BILLING,
+  X402_PRICE_USD,
+  AGENT_SETTLEMENT_THRESHOLD_ATOMIC,
 } from "./config";
 import { ENDPOINTS } from "./catalog";
 
@@ -65,6 +67,17 @@ export const openapi = {
         tags: ["Discovery"],
         summary: "Machine-native bootstrap manifest",
         responses: ok("Discovery, payment and onboarding metadata"),
+      },
+    },
+    "/machine/v1/agent/account": {
+      get: {
+        tags: ["Machine accounts"],
+        summary: "Get or initialize an agent payment and usage account",
+        parameters: [
+          { name: "chain", in: "query", required: true, schema: { type: "string", enum: ["base", "solana"] } },
+          { name: "wallet", in: "query", required: true, schema: { type: "string" } },
+        ],
+        responses: ok("Persistent public-wallet agent ledger summary"),
       },
     },
     "/machine/v1/agent/quote": {
@@ -340,7 +353,14 @@ export const offer = {
   unitCosts: Object.fromEntries(
     ENDPOINTS.filter((e) => e.units > 0).map((e) => [`${e.method} ${e.path}`, e.units]),
   ),
-  x402: { enabled: true, header: "PAYMENT-SIGNATURE", responseHeader: "PAYMENT-RESPONSE", price: "$0.01" },
+  x402: {
+    enabled: true,
+    header: "PAYMENT-SIGNATURE",
+    responseHeader: "PAYMENT-RESPONSE",
+    price: X402_PRICE_USD,
+    accountingBatchThresholdUSDC: "1.00",
+    accountingBatchThresholdAtomic: AGENT_SETTLEMENT_THRESHOLD_ATOMIC,
+  },
   payment: {
     base: { asset: BASE_USDC, collector: BASE_COLLECTOR },
     solana: { asset: SOLANA_USDC, collector: SOLANA_COLLECTOR },
@@ -364,7 +384,7 @@ export const llms = `# BuildAWallet.xyz
 - Server-made (opt-in): POST ${ORIGIN}/machine/v1/wallets/generate {"acknowledgeCustodyRisk":true}. Phrase returned once, never stored.
 
 ## Machine-native instant access
-- Bootstrap: GET ${ORIGIN}/machine/v1/agent/bootstrap
+- Bootstrap: GET ${ORIGIN}/machine/v1/agent/bootstrap\n- Agent account: GET ${ORIGIN}/machine/v1/agent/account?chain=base&wallet=0x...\n- Agent accounting tracks x402/prepaid payments and API usage against the public settlement wallet.
 - Quote: POST ${ORIGIN}/machine/v1/agent/quote with chain, wallet and planId.
 - Pay the exact USDC amount returned by the quote, then POST the transaction to ${ORIGIN}/machine/v1/agent/activate to receive a \`baw_live_\` API key.
 - Metered endpoints also accept x402 v2 \`PAYMENT-SIGNATURE\` for direct $0.01 USDC-per-request access when the facilitator is configured.

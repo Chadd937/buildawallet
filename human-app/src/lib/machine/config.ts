@@ -45,12 +45,16 @@ export const FREE_PLAN_ID = "free";
 
 /** Only these existing collectors are enabled for plan purchases. */
 export const PAYMENT_CHAINS = ["base", "solana"] as const;
+export const X402_PRICE_USD = "$0.01";
+export const AGENT_SETTLEMENT_THRESHOLD_ATOMIC = "1000000"; // $1 USDC accounting/batch threshold
 export const PREPAID_BILLING = {
   mode: "prepaid",
   perRequestOnchainPayment: true,
   plans: "/machine/v1/plans",
   x402: "/machine/v1/{chain}/...",
   dashboard: "/nonhuman/dashboard",
+  agentAccount: "/machine/v1/agent/account?chain={base|solana}&wallet={address}",
+  accountingBatchThresholdUSD: "1.00",
 } as const;
 export function paymentCollector(chain: string) {
   if (chain === "base") return BASE_COLLECTOR;

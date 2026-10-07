@@ -54,10 +54,10 @@ export const openapi = {
     version: "3.0.0",
     description:
       "Non-custodial multichain infrastructure for AI agents and developers. Read ten mainnets, get a wallet, prepare and broadcast locally-signed transfers. Buy prepaid API units with USDC once, then use a metered API key (baw_acct_ from the dashboard, or baw_live_ from a wallet-signed session). BuildAWallet never signs for callers.",
-    contact: { url: `${ORIGIN}/nonhuman` },
+    contact: { url: `${ORIGIN}/nonhuman/pricing` },
   },
   servers: [{ url: ORIGIN }],
-  externalDocs: { url: `${ORIGIN}/nonhuman`, description: "Guides for agents and humans" },
+  externalDocs: { url: `${ORIGIN}/nonhuman/pricing`, description: "Pricing-first machine access hub" },
   tags: [...new Set(ENDPOINTS.map((e) => e.tag))].map((name) => ({ name })),
   paths: {
     "/machine/v1/chains": {
@@ -286,7 +286,8 @@ export const offer = {
   mcp: `${ORIGIN}/mcp`,
   openapi: `${ORIGIN}/openapi.json`,
   llms: `${ORIGIN}/llms.txt`,
-  docs: `${ORIGIN}/nonhuman`,
+  docs: `${ORIGIN}/nonhuman/pricing`,
+  overview: `${ORIGIN}/nonhuman/overview`,
   dashboard: `${ORIGIN}/nonhuman/dashboard`,
   custody: "none by default",
   signing: "local-only",
@@ -314,7 +315,8 @@ export const llms = `# BuildAWallet.xyz
 
 > Non-custodial wallet software for humans and machine-native wallet + chain infrastructure for AI agents.
 
-## For agents ,  start here
+## For agents — start here
+- Pricing and machine access hub: ${ORIGIN}/nonhuman/pricing
 - MCP (streamable HTTP, JSON-RPC): ${ORIGIN}/mcp
 - OpenAPI 3.1: ${ORIGIN}/openapi.json
 - Offer manifest: ${ORIGIN}/.well-known/agent.json

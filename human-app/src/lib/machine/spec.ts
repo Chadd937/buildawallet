@@ -35,9 +35,10 @@ const addressParam = {
 const ok = (description: string) => ({
   "200": { description, content: { "application/json": { schema: { type: "object" } } } },
 });
-const keyed = { security: [{ bearerAuth: [] }] };
+const keyed = { security: [{ bearerAuth: [] }, {}] };
 const errors = {
-  "401": { description: "Missing or invalid API key" },
+  "401": { description: "Missing or invalid API key when using prepaid access" },
+  "402": { description: "x402 payment required; send PAYMENT-SIGNATURE for direct USDC-per-call access" },
   "429": { description: "Unit quota exhausted" },
 };
 const body = (
@@ -55,7 +56,7 @@ export const openapi = {
     title: "BuildAWallet Machine API",
     version: "3.0.0",
     description:
-      "Non-custodial multichain infrastructure for AI agents and developers. Read ten mainnets, get a wallet, prepare and broadcast locally-signed transfers. Buy prepaid API units with USDC once, then use a metered API key (baw_acct_ from the dashboard, or baw_live_ from a wallet-signed session). BuildAWallet never signs for callers.",
+      "Non-custodial multichain infrastructure for AI agents and developers. Read ten mainnets, get a wallet, prepare and broadcast locally-signed transfers. Use prepaid API units with a metered API key (baw_acct_ from the dashboard, or baw_live_ from a wallet-signed session), or pay metered endpoints directly with x402 PAYMENT-SIGNATURE. BuildAWallet never signs for callers.",
     contact: { url: `${ORIGIN}/nonhuman/pricing` },
   },
   servers: [{ url: ORIGIN }],

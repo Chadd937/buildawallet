@@ -57,6 +57,7 @@ const subscriptionRead = async (
   work: () => Promise<unknown>,
   chain = "",
   reserveBeforeWork = false,
+  settleBeforeWork = false,
 ) => {
   const access = await consumeApiKey(request, 0);
   let payment: Awaited<ReturnType<typeof x402Protect>> | null = null;
@@ -78,6 +79,11 @@ const subscriptionRead = async (
     if (!usage) return authError();
     if (!usage.allowed) return json({ error: "API unit quota exhausted" }, 429, cors);
   }
+  let settled: Awaited<ReturnType<typeof x402Settle>> | null = null;
+  if (!access && payment?.kind === "paid" && settleBeforeWork) {
+    settled = await x402Settle(payment.payment);
+    if (!settled.ok) return settled.response;
+  }
   let result: unknown;
   try {
     result = await work();
@@ -85,8 +91,10 @@ const subscriptionRead = async (
     throw error;
   }
   if (!access && payment?.kind === "paid") {
-    const settled = await x402Settle(payment.payment);
-    if (!settled.ok) return settled.response;
+    if (!settled) {
+      settled = await x402Settle(payment.payment);
+      if (!settled.ok) return settled.response;
+    }
     const response = json({ ...(result as object), payment: { mode: "x402", settlement: true } }, 200, cors);
     Object.entries(settled.headers).forEach(([key, value]) => response.headers.set(key, value));
     return response;
@@ -418,6 +426,7 @@ export async function handleMachineRequest(request: Request) {
                 String(body["signedTransactionBase64"] ?? ""),
               ),
         chainId,
+        true,
         true,
       );
     }

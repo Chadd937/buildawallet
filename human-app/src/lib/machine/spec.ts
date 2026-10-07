@@ -366,7 +366,7 @@ export const llms = `# BuildAWallet.xyz
 ## Machine-native instant access
 - Bootstrap: GET ${ORIGIN}/machine/v1/agent/bootstrap
 - Quote: POST ${ORIGIN}/machine/v1/agent/quote with chain, wallet and planId.
-- Pay the exact USDC amount returned by the quote, then POST the transaction to ${ORIGIN}/machine/v1/agent/activate to receive a `baw_live_` API key.
+- Pay the exact USDC amount returned by the quote, then POST the transaction to ${ORIGIN}/machine/v1/agent/activate to receive a \`baw_live_\` API key.
 - Metered endpoints also accept x402 v2 `PAYMENT-SIGNATURE` for direct $0.01 USDC-per-request access when the facilitator is configured.
 
 ## Prepaid access

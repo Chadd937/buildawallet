@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { appDatabase } from "@/lib/db/context.server";
 import { activateWalletPayment, consumeUnits } from "@/lib/db/storage.server";
-import { planById, type PlanId } from "./config";
+import { planById, type PlanId, paymentCollector } from "./config";
 
 export const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 export const secretToken = () => randomBytes(32).toString("hex");
@@ -164,4 +164,87 @@ export async function revokeApiKey(request: Request) {
     .bind(identity.chain, identity.wallet)
     .run();
   return { revoked: true };
+}
+
+
+export async function createMachineAccessQuote(
+  chain: "base" | "solana",
+  wallet: string,
+  planId: PlanId,
+) {
+  const plan = planById(planId);
+  if (!plan) throw new RangeError("Unknown plan");
+  const createdAt = now();
+  const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString();
+  const id = crypto.randomUUID();
+  await appDatabase()
+    .prepare(
+      "INSERT INTO machine_access_quotes(id,chain,wallet,plan_id,amount_atomic,created_at,expires_at) VALUES(?,?,?,?,?,?,?)",
+    )
+    .bind(id, chain, wallet, planId, String(plan.amountAtomic), createdAt, expiresAt)
+    .run();
+  return {
+    quoteId: id,
+    chain,
+    wallet,
+    plan: { id: plan.id, name: plan.name, priceUSDC: plan.priceUSDC, units: plan.units },
+    amountAtomic: String(plan.amountAtomic),
+    asset: chain === "base" ? "USDC" : "USDC",
+    collector: paymentCollector(chain),
+    expiresAt,
+    activate: "/machine/v1/agent/activate",
+  };
+}
+
+export async function machineAccessQuote(id: string) {
+  return appDatabase()
+    .prepare(
+      "SELECT id,chain,wallet,plan_id,amount_atomic,created_at,expires_at,consumed_at FROM machine_access_quotes WHERE id=? AND consumed_at IS NULL AND expires_at>?",
+    )
+    .bind(id, now())
+    .first<{
+      id: string;
+      chain: "base" | "solana";
+      wallet: string;
+      plan_id: PlanId;
+      amount_atomic: string;
+      created_at: string;
+      expires_at: string;
+      consumed_at: string | null;
+    }>();
+}
+
+export async function activateMachineAccessQuote(quoteId: string, tx: string, paidAt: number) {
+  const quote = await machineAccessQuote(quoteId);
+  if (!quote) throw new RangeError("Quote is invalid, expired or already consumed");
+  const plan = planById(quote.plan_id);
+  if (!plan || String(plan.amountAtomic) !== quote.amount_atomic)
+    throw new RangeError("Quote amount no longer matches the active plan");
+
+  const normalizedTx = quote.chain === "base" ? tx.toLowerCase() : tx;
+  const activated = await activateWalletPayment(
+    quote.chain,
+    quote.wallet,
+    quote.plan_id,
+    normalizedTx,
+    new Date(paidAt * 1000).toISOString(),
+    plan.amountAtomic,
+  );
+
+  await appDatabase()
+    .prepare("UPDATE machine_access_quotes SET consumed_at=? WHERE id=? AND consumed_at IS NULL")
+    .bind(now(), quoteId)
+    .run();
+
+  const apiKey = `baw_live_${secretToken()}`;
+  await appDatabase()
+    .prepare(
+      `INSERT INTO machine_api_keys(chain,wallet,token_hash,created_at)
+       VALUES(?,?,?,?,?)`.replace("VALUES(?,?,?,?,?)", "VALUES(?,?,?,?)") +
+      " ON CONFLICT(chain,wallet) DO UPDATE SET token_hash=excluded.token_hash,created_at=excluded.created_at",
+    )
+    .bind(quote.chain, quote.wallet, sha256(apiKey), now())
+    .run();
+
+  return { ...activated, apiKey };
 }

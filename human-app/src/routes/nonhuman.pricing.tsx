@@ -47,7 +47,6 @@ function Pricing() {
       <Section title="Pay per use" intro="No subscription? Use x402 metered access.">
         <Panel><div className="grid gap-5 md:grid-cols-3"><div><div className="font-display text-3xl font-black">$0.01</div><div className="text-xs uppercase tracking-widest text-muted-foreground">per request</div></div><div><div className="font-display text-3xl font-black">$1+</div><div className="text-xs uppercase tracking-widest text-muted-foreground">minimum balance</div></div><div><div className="font-display text-3xl font-black">10</div><div className="text-xs uppercase tracking-widest text-muted-foreground">supported networks</div></div></div><p className="mt-5 text-sm text-muted-foreground">Fund your machine balance with an explicit on-chain payment. Calls deduct $0.01. Nothing is automatically taken from a connected human wallet.</p></Panel>
       </Section>
-      <Section title="What is free vs. metered">
       <Section
         title="What each call costs"
         intro="Read units are charged after the chain work succeeds. Broadcast attempts reserve one unit before dispatch, including rejected attempts. Free calls do not consume units."

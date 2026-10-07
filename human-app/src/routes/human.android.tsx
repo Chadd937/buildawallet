@@ -45,7 +45,8 @@ function AndroidBuild() {
     if (ready) { setAppName(draft.name); setPkg(`xyz.buildawallet.${slug(draft.name)}`); }
   }, [ready, draft.name]);
 
-  const walletUrl = origin ? `${origin}/human/wallet` : "";\n  const apkUrl = origin ? `${origin}/downloads/BuildAWallet-1.0.0.apk` : "";
+  const walletUrl = origin ? `${origin}/human/wallet` : "";
+  const apkUrl = origin ? `${origin}/downloads/BuildAWallet-1.0.0.apk` : "";
   const secureWalletUrl = /^https:\/\//.test(walletUrl);
   const ok = appName.trim().length > 0 && validPackage(pkg) && /^\d+\.\d+\.\d+$/.test(version) && secureWalletUrl;
 

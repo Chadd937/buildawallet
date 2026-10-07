@@ -38,49 +38,16 @@ function Pricing() {
         with USDC on Base or Solana, then use your API key. Requests deduct units in your account
         without another blockchain transaction. Unused units roll over when you renew before expiry.
       </PageHero>
-      <Section title="Start free">
-        <Panel className="border-primary/60">
-          <p className="text-sm text-muted-foreground">
-            <b className="text-foreground">{FREE_UNITS.toLocaleString()} free units</b> for every
-            new dashboard account. No card, no crypto. One unit is a full multichain portfolio
-            query: native and stablecoin balances on every network that accepts the address.
-          </p>
-          <Link
-            to="/nonhuman/dashboard"
-            className="mt-4 inline-block rounded-xl bg-primary px-4 py-2 font-display text-xs font-black uppercase text-primary-foreground"
-          >
-            Claim free units
-          </Link>
-        </Panel>
-      </Section>
-      <Section title="Plans">
-        <div className="grid gap-4 md:grid-cols-3">
-          {plans.map((p, i) => (
-            <Panel key={p.id} className={i === 1 ? "border-primary/60" : ""}>
-              <div className="font-mono text-[10px] uppercase tracking-widest text-pop">
-                {p.name}
-              </div>
-              <div className="mt-2 font-display text-4xl font-black">
-                ${p.priceUSDC.replace(".00", "")}
-                <span className="text-sm text-muted-foreground"> / 30 days</span>
-              </div>
-              <ul className="mt-4 space-y-1.5 text-sm text-muted-foreground">
-                <li>
-                  <b className="text-foreground">{p.units.toLocaleString()}</b> units
-                </li>
-                <li>${((Number(p.priceUSDC) / p.units) * 1000).toFixed(3)} per 1,000 units</li>
-                <li>Up to 10 active API keys</li>
-              </ul>
-              <Link
-                to="/nonhuman/dashboard"
-                className="mt-5 inline-block rounded-xl bg-primary px-4 py-2 font-display text-xs font-black uppercase text-primary-foreground"
-              >
-                Buy {p.name}
-              </Link>
-            </Panel>
-          ))}
+      <Section title="Choose how you pay" intro="Free discovery, prepaid plans, or simple metered usage.">
+        <div className="grid gap-5 md:grid-cols-3">
+          <Panel className="border-primary/70"><div className="font-mono text-xs font-bold uppercase tracking-widest text-primary">FREE</div><div className="mt-2 font-display text-4xl font-black">$0</div><p className="mt-2 text-sm text-muted-foreground">For humans and developers getting started.</p><ul className="mt-5 space-y-2 text-sm"><li>✓ {FREE_UNITS.toLocaleString()} free API units</li><li>✓ Swagger / OpenAPI docs</li><li>✓ MCP discovery</li><li>✓ Wallet tools & multichain discovery</li></ul><Link to="/nonhuman/dashboard" className="mt-6 inline-block rounded-xl bg-primary px-4 py-2 font-display text-xs font-black uppercase text-primary-foreground">Start free</Link></Panel>
+          {plans.map((p, i) => <Panel key={p.id} className={i === 1 ? "border-primary/70" : ""}><div className="font-mono text-xs font-bold uppercase tracking-widest text-pop">{p.name}</div><div className="mt-2 font-display text-4xl font-black">${p.priceUSDC.replace(".00","")}<span className="text-sm font-normal text-muted-foreground"> / 30 days</span></div><p className="mt-2 text-sm text-muted-foreground">Prepaid machine capacity.</p><div className="mt-5 rounded-xl border border-border p-3"><div className="text-2xl font-black">{p.units.toLocaleString()}</div><div className="text-xs uppercase tracking-widest text-muted-foreground">API units</div></div><Link to="/nonhuman/dashboard" className="mt-6 inline-block rounded-xl bg-primary px-4 py-2 font-display text-xs font-black uppercase text-primary-foreground">Choose {p.name}</Link></Panel>)}
         </div>
       </Section>
+      <Section title="Pay per use" intro="No subscription? Use x402 metered access.">
+        <Panel><div className="grid gap-5 md:grid-cols-3"><div><div className="font-display text-3xl font-black">$0.01</div><div className="text-xs uppercase tracking-widest text-muted-foreground">per request</div></div><div><div className="font-display text-3xl font-black">$1+</div><div className="text-xs uppercase tracking-widest text-muted-foreground">minimum balance</div></div><div><div className="font-display text-3xl font-black">10</div><div className="text-xs uppercase tracking-widest text-muted-foreground">supported networks</div></div></div><p className="mt-5 text-sm text-muted-foreground">Fund your machine balance with an explicit on-chain payment. Calls deduct $0.01. Nothing is automatically taken from a connected human wallet.</p></Panel>
+      </Section>
+      <Section title="What is free vs. metered">
       <Section
         title="What each call costs"
         intro="Read units are charged after the chain work succeeds. Broadcast attempts reserve one unit before dispatch, including rejected attempts. Free calls do not consume units."
@@ -102,13 +69,7 @@ function Pricing() {
           </table>
         </div>
       </Section>
-      <Section title="When units run out">
-        <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-          Metered calls return <code>429</code> with your usage, and no units are charged. Buy
-          another plan from the dashboard; it adds units straight away and extends the expiry by 30
-          days. No automatic wallet debit or per-call blockchain payment is attempted.
-        </p>
-      </Section>
+      <Section title="When units run out"><p className="max-w-3xl text-sm leading-6 text-muted-foreground">Buy another plan from the dashboard. There is no automatic wallet debit or per-call blockchain payment.</p></Section>
     </>
   );
 }

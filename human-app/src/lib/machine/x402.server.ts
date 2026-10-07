@@ -19,9 +19,11 @@ const adapter = (request: Request) => ({
   getMethod: () => request.method,
   getPath: () => new URL(request.url).pathname,
   getUrl: () => request.url,
+  getAcceptHeader: () => request.headers.get("accept") ?? "",
+  getUserAgent: () => request.headers.get("user-agent") ?? "",
   getQueryParams: () => Object.fromEntries(new URL(request.url).searchParams.entries()),
   getQueryParam: (name: string) => new URL(request.url).searchParams.get(name) ?? undefined,
-  getBody: () => undefined,
+  getBody: async () => undefined,
 });
 
 function makeServer() {
@@ -32,31 +34,32 @@ function makeServer() {
     url,
     ...(auth
       ? {
-          createAuthHeaders: async () => ({
-            verify: { Authorization: `Bearer ${auth}` },
-            settle: { Authorization: `Bearer ${auth}` },
-            supported: { Authorization: `Bearer ${auth}` },
-          }),
+          createAuthHeaders: async () => {
+            const headers = { Authorization: `Bearer ${auth}` };
+            return { verify: headers, settle: headers, supported: headers };
+          },
         }
       : {}),
   });
-  const resource = new x402ResourceServer(facilitator)
+  return new x402ResourceServer(facilitator)
     .register(BASE_MAINNET, new ExactEvmScheme())
     .register(SOLANA_MAINNET, new ExactSvmScheme());
-  return resource;
 }
 
 export function x402Configured() {
   return Boolean(FACILITATOR_URL());
 }
 
-export async function x402Protect(request: Request, priceUSD: string, description: string): Promise<
+export async function x402Protect(
+  request: Request,
+  priceUSD: string,
+  description: string,
+): Promise<
   | { kind: "error"; response: Response }
-  | { kind: "free" }
   | { kind: "paid"; payment: PaymentContext }
 > {
   const resourceServer = makeServer();
-  if (!resourceServer) {
+  if (!resourceServer)
     return {
       kind: "error",
       response: Response.json(
@@ -68,26 +71,40 @@ export async function x402Protect(request: Request, priceUSD: string, descriptio
         { status: 503 },
       ),
     };
-  }
+
   const routes = {
-    "* " + new URL(request.url).pathname: {
+    "*": {
       accepts: [
-        { scheme: "exact", price: priceUSD, network: BASE_MAINNET, payTo: BASE_COLLECTOR, maxTimeoutSeconds: 300 },
-        { scheme: "exact", price: priceUSD, network: SOLANA_MAINNET, payTo: SOLANA_COLLECTOR, maxTimeoutSeconds: 300 },
+        {
+          scheme: "exact",
+          price: priceUSD,
+          network: BASE_MAINNET,
+          payTo: BASE_COLLECTOR,
+          maxTimeoutSeconds: 300,
+        },
+        {
+          scheme: "exact",
+          price: priceUSD,
+          network: SOLANA_MAINNET,
+          payTo: SOLANA_COLLECTOR,
+          maxTimeoutSeconds: 300,
+        },
       ],
       description,
       mimeType: "application/json",
       resource: request.url,
     },
   } as any;
+
   const httpServer = new x402HTTPResourceServer(resourceServer, routes);
   const result = await httpServer.processHTTPRequest({
     adapter: adapter(request),
     path: new URL(request.url).pathname,
     method: request.method,
     paymentHeader: request.headers.get("PAYMENT-SIGNATURE") ?? undefined,
-  } as any);
-  if (result.type === "payment-error") {
+  });
+
+  if (result.type === "payment-error")
     return {
       kind: "error",
       response: new Response(
@@ -101,9 +118,16 @@ export async function x402Protect(request: Request, priceUSD: string, descriptio
         },
       ),
     };
-  }
-  if (result.type === "no-payment-required")
-    return { kind: "free" };
+
+  if (result.type !== "payment-verified")
+    return {
+      kind: "error",
+      response: Response.json(
+        { error: "x402 payment verification did not produce an authenticated payment" },
+        { status: 402 },
+      ),
+    };
+
   return {
     kind: "paid",
     payment: {
@@ -134,9 +158,7 @@ export async function x402Settle(payment: PaymentContext) {
         { status: 402 },
       ),
     };
-  const network = String(result.network);
-  const tx = String(result.transaction);
-  const payer = result.payer ? String(result.payer) : null;
+
   try {
     await appDatabase()
       .prepare(
@@ -144,15 +166,15 @@ export async function x402Settle(payment: PaymentContext) {
       )
       .bind(
         crypto.randomUUID(),
-        network,
-        tx,
-        payer,
+        String(result.network),
+        String(result.transaction),
+        result.payer ? String(result.payer) : null,
         String(payment.requirements.amount),
         payment.requirements.payTo,
       )
       .run();
   } catch {
-    // Settlement already happened; persistence failure must not cause a second settlement.
+    // Settlement already happened; never attempt a second settlement because persistence failed.
   }
   return { ok: true as const, headers: result.headers };
 }

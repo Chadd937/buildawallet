@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { appDatabase } from "@/lib/db/context.server";
 import { activateWalletPayment, consumeUnits } from "@/lib/db/storage.server";
-import { planById, type PlanId, paymentCollector } from "./config";
+import { BASE_MAINNET, SOLANA_MAINNET, planById, type PlanId, paymentCollector } from "./config";
 
 export const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 export const secretToken = () => randomBytes(32).toString("hex");
@@ -299,6 +299,16 @@ export async function activateMachineAccessQuote(quoteId: string, tx: string, pa
     .prepare("UPDATE machine_access_quotes SET consumed_at=? WHERE id=? AND consumed_at IS NULL")
     .bind(now(), quoteId)
     .run();
+
+  await recordAgentPayment(
+    "prepaid",
+    quote.chain === "base" ? BASE_MAINNET : SOLANA_MAINNET,
+    normalizedTx,
+    quote.wallet,
+    paymentCollector(quote.chain),
+    String(plan.amountAtomic),
+    plan.units,
+  );
 
   const apiKey = `baw_live_${secretToken()}`;
   await appDatabase()

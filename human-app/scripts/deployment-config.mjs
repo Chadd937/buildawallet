@@ -16,8 +16,8 @@ export const secretNames = [
   "POLYGON_RPC_URL",
   "BNB_RPC_URL",
   "AVALANCHE_RPC_URL",
-  "X402_FACILITATOR_URL",
-  "X402_FACILITATOR_AUTH",
+  "CDP_API_KEY_ID",
+  "CDP_API_KEY_SECRET",
 ];
 
 export function loadDeploymentConfig({
@@ -75,11 +75,7 @@ export function deploymentSecrets(values) {
 }
 
 export function validateX402Deployment(values) {
-  if (!values.X402_FACILITATOR_AUTH)
-    throw new Error("x402 production payments require X402_FACILITATOR_AUTH. Configure the CDP x402 facilitator bearer token before deployment.");
-  if (values.X402_FACILITATOR_URL && !/^https:\/\//.test(values.X402_FACILITATOR_URL))
-    throw new Error("X402_FACILITATOR_URL must use HTTPS");
-  return values.X402_FACILITATOR_URL || "https://api.cdp.coinbase.com/platform/v2/x402";
+  return values.CDP_API_KEY_ID && values.CDP_API_KEY_SECRET ? "Coinbase CDP x402" : "Coinbase CDP x402 (remote secrets)";
 }
 
 export function validateAiDeployment(config, values) {

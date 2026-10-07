@@ -5,7 +5,7 @@ import { appDatabase } from "@/lib/db/context.server";
 import { recordAgentPayment } from "./billing.server";
 import { BASE_COLLECTOR, BASE_MAINNET, SOLANA_COLLECTOR, SOLANA_MAINNET } from "./config";
 
-const FACILITATOR_URL = () => process.env["X402_FACILITATOR_URL"]?.trim() || "";
+const FACILITATOR_URL = () => process.env["X402_FACILITATOR_URL"]?.trim() || "https://api.cdp.coinbase.com/platform/v2/x402";
 const FACILITATOR_AUTH = () => process.env["X402_FACILITATOR_AUTH"]?.trim() || "";
 
 type PaymentContext = {
@@ -48,7 +48,7 @@ function makeServer() {
 }
 
 export function x402Configured() {
-  return Boolean(FACILITATOR_URL());
+  return Boolean(FACILITATOR_AUTH());
 }
 
 export async function x402Protect(
@@ -67,7 +67,7 @@ export async function x402Protect(
         {
           error: "Pay-per-call is not configured yet",
           code: "x402_facilitator_not_configured",
-          configure: "Set X402_FACILITATOR_URL and redeploy.",
+          configure: "Set X402_FACILITATOR_AUTH and redeploy.",
         },
         { status: 503 },
       ),

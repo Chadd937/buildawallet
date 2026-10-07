@@ -5,7 +5,7 @@ import { PageHero, Panel, Section } from "@/components/machine/ui";
 
 const TITLE = "Pricing ,  BuildAWallet Machine API";
 const DESC =
-  "Prepaid API units in USDC on Base or Solana. Pay once, then use your key without a blockchain payment for each request.";
+  "Machine-native access with prepaid USDC plans or x402 pay-per-call on Base or Solana.";
 export const Route = createFileRoute("/nonhuman/pricing")({
   head: () => ({
     meta: [
@@ -93,8 +93,8 @@ function Pricing() {
         </Panel>
       </Section>
 
-      <Section title="Pay per use" intro="No subscription? Use x402 metered access.">
-        <Panel><div className="grid gap-5 md:grid-cols-3"><div><div className="font-display text-3xl font-black">$0.01</div><div className="text-xs uppercase tracking-widest text-muted-foreground">per request</div></div><div><div className="font-display text-3xl font-black">$1+</div><div className="text-xs uppercase tracking-widest text-muted-foreground">minimum balance</div></div><div><div className="font-display text-3xl font-black">10</div><div className="text-xs uppercase tracking-widest text-muted-foreground">supported networks</div></div></div><p className="mt-5 text-sm text-muted-foreground">Fund your machine balance with an explicit on-chain payment. Calls deduct $0.01. Nothing is automatically taken from a connected human wallet.</p></Panel>
+      <Section title="Pay per use" intro="No subscription? Use x402 metered access when enabled.">
+        <Panel><div className="grid gap-5 md:grid-cols-3"><div><div className="font-display text-3xl font-black">$0.01</div><div className="text-xs uppercase tracking-widest text-muted-foreground">per request</div></div><div><div className="font-display text-3xl font-black">$1+</div><div className="text-xs uppercase tracking-widest text-muted-foreground">minimum balance</div></div><div><div className="font-display text-3xl font-black">10</div><div className="text-xs uppercase tracking-widest text-muted-foreground">supported networks</div></div></div><p className="mt-5 text-sm text-muted-foreground">Fund your machine balance with an explicit on-chain payment. Calls can settle $0.01 USDC directly through x402. Nothing is automatically taken from a connected human wallet; the calling agent must explicitly authorize and sign its payment.</p></Panel>
       </Section>
       <Section
         title="What each call costs"
@@ -117,7 +117,7 @@ function Pricing() {
           </table>
         </div>
       </Section>
-      <Section title="When units run out"><p className="max-w-3xl text-sm leading-6 text-muted-foreground">Buy another plan from the dashboard. There is no automatic wallet debit or per-call blockchain payment.</p></Section>
+      <Section title="When units run out"><p className="max-w-3xl text-sm leading-6 text-muted-foreground">Buy another plan from the dashboard, or use x402 pay-per-call when the facilitator is configured. There is no automatic wallet debit.</p></Section>
     </>
   );
 }

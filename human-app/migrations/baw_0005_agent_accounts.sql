@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS machine_agent_accounts (
   created_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,
   total_paid_atomic TEXT NOT NULL DEFAULT '0',
-  total_spent_atomic TEXT NOT NULL DEFAULT '0',
+  total_usage_units INTEGER NOT NULL DEFAULT 0,
+  request_count INTEGER NOT NULL DEFAULT 0,
   settlement_threshold_atomic TEXT NOT NULL DEFAULT '1000000',
   UNIQUE(chain,wallet)
 );
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS machine_agent_ledger (
   tx TEXT NOT NULL,
   resource TEXT NOT NULL,
   amount_atomic TEXT NOT NULL,
+  units INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   UNIQUE(account_id,network,tx,resource),
   FOREIGN KEY(account_id) REFERENCES machine_agent_accounts(id)

@@ -34,6 +34,15 @@ const tools = [
     inputSchema: schema([], {}),
   },
   {
+    name: "agent_account",
+    title: "Agent payment account",
+    description: "Get or initialize the persistent payment and usage ledger for the agent's public settlement wallet. Free.",
+    inputSchema: schema(["chain", "wallet"], {
+      chain: { type: "string", enum: ["base", "solana"] },
+      wallet: { type: "string" },
+    }),
+  },
+  {
     name: "agent_quote",
     title: "Create access quote",
     description: "Create a short-lived exact USDC quote for a wallet and prepaid plan. Free.",
@@ -190,6 +199,11 @@ async function callTool(request: Request, name: string, args: Record<string, unk
       chains: MACHINE_CHAINS.map((chain) => chain.id),
     });
   if (name === "agent_bootstrap") return invoke(request, "/machine/v1/agent/bootstrap");
+  if (name === "agent_account") {
+    const chain = String(args["chain"] ?? "");
+    const wallet = String(args["wallet"] ?? "");
+    return invoke(request, `/machine/v1/agent/account?chain=${encodeURIComponent(chain)}&wallet=${encodeURIComponent(wallet)}`);
+  }
   if (name === "agent_quote") return invoke(request, "/machine/v1/agent/quote", { method: "POST", body: { chain: args["chain"], wallet: args["wallet"], planId: args["planId"] } });
   if (name === "agent_activate") return invoke(request, "/machine/v1/agent/activate", { method: "POST", body: { quoteId: args["quoteId"], tx: args["tx"] } });
   if (name === "api_usage") return invoke(request, "/machine/v1/usage");
@@ -282,7 +296,7 @@ export async function handleMcp(request: Request) {
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "buildawallet", version: "3.0.0" },
           instructions:
-            "BuildAWallet: get a wallet (wallet_local_kit preferred), read ten mainnets, prepare/broadcast locally-signed transfers. Buy prepaid API units once, then use a bearer API key. Requests consume units in the backend without per-call blockchain payments.",
+            "BuildAWallet: get a wallet (wallet_local_kit preferred), read ten mainnets, prepare/broadcast locally-signed transfers, and use x402 or prepaid access. Every x402/prepaid agent payment is tracked by public settlement wallet in a persistent agent account.",
         }
       : rpc.method === "tools/list"
         ? { tools }

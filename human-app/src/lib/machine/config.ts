@@ -47,8 +47,9 @@ export const FREE_PLAN_ID = "free";
 export const PAYMENT_CHAINS = ["base", "solana"] as const;
 export const PREPAID_BILLING = {
   mode: "prepaid",
-  perRequestOnchainPayment: false,
+  perRequestOnchainPayment: true,
   plans: "/machine/v1/plans",
+  x402: "/machine/v1/{chain}/...",
   dashboard: "/nonhuman/dashboard",
 } as const;
 export function paymentCollector(chain: string) {

@@ -67,7 +67,7 @@ const tools = [
     {
       name: `${chain.id}_wallet`,
       title: `${chain.name} wallet`,
-      description: `Read the live ${chain.symbol} balance for a public ${chain.name} mainnet address. Costs one subscribed API unit.`,
+      description: `Read the live ${chain.symbol} balance for a public ${chain.name} mainnet address. Costs one API unit with prepaid access or $0.01 via x402.`,
       inputSchema: schema(["address"], {
         address: { type: "string", description: "Public wallet address" },
       }),
@@ -77,7 +77,7 @@ const tools = [
           {
             name: `${chain.id}_stablecoin`,
             title: `${chain.name} ${chain.stablecoin.symbol}`,
-            description: `Read the configured ${chain.stablecoin.symbol} balance. Costs one subscribed API unit.`,
+            description: `Read the configured ${chain.stablecoin.symbol} balance. Costs one API unit with prepaid access or $0.01 via x402.`,
             inputSchema: schema(["address"], { address: { type: "string" } }),
           },
         ]
@@ -85,13 +85,13 @@ const tools = [
     {
       name: `${chain.id}_transaction`,
       title: `${chain.name} transaction`,
-      description: `Look up a public ${chain.name} transaction. Costs one subscribed API unit.`,
+      description: `Look up a public ${chain.name} transaction. Costs one API unit with prepaid access or $0.01 via x402.`,
       inputSchema: schema(["tx"], { tx: { type: "string" } }),
     },
     {
       name: `${chain.id}_snapshot`,
       title: `${chain.name} snapshot`,
-      description: `Read native${chain.stablecoin ? ` and ${chain.stablecoin.symbol}` : ""} balances. Costs one subscribed API unit.`,
+      description: `Read native${chain.stablecoin ? ` and ${chain.stablecoin.symbol}` : ""} balances. Costs one API unit with prepaid access or $0.01 via x402.`,
       inputSchema: schema(["address"], { address: { type: "string" } }),
     },
   ]),
@@ -99,7 +99,7 @@ const tools = [
     name: "portfolio",
     title: "Multichain portfolio (full query)",
     description:
-      "Native and stablecoin balances on EVERY network that accepts the address (7 EVM chains for a 0x address), in one call. Costs one subscribed API unit.",
+      "Native and stablecoin balances on EVERY network that accepts the address (7 EVM chains for a 0x address), in one call. Costs one API unit with prepaid access or $0.01 via x402.",
     inputSchema: schema(["address"], { address: { type: "string" } }),
   },
   {
@@ -141,7 +141,7 @@ const tools = [
   {
     name: "base_transaction_prepare",
     title: "Prepare Base transfer",
-    description: "Build an unsigned Base native or USDC transfer for local signing. 1 unit.",
+    description: "Build an unsigned Base native or USDC transfer for local signing. 1 API unit with prepaid access or $0.01 via x402.",
     inputSchema: schema(["from", "to", "asset", "amountAtomic"], {
       from: { type: "string" },
       to: { type: "string" },

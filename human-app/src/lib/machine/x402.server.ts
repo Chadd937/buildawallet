@@ -2,6 +2,7 @@ import { x402HTTPResourceServer, x402ResourceServer, HTTPFacilitatorClient } fro
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { appDatabase } from "@/lib/db/context.server";
+import { recordAgentPayment } from "./billing.server";
 import { BASE_COLLECTOR, BASE_MAINNET, SOLANA_COLLECTOR, SOLANA_MAINNET } from "./config";
 
 const FACILITATOR_URL = () => process.env["X402_FACILITATOR_URL"]?.trim() || "";
@@ -178,6 +179,19 @@ export async function x402Settle(payment: PaymentContext) {
       .run();
   } catch {
     // Settlement already happened; never attempt a second settlement because persistence failed.
+  }
+  try {
+    await recordAgentPayment(
+      "x402",
+      String(result.network),
+      String(result.transaction),
+      result.payer ? String(result.payer) : null,
+      payment.requirements.payTo,
+      String(payment.requirements.amount),
+      1,
+    );
+  } catch {
+    // Payment settlement is authoritative; ledger persistence must never trigger a second settlement.
   }
   return { ok: true as const, headers: result.headers };
 }

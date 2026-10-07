@@ -6,13 +6,14 @@ export const Route = createFileRoute("/nonhuman")({
 });
 
 const NAV = [
-  { to: "/nonhuman", label: "Overview", exact: true },
+  { to: "/nonhuman/pricing", label: "Pricing", exact: true },
+  { to: "/nonhuman/overview", label: "Platform" },
   { to: "/nonhuman/wallets", label: "Wallets" },
   { to: "/nonhuman/prepaid", label: "Prepaid access" },
   { to: "/nonhuman/mcp", label: "MCP" },
   { to: "/nonhuman/api", label: "API explorer" },
   { to: "/nonhuman/chains", label: "Chains" },
-  { to: "/nonhuman/pricing", label: "Pricing" },
+  { to: "/nonhuman/dashboard", label: "Dashboard" },
 ] as const;
 
 function MachineLayout() {
@@ -27,7 +28,7 @@ function MachineLayout() {
             <ArrowLeft size={14} />
             <span className="hidden sm:inline">Sides</span>
           </Link>
-          <Link to="/nonhuman" className="truncate font-display text-sm font-black sm:text-base">
+          <Link to="/nonhuman/pricing" className="truncate font-display text-sm font-black sm:text-base">
             BUILD<span className="text-primary">A</span>WALLET{" "}
             <span className="hidden text-pop sm:inline">/ machine</span>
           </Link>
@@ -72,7 +73,7 @@ function MachineLayout() {
           <a href="/mcp" className="hover:text-primary">
             /mcp
           </a>
-          <span>Non-custodial · local signing · ten mainnets</span>
+          <span>Agent-ready · non-custodial · local signing · ten mainnets · machine-readable</span>
         </div>
       </footer>
     </div>

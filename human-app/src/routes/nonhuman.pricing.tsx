@@ -51,7 +51,7 @@ function Pricing() {
             ["/nonhuman/api", "API access", "OpenAPI 3.1, live Swagger explorer, balances, portfolios, transactions and usage."],
             ["/nonhuman/mcp", "MCP access", "Connect an AI client and expose the wallet, chain, payment and transaction tools directly to the agent."],
             ["/nonhuman/dashboard", "Manage & pay", "Create API keys, buy USDC plans, verify payments, monitor usage and manage billing."],
-          ].map(([to, title, copy]: [string, string, string]) => (
+          ].map(([to, title, copy]) => (
             <Link key={to} to={to} className="rounded-2xl border border-border bg-card/70 p-5 transition hover:border-primary">
               <div className="font-display text-base font-black uppercase">{title}</div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{copy}</p>

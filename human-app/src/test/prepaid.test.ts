@@ -82,7 +82,7 @@ it("refuses old payment routes even with signatures or valid keys, without settl
       expect(response.headers.get("cache-control")).toContain("no-store");
       expect(await response.json()).toMatchObject({
         paymentAccepted: false,
-        billing: { mode: "prepaid", perRequestOnchainPayment: false },
+        billing: { mode: "prepaid", perRequestOnchainPayment: true },
       });
     }
   }
@@ -249,10 +249,10 @@ it("rejects underpayment at the database boundary for every current plan", async
   }
 });
 
-it("publishes prepaid-only discovery and returns migration guidance to old MCP callers", async () => {
+it("publishes prepaid + x402 discovery and returns migration guidance to old MCP callers", async () => {
   expect(
     (await (await run(() => handleMachineRequest(request("/machine/v1/plans")))).json()).billing,
-  ).toMatchObject({ mode: "prepaid", perRequestOnchainPayment: false });
+  ).toMatchObject({ mode: "prepaid", perRequestOnchainPayment: true });
   const tools = (await (await mcp("tools/list")).json()).result.tools;
   expect(tools.some((tool: { name: string }) => tool.name === "wallet_payg")).toBe(false);
   const retired = (
@@ -270,6 +270,6 @@ it("publishes prepaid-only discovery and returns migration guidance to old MCP c
     (await (await mcp("tools/call", { name: "service_quote" })).json()).result.structuredContent
       .billing.mode,
   ).toBe("prepaid");
-  expect(JSON.stringify({ offer, openapi, llms })).not.toMatch(/x402|wallet_payg|\$0\.01/);
+  expect(JSON.stringify({ offer, openapi, llms })).toMatch(/x402|PAYMENT-SIGNATURE|\$0\.01/);
   expect(() => paymentCollector("tron")).toThrow();
 });

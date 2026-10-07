@@ -16,6 +16,8 @@ export const secretNames = [
   "POLYGON_RPC_URL",
   "BNB_RPC_URL",
   "AVALANCHE_RPC_URL",
+  "X402_FACILITATOR_URL",
+  "X402_FACILITATOR_AUTH",
 ];
 
 export function loadDeploymentConfig({

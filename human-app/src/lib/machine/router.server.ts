@@ -7,6 +7,9 @@ import {
   revokeApiKey,
   session,
   statusForSession,
+  createMachineAccessQuote,
+  activateMachineAccessQuote,
+  machineAccessQuote,
 } from "./billing.server";
 import { MACHINE_CHAINS, machineChain, rpcUrl, validAddress } from "./chains";
 import {
@@ -28,6 +31,7 @@ import {
   snapshot,
 } from "./data.server";
 import { apiError, cors, json, objectBody } from "./http";
+import { x402Protect, x402Settle } from "./x402.server";
 import { PendingReceipt, verifyBaseReceipt, verifySolanaReceipt } from "./receipts.server";
 import {
   broadcastBaseTransaction,
@@ -52,8 +56,17 @@ const subscriptionRead = async (
   reserveBeforeWork = false,
 ) => {
   const access = await consumeApiKey(request, 0);
-  if (!access) return authError();
-  if (cost > 0 && access.remaining < cost)
+  let payment: Awaited<ReturnType<typeof x402Protect>> | null = null;
+  if (!access && cost > 0) {
+    payment = await x402Protect(request, "$0.01", "BuildAWallet machine API request");
+    if (payment.kind === "error") {
+      const response = payment.response;
+      Object.entries(cors).forEach(([key, value]) => response.headers.set(key, value));
+      return response;
+    }
+  }
+  if (!access && !payment) return authError();
+  if (access && cost > 0 && access.remaining < cost)
     return json({ error: "API unit quota exhausted" }, 429, cors);
   let usage: Awaited<ReturnType<typeof consumeApiKey>> = access;
   if (reserveBeforeWork && cost > 0) {
@@ -61,7 +74,19 @@ const subscriptionRead = async (
     if (!usage) return authError();
     if (!usage.allowed) return json({ error: "API unit quota exhausted" }, 429, cors);
   }
-  const result = await work();
+  let result: unknown;
+  try {
+    result = await work();
+  } catch (error) {
+    throw error;
+  }
+  if (!access && payment?.kind === "paid") {
+    const settled = await x402Settle(payment.payment);
+    if (!settled.ok) return settled.response;
+    const response = json({ ...(result as object), payment: { mode: "x402", settlement: true } }, 200, cors);
+    Object.entries(settled.headers).forEach(([key, value]) => response.headers.set(key, value));
+    return response;
+  }
   if (!reserveBeforeWork && cost > 0)
     usage = await consumeApiKey(request, cost, { endpoint: new URL(request.url).pathname, chain });
   if (!usage) return authError();
@@ -115,6 +140,69 @@ export async function handleMachineRequest(request: Request) {
     }
     if (parts[1] !== "v1") return json({ error: "Not found" }, 404, cors);
     const tail = parts.slice(2);
+    if (request.method === "GET" && tail.join("/") === "agent/bootstrap")
+      return json({
+        service: "BuildAWallet Machine API",
+        version: "4.0.0",
+        mode: "machine-native",
+        discovery: {
+          llms: "/llms.txt",
+          manifest: "/.well-known/agent.json",
+          openapi: "/openapi.json",
+          mcp: "/mcp",
+          pricing: "/nonhuman/pricing",
+        },
+        onboarding: {
+          quote: "POST /machine/v1/agent/quote",
+          activate: "POST /machine/v1/agent/activate",
+          x402: "PAYMENT-SIGNATURE on metered endpoints",
+        },
+        payment: {
+          prepaid: true,
+          x402: true,
+          settlementChains: ["base", "solana"],
+          asset: "USDC",
+        },
+        custody: "non-custodial",
+        signing: "caller-controlled",
+      }, 200, cors);
+    if (request.method === "POST" && tail.join("/") === "agent/quote") {
+      const body = await objectBody(request);
+      const chain = body["chain"];
+      const wallet = body["wallet"];
+      const plan = body["planId"];
+      const selected = typeof chain === "string" ? machineChain(chain) : undefined;
+      if ((chain !== "base" && chain !== "solana") || typeof wallet !== "string" || !selected || !validAddress(selected, wallet))
+        throw new RangeError("Valid Base or Solana wallet required");
+      if (typeof plan !== "string") throw new RangeError("planId required");
+      return json(await createMachineAccessQuote(chain, chain === "base" ? wallet.toLowerCase() : wallet, plan as any), 201, cors);
+    }
+    if (request.method === "POST" && tail.join("/") === "agent/activate") {
+      const body = await objectBody(request);
+      if (typeof body["quoteId"] !== "string" || typeof body["tx"] !== "string")
+        throw new RangeError("quoteId and tx required");
+      const quote = await machineAccessQuote(body["quoteId"]);
+      if (!quote) throw new RangeError("Quote is invalid, expired or already consumed");
+      const paymentChain = machineChain(quote.chain);
+      if (!paymentChain) throw new RangeError("Unsupported payment chain");
+      const paidAt =
+        quote.chain === "base"
+          ? await verifyBaseReceipt(
+              rpcUrl(paymentChain),
+              body["tx"],
+              quote.wallet,
+              Math.floor(new Date(quote.created_at).getTime() / 1000),
+              BigInt(quote.amount_atomic),
+            )
+          : await verifySolanaReceipt(
+              rpcUrl(paymentChain),
+              body["tx"],
+              quote.wallet,
+              Math.floor(new Date(quote.created_at).getTime() / 1000),
+              BigInt(quote.amount_atomic),
+            );
+      return json(await activateMachineAccessQuote(body["quoteId"], body["tx"], paidAt), 200, cors);
+    }
     if (request.method === "GET" && tail[0] === "chains")
       return json(
         {

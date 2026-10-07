@@ -4,8 +4,8 @@ import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { appDatabase } from "@/lib/db/context.server";
 import { BASE_COLLECTOR, BASE_MAINNET, SOLANA_COLLECTOR, SOLANA_MAINNET } from "./config";
 
-const FACILITATOR_URL = () => process.env.X402_FACILITATOR_URL?.trim() || "";
-const FACILITATOR_AUTH = () => process.env.X402_FACILITATOR_AUTH?.trim() || "";
+const FACILITATOR_URL = () => process.env["X402_FACILITATOR_URL"]?.trim() || "";
+const FACILITATOR_AUTH = () => process.env["X402_FACILITATOR_AUTH"]?.trim() || "";
 
 type PaymentContext = {
   payload: any;
@@ -97,11 +97,12 @@ export async function x402Protect(
   } as any;
 
   const httpServer = new x402HTTPResourceServer(resourceServer, routes);
+  const paymentHeader = request.headers.get("PAYMENT-SIGNATURE") ?? undefined;
   const result = await httpServer.processHTTPRequest({
     adapter: adapter(request),
     path: new URL(request.url).pathname,
     method: request.method,
-    paymentHeader: request.headers.get("PAYMENT-SIGNATURE") ?? undefined,
+    ...(paymentHeader !== undefined ? { paymentHeader } : {}),
   });
 
   if (result.type === "payment-error")
@@ -133,7 +134,9 @@ export async function x402Protect(
     payment: {
       payload: result.paymentPayload,
       requirements: result.paymentRequirements,
-      declaredExtensions: result.declaredExtensions,
+      ...(result.declaredExtensions !== undefined
+        ? { declaredExtensions: result.declaredExtensions }
+        : {}),
       httpServer,
     },
   };

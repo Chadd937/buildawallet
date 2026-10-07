@@ -16,6 +16,70 @@ type Challenge = {
 };
 type Session = { chain: string; wallet: string; issued_at: string; expires_at: string };
 const now = () => new Date().toISOString();
+const normalizeAgentWallet = (chain: string, wallet: string) =>
+  chain === "base" ? wallet.toLowerCase() : wallet;
+
+export async function ensureAgentAccount(chain: "base" | "solana", wallet: string) {
+  const normalized = normalizeAgentWallet(chain, wallet);
+  const db = appDatabase();
+  const id = crypto.randomUUID();
+  const timestamp = now();
+  await db.prepare(
+    `INSERT INTO machine_agent_accounts(id,chain,wallet,created_at,last_seen_at)
+     VALUES(?,?,?,?,?)
+     ON CONFLICT(chain,wallet) DO UPDATE SET last_seen_at=excluded.last_seen_at`,
+  ).bind(id, chain, normalized, timestamp, timestamp).run();
+  return db.prepare(
+    "SELECT id,chain,wallet,created_at,last_seen_at,total_paid_atomic,total_usage_units,request_count,settlement_threshold_atomic FROM machine_agent_accounts WHERE chain=? AND wallet=?",
+  ).bind(chain, normalized).first();
+}
+
+export async function agentAccountByWallet(chain: "base" | "solana", wallet: string) {
+  return appDatabase().prepare(
+    "SELECT id,chain,wallet,created_at,last_seen_at,total_paid_atomic,total_usage_units,request_count,settlement_threshold_atomic FROM machine_agent_accounts WHERE chain=? AND wallet=?",
+  ).bind(chain, normalizeAgentWallet(chain, wallet)).first();
+}
+
+export async function recordAgentPayment(
+  kind: "x402" | "prepaid",
+  network: string,
+  tx: string,
+  payer: string | null,
+  resource: string,
+  amountAtomic: string,
+  units = 0,
+) {
+  if (!payer) return null;
+  const chain = network === "eip155:8453" ? "base" : network.startsWith("solana:") ? "solana" : null;
+  if (!chain) return null;
+  const account = await ensureAgentAccount(chain, payer);
+  if (!account) return null;
+  const result = await appDatabase().prepare(
+    `INSERT OR IGNORE INTO machine_agent_ledger(id,account_id,kind,network,tx,resource,amount_atomic,units,created_at)
+     VALUES(?,?,?,?,?,?,?,?,?)`,
+  ).bind(
+    crypto.randomUUID(),
+    String(account["id"]),
+    kind,
+    network,
+    tx,
+    resource,
+    amountAtomic,
+    units,
+    now(),
+  ).run();
+  if (result.meta.changes) {
+    await appDatabase().prepare(
+      `UPDATE machine_agent_accounts
+       SET total_paid_atomic=CAST(total_paid_atomic AS INTEGER)+CAST(? AS INTEGER),
+           total_usage_units=total_usage_units+?,
+           request_count=request_count+?,
+           last_seen_at=?
+       WHERE id=?`,
+    ).bind(amountAtomic, units, units > 0 ? 1 : 0, now(), String(account["id"])).run();
+  }
+  return agentAccountByWallet(chain, payer);
+}
 
 export async function issueChallenge(chain: "base" | "solana", wallet: string) {
   const nonce = secretToken(),

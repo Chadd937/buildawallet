@@ -100,8 +100,8 @@ for (const path of [
 const plans = await (await fetch(origin + "/machine/v1/plans")).json();
 if (
   plans.billing?.mode !== "prepaid" ||
-  plans.billing?.perRequestOnchainPayment !== false ||
+  plans.billing?.perRequestOnchainPayment !== true ||
   mcp.result.tools.some((tool) => tool.name === "wallet_payg")
 )
-  throw new Error("Discovery must advertise prepaid usage only");
-console.log("PASS prepaid-only billing and retired settlement routes");
+  throw new Error("Discovery must advertise prepaid + x402 usage and retire legacy wallet_payg");
+console.log("PASS prepaid + x402 billing and retired settlement routes");

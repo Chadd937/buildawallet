@@ -23,6 +23,7 @@ import {
   planById,
   publicPlans,
   PREPAID_BILLING,
+  X402_PRICE_USD,
 } from "./config";
 import {
   configuredNetworks,
@@ -61,7 +62,7 @@ const subscriptionRead = async (
   let payment: Awaited<ReturnType<typeof x402Protect>> | null = null;
   if (!access && request.headers.get("authorization")) return authError();
   if (!access && cost > 0) {
-    payment = await x402Protect(request, "$0.01", "BuildAWallet machine API request");
+    payment = await x402Protect(request, X402_PRICE_USD, "BuildAWallet machine API request");
     if (payment.kind === "error") {
       const response = payment.response;
       Object.entries(cors).forEach(([key, value]) => response.headers.set(key, value));

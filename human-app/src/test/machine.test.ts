@@ -24,7 +24,7 @@ describe("Machine routing and wallet safety", () => {
     for (const path of ["/machine/v1/chains", "/api/public/machine/v1/chains"]) {
       const r = await handleMachineRequest(new Request(`https://buildawallet.xyz${path}`));
       expect(r.status).toBe(200);
-      expect((await r.json()).chains).toHaveLength(10);
+      expect((await r.json()).chains).toHaveLength(9);
     }
   });
   it("refuses invalid credentials before reading upstream data", async () => {

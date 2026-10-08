@@ -40,6 +40,9 @@ export type Quote = {
   plan_id: string;
   chain: string;
   payer: string;
+  amount_atomic: string;
+  asset: string;
+  decimals: number;
   created_at: string;
   expires_at: string;
   consumed_at: string | null;
@@ -135,6 +138,9 @@ export async function storeCheckoutQuote(
   planId: string,
   chain: string,
   payer: string,
+  amountAtomic: string,
+  asset: string,
+  decimals: number,
 ) {
   const quote = {
     id: randomUUID(),
@@ -142,17 +148,23 @@ export async function storeCheckoutQuote(
     plan_id: planId,
     chain,
     payer,
+    amount_atomic: amountAtomic,
+    asset,
+    decimals,
     created_at: now(),
     expires_at: new Date(Date.now() + 86400_000).toISOString(),
     consumed_at: null,
   };
   await statement(
-    "INSERT INTO api_checkout_quotes(id,user_id,plan_id,chain,payer,created_at,expires_at) VALUES(?,?,?,?,?,?,?)",
+    "INSERT INTO api_checkout_quotes(id,user_id,plan_id,chain,payer,amount_atomic,asset,decimals,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
     quote.id,
     userId,
     planId,
     chain,
     payer,
+    quote.amount_atomic,
+    quote.asset,
+    quote.decimals,
     quote.created_at,
     quote.expires_at,
   ).run();
@@ -175,7 +187,7 @@ export async function activateCheckout(
     statement(
       `INSERT INTO api_account_payments(id,user_id,quote_id,chain,tx,payer,plan_id,amount_atomic,paid_at)
       SELECT ?,q.user_id,q.id,q.chain,CASE WHEN q.chain='base' THEN lower(?) ELSE ? END,q.payer,q.plan_id,
-        CASE q.plan_id WHEN 'builder' THEN '15000000' WHEN 'pro' THEN '49000000' WHEN 'scale' THEN '149000000' END,?
+        q.amount_atomic,?
       FROM api_checkout_quotes q WHERE q.id=? AND q.user_id=? RETURNING id`,
       randomUUID(),
       tx,
@@ -204,11 +216,11 @@ export async function activateWalletPayment(
   amount: bigint,
 ) {
   const plan = planById(planId);
-  if (!plan || plan.amountAtomic !== amount) throw new RangeError("Plan amount mismatch");
-  const normalized = chain === "base" ? tx.toLowerCase() : tx;
+  if (!plan || amount <= 0n) throw new RangeError("Invalid payment amount");
+  const normalized = ["ethereum","base","arbitrum","optimism","polygon","bnb","avalanche"].includes(chain) ? tx.toLowerCase() : tx;
   const results = await appDatabase().batch([
     statement(
-      "INSERT INTO machine_prepaid_payments(id,chain,tx,wallet,plan_id,amount_atomic,paid_at) VALUES(?,?,?,?,?,?,?)",
+      "INSERT INTO machine_payments(id,chain,tx,wallet,plan_id,amount_atomic,paid_at) VALUES(?,?,?,?,?,?,?)",
       randomUUID(),
       chain,
       normalized,

@@ -33,7 +33,7 @@ import {
 } from "./data.server";
 import { apiError, cors, json, objectBody } from "./http";
 import { x402Protect, x402Settle } from "./x402.server";
-import { PendingReceipt, paymentAmountAtomic, verifyBitcoinReceipt, verifyEvmReceipt, verifySolanaReceipt, verifyTronReceipt } from "./receipts.server";
+import { PendingReceipt, paymentAmountAtomic, verifyBitcoinReceipt, verifyEvmReceipt, verifySolanaReceipt, verifyTronReceipt, verifyBaseReceipt } from "./receipts.server";
 import {
   broadcastBaseTransaction,
   broadcastSolanaTransaction,
@@ -212,7 +212,7 @@ export async function handleMachineRequest(request: Request) {
       if (!PAYMENT_CHAINS.includes(chain as any) || typeof wallet !== "string" || !selected || !validAddress(selected, wallet))
         throw new RangeError("Valid wallet required");
       if (typeof plan !== "string") throw new RangeError("planId required");
-      return json(await createMachineAccessQuote(chain, chain === "base" ? wallet.toLowerCase() : wallet, plan as any), 201, cors);
+      return json(await createMachineAccessQuote(chain, EVM_PAYMENT_CHAINS.has(chain) ? wallet.toLowerCase() : wallet, plan as any), 201, cors);
     }
     if (request.method === "POST" && tail.join("/") === "agent/activate") {
       const body = await objectBody(request);

@@ -41,7 +41,7 @@ normalized SHA-256 identity in an ignored, mode-0600 environment file. Deploymen
 uploads `OWNER_EMAIL_HASH` as a Cloudflare secret. Sign in normally through
 `/human/setup`, then open `https://buildawallet.xyz/owner` directly.
 
-Collectors are configured in the authoritative payment registry: the shared EVM collector for Ethereum/Base/Arbitrum/Optimism/Polygon/BNB/Avalanche, the Solana collector, the Bitcoin collector and the Tron collector. The page reads live
+Collectors are configured in the authoritative payment registry: the shared EVM collector for Ethereum/Base/Arbitrum/Optimism/Polygon/BNB/Avalanche, the Solana collector, the Bitcoin collector and the collector. The page reads live
 USDC and ETH/SOL balances and reports current account subscriptions, agent
 subscriptions and preserved legacy payments. Per-call blockchain payments are retired. Historical x402 receipts remain
 visible; older unrecorded receipts are not reconstructed. Collector balances

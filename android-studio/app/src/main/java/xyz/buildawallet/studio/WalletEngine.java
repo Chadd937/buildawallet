@@ -261,17 +261,10 @@ final class WalletEngine {
 
         String assetText() { return assetToken == null ? network.symbol : "USDC"; }
 
-        
-                         BigInteger nonce, BigInteger gasPrice, BigInteger gasLimit) {
-            this.network = network;
-            this.to = to;
-            this.valueWei = valueWei;
-            this.nonce = nonce;
-            this.gasPrice = gasPrice;
-            this.gasLimit = gasLimit;
+        String amountText() {
+            return assetToken == null ? formatNative(valueWei) + " " + network.symbol
+                : formatToken(valueWei, 6) + " USDC";
         }
-
-        String amountText() { return formatNative(valueWei) + " " + network.symbol; }
         String feeText() { return formatNative(gasPrice.multiply(gasLimit)) + " " + network.symbol; }
     }
 }

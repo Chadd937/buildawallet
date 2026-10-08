@@ -128,12 +128,8 @@ CREATE TRIGGER machine_payment_reserve BEFORE INSERT ON machine_payments BEGIN
   INSERT INTO api_payment_redemptions(chain,tx) VALUES(NEW.chain,NEW.tx);
 END;
 
-CREATE TRIGGER machine_payment_activate AFTER INSERT ON machine_payments BEGIN
-  INSERT INTO machine_entitlements(chain,wallet,plan_id,expires_at)
-    VALUES(NEW.chain,NEW.wallet,NEW.plan_id,strftime('%Y-%m-%dT%H:%M:%fZ','now','+30 days'))
-    ON CONFLICT(chain,wallet) DO UPDATE SET plan_id=excluded.plan_id,
-      expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',max(machine_entitlements.expires_at,strftime('%Y-%m-%dT%H:%M:%fZ','now')),'+30 days');
-END;
+DROP TRIGGER IF EXISTS machine_payment_activate;
+DROP TRIGGER IF EXISTS machine_payment_reserve;
 
 
 CREATE TABLE machine_entitlements_new (
@@ -175,6 +171,17 @@ INSERT INTO machine_api_usage SELECT chain,wallet,period_start,used FROM machine
 
 DROP TABLE machine_api_keys_copy;
 DROP TABLE machine_api_usage_copy;
+
+CREATE TRIGGER machine_payment_reserve BEFORE INSERT ON machine_payments BEGIN
+  INSERT INTO api_payment_redemptions(chain,tx) VALUES(NEW.chain,NEW.tx);
+END;
+
+CREATE TRIGGER machine_payment_activate AFTER INSERT ON machine_payments BEGIN
+  INSERT INTO machine_entitlements(chain,wallet,plan_id,expires_at)
+    VALUES(NEW.chain,NEW.wallet,NEW.plan_id,strftime('%Y-%m-%dT%H:%M:%fZ','now','+30 days'))
+    ON CONFLICT(chain,wallet) DO UPDATE SET plan_id=excluded.plan_id,
+      expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',max(machine_entitlements.expires_at,strftime('%Y-%m-%dT%H:%M:%fZ','now')),'+30 days');
+END;
 
 CREATE TRIGGER wallet_meter AFTER INSERT ON api_meter_requests WHEN NEW.kind='wallet' BEGIN
   INSERT INTO machine_api_usage(chain,wallet,period_start,used) VALUES(NEW.chain,NEW.wallet,NEW.period_start,NEW.used)

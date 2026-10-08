@@ -106,9 +106,9 @@ export const kitManifest = () => ({
     tron: ["tron"],
   },
   afterCreation: [
-    "Buy a prepaid API plan with Base or Solana USDC and obtain a bearer API key.",
+    "Buy a prepaid API plan on any supported payment network and obtain a bearer API key. EVM/Solana/Tron use the configured stablecoin; Bitcoin uses BTC.",
     "Read balances: GET /machine/v1/{chain}/wallet/{address} with an API key. Each request uses backend units without another blockchain payment.",
-    "Send funds: POST /machine/v1/{base|solana}/transaction/prepare, sign locally, then POST .../broadcast.",
+    "Send funds: use the supported /machine/v1/{chain}/transaction/prepare and /broadcast endpoints where that chain is enabled for transaction operations; sign locally.",
   ],
   serverGenerated: {
     endpoint: `${ORIGIN}/machine/v1/wallets/generate`,

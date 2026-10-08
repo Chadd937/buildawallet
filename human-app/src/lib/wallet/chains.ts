@@ -97,7 +97,6 @@ export const CHAINS: ChainDef[] = [
     explorerAddress: (a) => `https://mempool.space/address/${a}`,
     tokens: [], tagline: "Native SegWit", hue: 45,
   },
-  {
 ];
 
 export const chainById = (id: string) => CHAINS.find((c) => c.id === id);

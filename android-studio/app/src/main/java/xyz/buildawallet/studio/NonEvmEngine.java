@@ -95,7 +95,8 @@ final class NonEvmEngine {
         JSONArray utxos = new JSONArray(httpGet(BTC_API + "/address/" + Uri.encode(bitcoinAddress()) + "/utxo"));
         loadConfirmedUtxosIntoWallet(utxos);
 
-        SendRequest req = SendRequest.to(bitcoin.parseAddress(destination), Coin.valueOf(sats));
+        Address destinationAddress = AddressParser.getAddressParser(BitcoinNetwork.MAINNET).parseAddress(destination);
+        SendRequest req = SendRequest.to(destinationAddress, Coin.valueOf(sats));
         req.feePerKb = Coin.valueOf(Math.multiplyExact(rate, 1000L));
         bitcoin.completeTx(req);
         bitcoin.commitTx(req.tx);

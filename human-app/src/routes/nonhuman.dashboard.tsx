@@ -175,7 +175,7 @@ function Checkout({ quotes }: { quotes: Quote[] }) {
             {PAYMENT_CHAINS.map((c) => <button key={c} type="button" onClick={() => setChain(c)} className={`rounded-full px-4 py-1.5 font-mono text-[11px] uppercase tracking-widest ${chain === c ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground"}`}>{c === "bitcoin" ? "BTC" : paymentRail(c).asset} · {c}</button>)}
           </div>
           <label className="mt-4 block text-sm font-semibold" htmlFor="payer">Paying wallet address ({chain})</label>
-          <Input id="payer" value={payer} onChange={(e) => setPayer(e.target.value)} placeholder={chain === "bitcoin" ? "bc1p…" : chain === "solana" ? "Solana address" : chain === "tron" ? "T…" : "0x…"} className="mt-2 h-11 rounded-xl font-mono" />
+          <Input id="payer" value={payer} onChange={(e) => setPayer(e.target.value)} placeholder={chain === "bitcoin" ? "bc1p…" : chain === "solana" ? "Solana address" : "0x…"} className="mt-2 h-11 rounded-xl font-mono" />
           <Button className="mt-4" disabled={start.isPending || payer.trim().length < 26} onClick={() => start.mutate()}>{start.isPending ? <Loader2 className="animate-spin" /> : <Wallet />} Continue to payment</Button>
         </Panel>
       ) : (
@@ -188,7 +188,7 @@ function Checkout({ quotes }: { quotes: Quote[] }) {
               <div><div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">From (must match)</div><code className="block truncate">{quote.payer}</code></div>
               <p className="text-xs text-muted-foreground">Only the quoted asset is accepted. Open until {fmt(quote.expires_at)}. EVM payments need confirmations; Solana must be finalized; Bitcoin requires confirmation.</p>
               <label className="block font-semibold" htmlFor="tx">Transaction id</label>
-              <Input id="tx" value={tx} onChange={(e) => setTx(e.target.value)} placeholder={quote.chain === "bitcoin" ? "Bitcoin tx id" : quote.chain === "solana" ? "Solana signature" : quote.chain === "tron" ? "Tron tx id" : "0x… (66 characters)"} className="h-11 rounded-xl font-mono" />
+              <Input id="tx" value={tx} onChange={(e) => setTx(e.target.value)} placeholder={quote.chain === "bitcoin" ? "Bitcoin tx id" : quote.chain === "solana" ? "Solana signature" : "0x… (66 characters)"} className="h-11 rounded-xl font-mono" />
               <Button disabled={confirm.isPending || tx.trim().length < 40} onClick={() => confirm.mutate(quote.id)}>{confirm.isPending ? <Loader2 className="animate-spin" /> : <ReceiptText />} {confirm.isPending ? "Checking the chain…" : "Verify payment"}</Button>
               <Button variant="ghost" size="sm" className="ml-2" onClick={() => { setDismissed(quote.id); setNote(null); }}>Change plan or wallet</Button>
               {note ? <p role="status" className={`text-sm ${note.tone === "err" ? "text-destructive" : note.tone === "ok" ? "text-primary" : "text-zap"}`}>{note.text}</p> : null}

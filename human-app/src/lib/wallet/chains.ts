@@ -1,4 +1,4 @@
-export type ChainFamily = "evm" | "solana" | "bitcoin" | "tron";
+export type ChainFamily = "evm" | "solana" | "bitcoin";
 
 export type TokenDef = { symbol: string; name: string; address: string; decimals: number; custom?: boolean };
 
@@ -96,14 +96,6 @@ export const CHAINS: ChainDef[] = [
     explorerTx: (h) => `https://mempool.space/tx/${h}`,
     explorerAddress: (a) => `https://mempool.space/address/${a}`,
     tokens: [], tagline: "Native SegWit", hue: 45,
-  },
-  {
-    id: "tron", name: "Tron", family: "tron", symbol: "TRX", decimals: 6, coingeckoId: "tron",
-    rpc: ["https://api.trongrid.io"], explorer: "https://tronscan.org",
-    explorerTx: (h) => `https://tronscan.org/#/transaction/${h}`,
-    explorerAddress: (a) => `https://tronscan.org/#/address/${a}`,
-    tokens: [{ symbol: "USDT", name: "Tether USD", address: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", decimals: 6 }],
-    tagline: "Stablecoin highway", hue: 0,
   },
 ];
 

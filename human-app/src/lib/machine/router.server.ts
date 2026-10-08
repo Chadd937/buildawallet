@@ -33,7 +33,7 @@ import {
 } from "./data.server";
 import { apiError, cors, json, objectBody } from "./http";
 import { x402Protect, x402Settle } from "./x402.server";
-import { PendingReceipt, paymentAmountAtomic, verifyBitcoinReceipt, verifyEvmReceipt, verifySolanaReceipt, verifyTronReceipt, verifyBaseReceipt } from "./receipts.server";
+import { PendingReceipt, paymentAmountAtomic, verifyBitcoinReceipt, verifyEvmReceipt, verifySolanaReceipt, verifyBaseReceipt } from "./receipts.server";
 import {
   broadcastBaseTransaction,
   broadcastSolanaTransaction,
@@ -234,8 +234,6 @@ export async function handleMachineRequest(request: Request) {
         paidAt = await verifyEvmReceipt(rpcUrl(paymentChain), paymentChain, tx, quote.wallet, earliest, BigInt(quote.amount_atomic));
       } else if (paymentChain.family === "solana") {
         paidAt = await verifySolanaReceipt(rpcUrl(paymentChain), tx, quote.wallet, earliest, BigInt(quote.amount_atomic));
-      } else if (paymentChain.family === "tron") {
-        paidAt = await verifyTronReceipt(rpcUrl(paymentChain), tx, quote.wallet, earliest, BigInt(quote.amount_atomic));
       } else {
         const minimumNow = await paymentAmountAtomic("bitcoin", quote.plan_id);
         if (BigInt(quote.amount_atomic) < minimumNow) throw new RangeError("Bitcoin quote is stale; create a new quote");

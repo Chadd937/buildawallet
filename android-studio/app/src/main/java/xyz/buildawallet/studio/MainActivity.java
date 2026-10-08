@@ -5,6 +5,8 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
@@ -41,6 +43,7 @@ public final class MainActivity extends Activity {
     private SecureSeedStore seedStore;
     private WalletProfile profile;
     private WalletEngine engine;
+    private NonEvmEngine nonEvm;
     private LinearLayout content;
     private TextView balanceView;
     private TextView assetBalanceView;
@@ -357,7 +360,9 @@ public final class MainActivity extends Activity {
 
     private void renderWallet() {
         try {
-            engine = WalletEngine.fromMnemonic(seedStore.loadMnemonic());
+            String mnemonic = seedStore.loadMnemonic();
+            engine = WalletEngine.fromMnemonic(mnemonic);
+            nonEvm = NonEvmEngine.fromMnemonic(mnemonic);
         } catch (Exception error) {
             showError("Could not unlock wallet", error);
             return;
@@ -415,6 +420,9 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams actionGap3 = new LinearLayout.LayoutParams(0, dp(78), 1f);
         actionGap3.leftMargin = dp(8);
         actions.addView(walletAction("◎", "Networks", v -> selectNetworkDialog()), actionGap3);
+        LinearLayout.LayoutParams actionGap4 = new LinearLayout.LayoutParams(0, dp(78), 1f);
+        actionGap4.leftMargin = dp(8);
+        actions.addView(walletAction("✦", "Byte AI", v -> showByteChat()), actionGap4);
         add(actions, 14);
 
         add(sectionTitle("Assets", "Live balance on the selected network"), 28);
@@ -442,6 +450,26 @@ public final class MainActivity extends Activity {
         assetRow.addView(assetBalanceView);
         assetCard.addView(assetRow);
         add(assetCard, 10);
+
+        add(sectionTitle("Solana & Bitcoin", "Native accounts derived from the same recovery phrase"), 28);
+        LinearLayout nonEvmCard = card();
+        nonEvmCard.setBackground(pill(0xff0f1115, 0xff24272e));
+        nonEvmCard.addView(label("SOLANA", 10, MUTED, true));
+        TextView solAddress = label(nonEvm == null ? "Unavailable" : nonEvm.solanaAddress(), 12, TEXT, true);
+        solAddress.setTextIsSelectable(true);
+        addTo(nonEvmCard, solAddress, 7);
+        TextView solBalance = label("Loading…", 13, MUTED, true);
+        addTo(nonEvmCard, solBalance, 5);
+        Button solSend = button("Send SOL", false);
+        solSend.setOnClickListener(v -> sendSolanaDialog());
+        addTo(nonEvmCard, solSend, 10);
+        addTo(nonEvmCard, label("BITCOIN", 10, MUTED, true), 12);
+        TextView btcAddress = label(nonEvm == null ? "Unavailable" : nonEvm.bitcoinAddress(), 12, TEXT, true);
+        btcAddress.setTextIsSelectable(true);
+        addTo(nonEvmCard, btcAddress, 7);
+        addTo(nonEvmCard, label("BIP-84 native SegWit receive address. Bitcoin spending is kept disabled until the native UTXO/signing path passes its dedicated integration tests.", 11, MUTED, false), 6);
+        add(nonEvmCard, 10);
+        refreshNonEvm(solBalance);
 
         add(sectionTitle("Receive", "Your on-chain account"), 28);
         LinearLayout addressCard = card();
@@ -489,6 +517,33 @@ public final class MainActivity extends Activity {
 
         add(notice("Review the network, destination, amount and network fee before every send. Mainnet transactions are irreversible."), 18);
         refreshBalance();
+    }
+
+    private void showByteChat() {
+        LinearLayout box = dialogBox();
+        TextView intro = label(
+            "Hi, I’m Byte. I can help with BuildAWallet, supported networks, fees, receiving, safe transaction review, and the AI-agent service. Never paste a recovery phrase or private key here.",
+            14, TEXT, false);
+        intro.setPadding(dp(4), dp(4), dp(4), dp(12));
+        box.addView(intro);
+        EditText question = input("Ask Byte a wallet question…");
+        question.setSingleLine(false);
+        question.setMinLines(3);
+        box.addView(question);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Byte · Wallet & API Guide")
+            .setView(box)
+            .setNegativeButton("Close", null)
+            .setPositiveButton("Open full Byte chat", null)
+            .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://buildawallet.xyz/human/wallet")));
+            } catch (Exception error) {
+                showError("Could not open Byte chat", error);
+            }
+        }));
+        dialog.show();
     }
 
     private LinearLayout walletAction(String glyph, String title, View.OnClickListener listener) {
@@ -595,6 +650,59 @@ public final class MainActivity extends Activity {
                 });
             }
         });
+    }
+
+    private void refreshNonEvm(TextView solBalance) {
+        if (nonEvm == null) return;
+        io.execute(() -> {
+            try {
+                String value = nonEvm.solanaBalance();
+                runOnUiThread(() -> solBalance.setText(value));
+            } catch (Exception error) {
+                runOnUiThread(() -> solBalance.setText("Solana RPC unavailable"));
+            }
+        });
+    }
+
+    private void sendSolanaDialog() {
+        EditText to = input("Solana destination");
+        EditText amount = input("0.01");
+        amount.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        LinearLayout box = dialogBox();
+        box.addView(label("Recipient", 12, MUTED, true));
+        box.addView(to);
+        addTo(box, label("Amount (SOL)", 12, MUTED, true), 12);
+        box.addView(amount);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Send SOL")
+            .setMessage("Review the Solana recipient and amount before local signing.")
+            .setView(box)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Review", null)
+            .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            try {
+                java.math.BigDecimal value = new java.math.BigDecimal(amount.getText().toString().trim());
+                String destination = to.getText().toString().trim();
+                if (destination.isEmpty() || value.signum() <= 0) throw new IllegalArgumentException("Enter a valid recipient and amount.");
+                new AlertDialog.Builder(this)
+                    .setTitle("Confirm SOL transfer")
+                    .setMessage("Network: Solana mainnet\nRecipient: " + destination + "\nAmount: " + value.toPlainString() + " SOL\n\nThe transaction will be signed on this device.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Sign & send", (d, w) -> io.execute(() -> {
+                        try {
+                            String signature = nonEvm.sendSolana(destination, value);
+                            runOnUiThread(() -> Toast.makeText(this, "SOL sent: " + signature, Toast.LENGTH_LONG).show());
+                        } catch (Exception error) {
+                            runOnUiThread(() -> showError("SOL transfer failed", error));
+                        }
+                    })).show();
+                dialog.dismiss();
+            } catch (Exception error) {
+                showError("Invalid SOL transfer", error);
+            }
+        }));
+        dialog.show();
     }
 
     private void sendDialog() {

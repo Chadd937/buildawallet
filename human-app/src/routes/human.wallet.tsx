@@ -11,7 +11,7 @@ export const Route = createFileRoute("/human/wallet")({
   head: () => ({
     meta: [
       { title: "Your wallet — BuildAWallet" },
-      { name: "description", content: "Self-custody multichain wallet: Ethereum, Base, Arbitrum, Optimism, Polygon, BNB, Avalanche, Solana, Bitcoin and Tron." },
+      { name: "description", content: "Self-custody multichain wallet: Ethereum, Base, Arbitrum, Optimism, Polygon, BNB, Avalanche, Solana, Bitcoin and." },
       { property: "og:title", content: "Your wallet — BuildAWallet" },
       { property: "og:description", content: "Your own self-custody multichain wallet, running in your browser." },
       { property: "og:type", content: "website" },

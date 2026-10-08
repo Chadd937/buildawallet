@@ -3,8 +3,6 @@ export const ORIGIN = "https://buildawallet.xyz";
 export const BASE_COLLECTOR = "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d";
 export const SOLANA_COLLECTOR = "Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC";
 export const BITCOIN_COLLECTOR = "bc1p8rqzak39nf7rk95z4x0jwvscp45x2yu5mazzu70jf9nslyqppdpsnv3l37";
-export const TRON_COLLECTOR = "TY5CSu6UyMYvQNjBApfhxwSN4QHhW2n48u";
-
 export const EVM_MAINNETS = {
   ethereum: "eip155:1",
   base: "eip155:8453",
@@ -16,7 +14,6 @@ export const EVM_MAINNETS = {
 } as const;
 export const SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
 export const BITCOIN_MAINNET = "bip122:000000000019d6689c085ae165831e934ff763ae46a2e3b6c5c2b0c1f4f4f";
-export const TRON_MAINNET = "tron:mainnet";
 
 export const BASE_MAINNET = EVM_MAINNETS.base;
 export const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -68,7 +65,6 @@ export const PAYMENT_CHAINS = [
   "avalanche",
   "solana",
   "bitcoin",
-  "tron",
 ] as const;
 export type PaymentChain = (typeof PAYMENT_CHAINS)[number];
 
@@ -135,13 +131,6 @@ export const PAYMENT_RAILS = {
     assetAddress: null,
     decimals: 8,
     collector: BITCOIN_COLLECTOR,
-  },
-  tron: {
-    network: TRON_MAINNET,
-    asset: "USDT",
-    assetAddress: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
-    decimals: 6,
-    collector: TRON_COLLECTOR,
   },
 } as const;
 

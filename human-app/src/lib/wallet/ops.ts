@@ -5,7 +5,7 @@ import { ed25519 } from "@noble/curves/ed25519.js";
 import { base58, base64, hex } from "@scure/base";
 import * as btc from "@scure/btc-signer";
 import type { ChainDef, TokenDef } from "./chains";
-import { privHex, tronAddressToHex, type DerivedAccounts, type PublicAddresses } from "./derive";
+import { privHex, type DerivedAccounts, type PublicAddresses } from "./derive";
 import { solanaRpc } from "./rpc.functions";
 
 const ERC20 = [
@@ -19,7 +19,7 @@ const ERC20 = [
 export type Holding = { chainId: string; symbol: string; name: string; amount: string; raw: bigint; decimals: number; token?: TokenDef };
 
 export const addressFor = (chain: ChainDef, a: PublicAddresses) =>
-  chain.family === "evm" ? a.evm : chain.family === "solana" ? a.solana : chain.family === "bitcoin" ? a.bitcoin : a.tron;
+  chain.family === "evm" ? a.evm : chain.family === "solana" ? a.solana : a.bitcoin;
 
 /* ---------------- EVM ---------------- */
 const providers = new Map<string, JsonRpcProvider>();
@@ -117,17 +117,6 @@ async function btcApi(chain: ChainDef, path: string, init?: RequestInit) {
   throw new Error(`Bitcoin network: ${last}`);
 }
 
-/* ---------------- Tron ---------------- */
-async function tron<T>(path: string, body?: unknown): Promise<T> {
-  const r = await fetch(`https://api.trongrid.io${path}`, {
-    method: body ? "POST" : "GET",
-    headers: { "content-type": "application/json" },
-    body: body ? JSON.stringify(body) : null,
-  });
-  if (!r.ok) throw new Error(`Tron network ${r.status}`);
-  return r.json() as Promise<T>;
-}
-
 /* ================= Balances ================= */
 export async function fetchHoldings(chain: ChainDef, a: PublicAddresses): Promise<Holding[]> {
   const addr = addressFor(chain, a);
@@ -166,11 +155,7 @@ export async function fetchHoldings(chain: ChainDef, a: PublicAddresses): Promis
     const sats = j.chain_stats.funded_txo_sum - j.chain_stats.spent_txo_sum + j.mempool_stats.funded_txo_sum - j.mempool_stats.spent_txo_sum;
     return [native(BigInt(sats))];
   }
-  // tron
-  const acct = await tron<{ data: { balance?: number; trc20?: Record<string, string>[] }[] }>(`/v1/accounts/${addr}`);
-  const d = acct.data[0];
-  const trc20 = Object.assign({}, ...(d?.trc20 ?? [])) as Record<string, string>;
-  return [native(BigInt(d?.balance ?? 0)), ...chain.tokens.map((t) => tok(t, BigInt(trc20[t.address] ?? "0")))];
+  throw new Error("Unsupported wallet network.");
 }
 
 export async function fetchPrices(ids: string[], currency: string): Promise<Record<string, number>> {
@@ -195,14 +180,14 @@ export function validateRecipient(chain: ChainDef, to: string) {
   if (chain.family === "bitcoin") {
     try { btc.Address(btc.NETWORK).decode(to); return true; } catch { return false; }
   }
-  try { tronAddressToHex(to); return true; } catch { return false; }
+  return false;
 }
 
 export function validateTokenAddress(chain: ChainDef, address: string) {
   if (chain.family === "bitcoin") return false;
   if (chain.family === "evm") return isAddress(address);
   if (chain.family === "solana") return validSolAddress(address);
-  try { tronAddressToHex(address); return true; } catch { return false; }
+  return false;
 }
 
 export async function fetchTokenMetadata(chain: ChainDef, address: string): Promise<Pick<TokenDef, "symbol" | "name" | "decimals">> {
@@ -223,7 +208,7 @@ export async function fetchTokenMetadata(chain: ChainDef, address: string): Prom
     if (typeof decimals !== "number") throw new Error("Solana mint metadata unavailable. Enter the token details manually.");
     return { symbol: "TOKEN", name: "Custom SPL token", decimals };
   }
-  return { symbol: "TOKEN", name: "Custom TRC20 token", decimals: 6 };
+  throw new Error("Custom token metadata is unavailable on this network.");
 }
 
 /* ================= Fee estimate ================= */
@@ -241,7 +226,7 @@ export async function estimateFee(chain: ChainDef, token?: TokenDef): Promise<{ 
     const rate = r ? ((await r.json()) as { halfHourFee: number }).halfHourFee : 10;
     return { label: `${rate} sat/vB`, detail: "~30 min confirmation", btcRate: rate };
   }
-  return { label: token ? "Up to 30 TRX" : "Free–1.1 TRX", detail: token ? "Energy cost, burned if no staked energy" : "Bandwidth" };
+  throw new Error("Unsupported wallet network.");
 }
 
 /* ================= Send ================= */
@@ -319,33 +304,5 @@ export async function send(opts: {
     const r = await btcApi(chain, "/tx", { method: "POST", body: tx.hex });
     return (await r.text()).trim();
   }
-
-  // Tron
-  const owner = tronAddressToHex(accounts.tron.address);
-  const toHex = tronAddressToHex(to);
-  type TronTx = { txID: string; raw_data: unknown; raw_data_hex: string; Error?: string };
-  let txn: TronTx;
-  if (!token) {
-    txn = await tron<TronTx>("/wallet/createtransaction", { owner_address: owner, to_address: toHex, amount: Number(value) });
-  } else {
-    const param = toHex.slice(2).padStart(64, "0") + value.toString(16).padStart(64, "0");
-    const res = await tron<{ transaction: TronTx; result: { result?: boolean; message?: string } }>("/wallet/triggersmartcontract", {
-      owner_address: owner, contract_address: tronAddressToHex(token.address),
-      function_selector: "transfer(address,uint256)", parameter: param, fee_limit: 30_000_000, call_value: 0,
-    });
-    if (!res.result?.result) throw new Error(res.result?.message ?? "Tron contract call rejected");
-    txn = res.transaction;
-  }
-  if (txn.Error || !txn.txID) throw new Error(txn.Error ?? "Tron transaction build failed");
-  // verify the node built what we asked: txID must equal sha256(raw_data_hex)
-  if (hex.encode(sha256(hex.decode(txn.raw_data_hex))) !== txn.txID) throw new Error("Tron node returned a tampered transaction");
-  const rec = secp256k1.sign(hex.decode(txn.txID), accounts.tron.privateKey, { prehash: false, format: "recovered" });
-  const sig = hex.encode(rec.slice(1)) + ((rec[0] ?? 0) + 27).toString(16).padStart(2, "0");
-  const out = await tron<{ result?: boolean; txid?: string; message?: string }>("/wallet/broadcasttransaction", { ...txn, signature: [sig] });
-  if (!out.result) throw new Error(out.message ? safeHexMsg(out.message) : "Tron broadcast failed");
-  return txn.txID;
-}
-
-function safeHexMsg(m: string) {
-  try { return new TextDecoder().decode(hex.decode(m)); } catch { return m; }
+  throw new Error("Unsupported wallet network.");
 }

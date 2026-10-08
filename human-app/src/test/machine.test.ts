@@ -24,7 +24,7 @@ describe("Machine routing and wallet safety", () => {
     for (const path of ["/machine/v1/chains", "/api/public/machine/v1/chains"]) {
       const r = await handleMachineRequest(new Request(`https://buildawallet.xyz${path}`));
       expect(r.status).toBe(200);
-      expect((await r.json()).chains).toHaveLength(10);
+      expect((await r.json()).chains).toHaveLength(9);
     }
   });
   it("refuses invalid credentials before reading upstream data", async () => {
@@ -96,7 +96,6 @@ describe("Machine routing and wallet safety", () => {
     );
     expect(addresses.evm).toBe("0x9858EfFD232B4033E47d90003D41EC34EcaEda94");
     expect(addresses.bitcoin).toBe("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
-    expect(addresses.tron).toBe("TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH");
     expect(addresses.solana).toBe("HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk");
   });
 });

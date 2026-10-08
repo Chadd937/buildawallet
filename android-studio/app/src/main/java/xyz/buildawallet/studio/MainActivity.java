@@ -572,7 +572,16 @@ public final class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (network == selectedNetwork) {
                         balanceView.setText(balance);
-                        if (assetBalanceView != null) assetBalanceView.setText(balance);
+                    }
+                    try {
+                        String usdc = engine.usdcBalance(network);
+                        runOnUiThread(() -> {
+                            if (network == selectedNetwork && assetBalanceView != null) assetBalanceView.setText(usdc);
+                        });
+                    } catch (Exception ignored) {
+                        runOnUiThread(() -> {
+                            if (network == selectedNetwork && assetBalanceView != null) assetBalanceView.setText("USDC unavailable");
+                        });
                     }
                     status("Connected · chain " + network.chainId);
                 });
@@ -590,12 +599,17 @@ public final class MainActivity extends Activity {
 
     private void sendDialog() {
         EditText to = input("0x destination");
+        Spinner asset = new Spinner(this);
+        asset.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
+            new String[] { selectedNetwork.symbol, "USDC" }));
         EditText amount = input("0.01");
         amount.setSingleLine(true);
         amount.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
 
         LinearLayout box = dialogBox();
-        box.addView(label("Destination", 12, MUTED, true));
+        box.addView(label("Asset", 12, MUTED, true));
+        box.addView(asset);
+        addTo(box, label("Destination", 12, MUTED, true), 12);
         box.addView(to);
         addTo(box, label("Amount (" + selectedNetwork.symbol + ")", 12, MUTED, true), 12);
         box.addView(amount);
@@ -611,17 +625,22 @@ public final class MainActivity extends Activity {
             String destination = to.getText().toString().trim();
             String value = amount.getText().toString().trim();
             dialog.dismiss();
-            prepareTransfer(destination, value);
+            boolean usdc = "USDC".equals(String.valueOf(asset.getSelectedItem()));
+            prepareTransfer(destination, value, usdc);
         }));
         dialog.show();
     }
 
-    private void prepareTransfer(String to, String amount) {
+    private void prepareTransfer(String to, String amount) { prepareTransfer(to, amount, false); }
+
+    private void prepareTransfer(String to, String amount, boolean usdc) {
         status("Fetching nonce and network fee…");
         EvmNetwork network = selectedNetwork;
         io.execute(() -> {
             try {
-                WalletEngine.PreparedTransfer prepared = engine.prepare(network, to, amount);
+                WalletEngine.PreparedTransfer prepared = usdc
+                    ? engine.prepareUsdc(network, to, amount)
+                    : engine.prepare(network, to, amount);
                 runOnUiThread(() -> reviewTransfer(prepared));
             } catch (Exception error) {
                 runOnUiThread(() -> {

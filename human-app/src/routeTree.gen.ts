@@ -204,6 +204,7 @@ const ApiPublicMachineSplatRoute = ApiPublicMachineSplatRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
+  '/swagger': typeof SwaggerRoute
   '/': typeof IndexRoute
   '/advertising': typeof AdvertisingRoute
   '/human': typeof HumanRouteWithChildren
@@ -237,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/api/public/machine/$': typeof ApiPublicMachineSplatRoute
 }
 export interface FileRoutesByTo {
+  '/swagger': typeof SwaggerRoute
   '/': typeof IndexRoute
   '/advertising': typeof AdvertisingRoute
   '/owner': typeof OwnerRoute
@@ -268,6 +270,7 @@ export interface FileRoutesByTo {
   '/api/public/machine/$': typeof ApiPublicMachineSplatRoute
 }
 export interface FileRoutesById {
+  '/swagger': typeof SwaggerRoute
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/advertising': typeof AdvertisingRoute
@@ -425,6 +428,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/swagger': {
+      id: '/swagger'
+      path: '/swagger'
+      fullPath: '/swagger'
+      preLoaderRoute: typeof SwaggerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'

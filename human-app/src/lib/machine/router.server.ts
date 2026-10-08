@@ -181,10 +181,11 @@ export async function handleMachineRequest(request: Request) {
       }, 200, cors);
     if (request.method === "GET" && tail.join("/") === "agent/account") {
       const url = new URL(request.url);
-      const chain = url.searchParams.get("chain");
+      const chainParam = url.searchParams.get("chain");
       const wallet = url.searchParams.get("wallet");
-      if (!PAYMENT_CHAINS.includes(chain as any) || !wallet)
+      if (!chainParam || !PAYMENT_CHAINS.includes(chainParam as (typeof PAYMENT_CHAINS)[number]) || !wallet)
         throw new RangeError("chain and wallet query parameters are required");
+      const chain = chainParam as (typeof PAYMENT_CHAINS)[number];
       const selected = machineChain(chain);
       if (!selected || !validAddress(selected, wallet))
         throw new RangeError("Valid wallet required");
@@ -206,11 +207,14 @@ export async function handleMachineRequest(request: Request) {
     }
     if (request.method === "POST" && tail.join("/") === "agent/quote") {
       const body = await objectBody(request);
-      const chain = body["chain"];
+      const chainValue = body["chain"];
       const wallet = body["wallet"];
       const plan = body["planId"];
-      const selected = typeof chain === "string" ? machineChain(chain) : undefined;
-      if (!PAYMENT_CHAINS.includes(chain as any) || typeof wallet !== "string" || !selected || !validAddress(selected, wallet))
+      if (typeof chainValue !== "string" || !PAYMENT_CHAINS.includes(chainValue as (typeof PAYMENT_CHAINS)[number]) || typeof wallet !== "string")
+        throw new RangeError("Valid wallet required");
+      const chain = chainValue as (typeof PAYMENT_CHAINS)[number];
+      const selected = machineChain(chain);
+      if (!selected || !validAddress(selected, wallet))
         throw new RangeError("Valid wallet required");
       if (typeof plan !== "string") throw new RangeError("planId required");
       return json(await createMachineAccessQuote(chain, EVM_PAYMENT_CHAINS.has(chain) ? wallet.toLowerCase() : wallet, plan as any), 201, cors);

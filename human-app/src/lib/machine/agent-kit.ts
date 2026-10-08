@@ -15,7 +15,6 @@ export const KIT_PATHS = {
   evm: "m/44'/60'/0'/0/0",
   solana: "m/44'/501'/0'/0'",
   bitcoin: "m/84'/0'/0'/0/0",
-  tron: "m/44'/195'/0'/0/0",
 } as const;
 
 /**
@@ -54,12 +53,6 @@ function slip10(seed, path) {
   }
   return key;
 }
-function tron(priv) {
-  const raw = new Uint8Array(21); raw[0] = 0x41;
-  raw.set(keccak_256(secp256k1.getPublicKey(priv, false).slice(1)).slice(-20), 1);
-  const full = new Uint8Array(25); full.set(raw); full.set(sha256(sha256(raw)).slice(0, 4), 21);
-  return base58.encode(full);
-}
 
 let mnemonic = process.env.BAW_MNEMONIC;
 if (!mnemonic && existsSync(FILE)) mnemonic = JSON.parse(readFileSync(FILE, "utf8")).mnemonic;
@@ -82,7 +75,7 @@ console.log(JSON.stringify({
   walletFile: FILE,
   addresses: {
     ethereum: evm, base: evm, arbitrum: evm, optimism: evm, polygon: evm, bnb: evm, avalanche: evm,
-    solana: sol, bitcoin, tron: tronAddr,
+    solana: sol, bitcoin,
   },
   next: "${ORIGIN}/machine/v1/wallets/kit",
 }, null, 2));
@@ -103,10 +96,9 @@ export const kitManifest = () => ({
     evm: ["ethereum", "base", "arbitrum", "optimism", "polygon", "bnb", "avalanche"],
     solana: ["solana"],
     bitcoin: ["bitcoin"],
-    tron: ["tron"],
   },
   afterCreation: [
-    "Buy a prepaid API plan on any supported payment network and obtain a bearer API key. EVM/Solana/Tron use the configured stablecoin; Bitcoin uses BTC.",
+    "Buy a prepaid API plan on any supported payment network and obtain a bearer API key. EVM/Solana use USDC; Bitcoin uses BTC.",
     "Read balances: GET /machine/v1/{chain}/wallet/{address} with an API key. Each request uses backend units without another blockchain payment.",
     "Send funds: use the supported /machine/v1/{chain}/transaction/prepare and /broadcast endpoints where that chain is enabled for transaction operations; sign locally.",
   ],

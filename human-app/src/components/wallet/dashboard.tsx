@@ -386,11 +386,11 @@ function TokensPanel({ chains, customTokens, onChange }: { chains: ChainDef[]; c
     setAddress("");
     setSymbol("");
     setName("");
-    setDecimals(chain.family === "tron" ? "6" : "18");
+    setDecimals(chain.family === "solana" ? "6" : "18");
     toast.success("Custom token added");
   }
 
-  if (!chain) return <section className="max-w-2xl rounded-3xl border p-6 skin-border skin-surface"><h2 className="wallet-heading text-2xl font-bold">Custom tokens</h2><p className="mt-2 text-sm skin-muted">Enable an EVM, Solana, or Tron network in Studio to add custom tokens.</p></section>;
+  if (!chain) return <section className="max-w-2xl rounded-3xl border p-6 skin-border skin-surface"><h2 className="wallet-heading text-2xl font-bold">Custom tokens</h2><p className="mt-2 text-sm skin-muted">Enable an EVM or Solana network in Studio to add custom tokens.</p></section>;
 
   return (
     <section className="max-w-3xl space-y-5">
@@ -555,11 +555,6 @@ function NetworkPanel({ draft, chains }: { draft: Draft; chains: ChainDef[] }) {
         if (c.family === "bitcoin") {
           const r = await fetch(`${c.rpc[0]!}/blocks/tip/height`);
           return { height: Number(await r.text()), ms: Math.round(performance.now() - t) };
-        }
-        if (c.family === "tron") {
-          const r = await fetch("https://api.trongrid.io/wallet/getnowblock", { method: "POST" });
-          const j = (await r.json()) as { block_header: { raw_data: { number: number } } };
-          return { height: j.block_header.raw_data.number, ms: Math.round(performance.now() - t) };
         }
         const { solanaRpc } = await import("@/lib/wallet/rpc.functions");
         const r = await solanaRpc({ data: { method: "getLatestBlockhash", params: [] } });

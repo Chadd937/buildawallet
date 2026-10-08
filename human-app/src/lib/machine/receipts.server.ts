@@ -279,6 +279,10 @@ export async function verifyBitcoinReceipt(
   const blockTime = Number(status.block_time);
   if (!Number.isSafeInteger(blockTime) || blockTime < earliest - 30)
     throw new Error("Bitcoin payment predates this checkout");
+  const signedByPayer = (body?.vin ?? []).some(
+    (input: any) => input?.prevout?.scriptpubkey_address === payer,
+  );
+  if (!signedByPayer) throw new Error("Bitcoin transaction does not spend from the checkout wallet");
   const paid = (body?.vout ?? []).some((output: any) =>
     output?.scriptpubkey_address === BITCOIN_COLLECTOR && BigInt(output?.value ?? 0) >= amountAtomic
   );

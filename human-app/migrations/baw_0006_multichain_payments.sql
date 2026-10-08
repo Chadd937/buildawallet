@@ -188,4 +188,15 @@ CREATE TRIGGER wallet_meter AFTER INSERT ON api_meter_requests WHEN NEW.kind='wa
     ON CONFLICT(chain,wallet) DO UPDATE SET period_start=excluded.period_start,used=excluded.used;
 END;
 
+CREATE TRIGGER prepaid_payment_reserve BEFORE INSERT ON machine_prepaid_payments BEGIN
+  INSERT INTO api_payment_redemptions(chain,tx) VALUES(NEW.chain,NEW.tx);
+END;
+
+CREATE TRIGGER prepaid_payment_activate AFTER INSERT ON machine_prepaid_payments BEGIN
+  INSERT INTO machine_entitlements(chain,wallet,plan_id,expires_at)
+    VALUES(NEW.chain,NEW.wallet,NEW.plan_id,strftime('%Y-%m-%dT%H:%M:%fZ','now','+30 days'))
+    ON CONFLICT(chain,wallet) DO UPDATE SET plan_id=excluded.plan_id,
+      expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',max(machine_entitlements.expires_at,strftime('%Y-%m-%dT%H:%M:%fZ','now')),'+30 days');
+END;
+
 PRAGMA foreign_keys=ON;

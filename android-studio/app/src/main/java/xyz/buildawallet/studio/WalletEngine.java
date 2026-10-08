@@ -184,6 +184,40 @@ final class WalletEngine {
         return new BigDecimal(value).divide(BigDecimal.TEN.pow(decimals), decimals, RoundingMode.DOWN).stripTrailingZeros().toPlainString();
     }
 
+
+    String signPersonalMessage(String message) {
+        org.web3j.crypto.Sign.SignatureData sig = org.web3j.crypto.Sign.signPrefixedMessage(message.getBytes(java.nio.charset.StandardCharsets.UTF_8), credentials.getEcKeyPair());
+        byte[] out = new byte[65];
+        System.arraycopy(sig.getR(), 0, out, 0, 32); System.arraycopy(sig.getS(), 0, out, 32, 32); System.arraycopy(sig.getV(), 0, out, 64, 1);
+        return Numeric.toHexString(out);
+    }
+
+    String dappSendTransaction(EvmNetwork network, org.json.JSONObject tx) throws Exception {
+        Web3j web3j = client(network);
+        try {
+            verifyNetwork(web3j, network);
+            String from = tx.optString("from", "");
+            if (!from.equalsIgnoreCase(address())) throw new IllegalArgumentException("Dapp transaction account does not match this wallet.");
+            String to = tx.optString("to", "");
+            if (!WalletUtils.isValidAddress(to)) throw new IllegalArgumentException("Dapp transaction destination is invalid.");
+            BigInteger nonce = tx.has("nonce") ? Numeric.toBigInt(tx.getString("nonce")) : web3j.ethGetTransactionCount(address(), DefaultBlockParameterName.PENDING).send().getTransactionCount();
+            BigInteger value = tx.has("value") ? Numeric.toBigInt(tx.getString("value")) : BigInteger.ZERO;
+            String data = tx.optString("data", tx.optString("input", "0x"));
+            BigInteger gas = tx.has("gas") ? Numeric.toBigInt(tx.getString("gas")) : web3j.ethEstimateGas(org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(address(), to, data)).send().getAmountUsed();
+            if (gas == null || gas.signum() <= 0) gas = BigInteger.valueOf(21000);
+            BigInteger gasPrice = tx.has("gasPrice") ? Numeric.toBigInt(tx.getString("gasPrice")) : web3j.ethGasPrice().send().getGasPrice();
+            BigInteger maxPriority = tx.has("maxPriorityFeePerGas") ? Numeric.toBigInt(tx.getString("maxPriorityFeePerGas")) : gasPrice;
+            BigInteger maxFee = tx.has("maxFeePerGas") ? Numeric.toBigInt(tx.getString("maxFeePerGas")) : gasPrice;
+            RawTransaction raw;
+            if (tx.has("maxFeePerGas") || tx.has("maxPriorityFeePerGas")) raw = RawTransaction.createTransaction(network.chainId, nonce, gas, to, value, data, maxPriority, maxFee);
+            else raw = RawTransaction.createTransaction(nonce, gasPrice, gas, to, value, data);
+            byte[] signed = TransactionEncoder.signMessage(raw, network.chainId, credentials);
+            EthSendTransaction sent = web3j.ethSendRawTransaction(Numeric.toHexString(signed)).send();
+            if (sent.hasError()) throw rpcError(sent.getError().getMessage());
+            return sent.getTransactionHash();
+        } finally { web3j.shutdown(); }
+    }
+
     String broadcast(PreparedTransfer transfer) throws Exception {
         Web3j web3j = client(transfer.network);
         try {

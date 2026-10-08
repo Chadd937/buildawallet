@@ -138,9 +138,9 @@ export async function storeCheckoutQuote(
   planId: string,
   chain: string,
   payer: string,
-  amountAtomic: string,
-  asset: string,
-  decimals: number,
+  amountAtomic: string = String(planById(planId)?.amountAtomic ?? 0n),
+  asset = "USDC",
+  decimals = 6,
 ) {
   const quote = {
     id: randomUUID(),

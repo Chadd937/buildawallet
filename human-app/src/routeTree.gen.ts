@@ -19,6 +19,7 @@ import { Route as PrivacyChoicesRouteImport } from './routes/privacy-choices'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as SwaggerRouteImport } from './routes/swagger'
 import { Route as ApiHumanAiRouteImport } from './routes/api/human-ai'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
@@ -89,6 +90,11 @@ const SupportRoute = SupportRouteImport.update({
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SwaggerRoute = SwaggerRouteImport.update({
+  id: '/swagger',
+  path: '/swagger',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHumanAiRoute = ApiHumanAiRouteImport.update({
@@ -197,6 +203,7 @@ const ApiPublicMachineSplatRoute = ApiPublicMachineSplatRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 
+  '/swagger': typeof SwaggerRoute
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/advertising': typeof AdvertisingRoute
@@ -230,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/api/public/openapi': typeof ApiPublicOpenapiRoute
   '/api/public/machine/$': typeof ApiPublicMachineSplatRoute
 }
+  '/swagger': typeof SwaggerRoute
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/advertising': typeof AdvertisingRoute
@@ -261,6 +269,7 @@ export interface FileRoutesByTo {
   '/api/public/openapi': typeof ApiPublicOpenapiRoute
   '/api/public/machine/$': typeof ApiPublicMachineSplatRoute
 }
+  '/swagger': typeof SwaggerRoute
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
@@ -298,6 +307,7 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/swagger'
     | '/'
     | '/advertising'
     | '/human'
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/api/public/machine/$'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/swagger'
     | '/'
     | '/advertising'
     | '/owner'
@@ -361,6 +372,7 @@ export interface FileRouteTypes {
     | '/api/public/openapi'
     | '/api/public/machine/$'
   id:
+    | '/swagger'
     | '__root__'
     | '/'
     | '/advertising'
@@ -406,6 +418,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SupportRoute: typeof SupportRoute
   TermsRoute: typeof TermsRoute
+  SwaggerRoute: typeof SwaggerRoute
   ApiHumanAiRoute: typeof ApiHumanAiRoute
   BlogSlugRoute: typeof BlogSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
@@ -483,6 +496,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/swagger': {
+      id: '/swagger'
+      path: '/swagger'
+      fullPath: '/swagger'
+      preLoaderRoute: typeof SwaggerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/human-ai': {
@@ -696,6 +716,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SupportRoute: SupportRoute,
   TermsRoute: TermsRoute,
+  SwaggerRoute: SwaggerRoute,
   ApiHumanAiRoute: ApiHumanAiRoute,
   BlogSlugRoute: BlogSlugRoute,
   BlogIndexRoute: BlogIndexRoute,

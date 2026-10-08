@@ -17,7 +17,7 @@ import org.p2p.solanaj.core.Account;
 import org.p2p.solanaj.core.PublicKey;
 import org.bitcoinj.base.Address;
 import org.bitcoinj.base.AddressParser;
-import org.p2p.solanaj.core.Transaction;
+
 import org.p2p.solanaj.programs.SystemProgram;
 import org.p2p.solanaj.rpc.Cluster;
 import org.p2p.solanaj.rpc.RpcClient;
@@ -66,7 +66,7 @@ final class NonEvmEngine {
         if (lamports <= 0) throw new IllegalArgumentException("Amount must be greater than zero.");
         long balance = solanaRpc.getApi().getBalance(solana.getPublicKey());
         if (balance < lamports) throw new IllegalArgumentException("Insufficient SOL balance.");
-        Transaction tx = new Transaction();
+        org.p2p.solanaj.core.Transaction tx = new org.p2p.solanaj.core.Transaction();
         tx.addInstruction(SystemProgram.transfer(solana.getPublicKey(), to, lamports));
         return solanaRpc.getApi().sendTransaction(tx, solana);
     }
@@ -95,7 +95,7 @@ final class NonEvmEngine {
         JSONArray utxos = new JSONArray(httpGet(BTC_API + "/address/" + Uri.encode(bitcoinAddress()) + "/utxo"));
         loadConfirmedUtxosIntoWallet(utxos);
 
-        Address destinationAddress = AddressParser.getAddressParser(BitcoinNetwork.MAINNET).parseAddress(destination);
+        Address destinationAddress = AddressParser.getDefault(BitcoinNetwork.MAINNET).parseAddress(destination);
         SendRequest req = SendRequest.to(destinationAddress, Coin.valueOf(sats));
         req.feePerKb = Coin.valueOf(Math.multiplyExact(rate, 1000L));
         bitcoin.completeTx(req);
@@ -116,7 +116,7 @@ final class NonEvmEngine {
             if (bitcoin.getTransaction(org.bitcoinj.base.Sha256Hash.wrap(txid)) != null) continue;
             String raw = httpGet(BTC_API + "/tx/" + txid + "/hex");
             byte[] bytes = hexToBytes(raw.trim());
-            Transaction funding = Transaction.read(ByteBuffer.wrap(bytes));
+            org.bitcoinj.core.Transaction funding = org.bitcoinj.core.Transaction.read(ByteBuffer.wrap(bytes));
             bitcoin.addWalletTransaction(new WalletTransaction(WalletTransaction.Pool.UNSPENT, funding));
             if (vout >= funding.getOutputs().size()) throw new IllegalStateException("Bitcoin UTXO output index is invalid.");
         }

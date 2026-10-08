@@ -53,6 +53,8 @@ beforeEach(() => {
   migration("baw_0001_app_data.sql");
   migration("baw_0002_treasury_receipts.sql");
   migration("baw_0003_prepaid_plans.sql");
+  migration("baw_0005_agent_accounts.sql");
+  migration("baw_0006_multichain_payments.sql");
 });
 afterEach(() => {
   db.close();

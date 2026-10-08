@@ -223,9 +223,12 @@ export async function verifyTronReceipt(
 
 function decimalToScaled(value: string, scale: number): bigint {
   if (!/^\d+(?:\.\d+)?$/.test(value)) throw new Error("Invalid price");
-  const [whole, fraction = ""] = value.split(".");
+  const parts = value.split(".");
+  const whole = parts[0];
+  const fraction = parts[1] ?? "";
+  if (!whole) throw new Error("Invalid price");
   if (fraction.length > scale) return BigInt(whole) * 10n ** BigInt(scale) + BigInt(fraction.slice(0, scale));
-  return BigInt(whole) * 10n ** BigInt(scale) + BigInt(fraction.padEnd(scale, "0") || "0");
+  return BigInt(whole) * 10n ** BigInt(scale) + BigInt(fraction.padEnd(scale, "0"));
 }
 
 export async function btcUsdSpot(): Promise<string> {

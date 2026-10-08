@@ -566,7 +566,7 @@ public final class MainActivity extends Activity {
                 if (u.startsWith("https://") || u.startsWith("http://")) { loadDappUrl(u, v); return true; }
                 openExternal(u); return true;
             }
-            @Override public void onPageFinished(WebView v, String u) { injectEip1193(v); }
+            @Override public void onPageFinished(WebView v, String u) { if (isTrustedDappOrigin(u)) injectEip1193(v); }
         });
         root.addView(dappWebView, new LinearLayout.LayoutParams(-1, dp(420)));
         root.addView(label("Built-in EVM dapp connection uses the wallet's local signing provider. Dapps never receive the recovery phrase.", 11, MUTED, false));

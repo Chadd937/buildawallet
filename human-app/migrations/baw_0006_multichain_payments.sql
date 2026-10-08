@@ -133,34 +133,40 @@ CREATE TRIGGER machine_payment_activate AFTER INSERT ON machine_payments BEGIN
 END;
 
 
-DROP TABLE machine_api_usage;
-DROP TABLE machine_api_keys;
-DROP TABLE machine_entitlements;
-
-CREATE TABLE machine_entitlements (
+CREATE TABLE machine_entitlements_new (
   chain TEXT NOT NULL CHECK(chain IN ('ethereum','base','arbitrum','optimism','polygon','bnb','avalanche','solana','bitcoin','tron')),
   wallet TEXT NOT NULL,
   plan_id TEXT NOT NULL CHECK(plan_id IN ('builder','pro','scale')),
   expires_at TEXT NOT NULL,
   PRIMARY KEY(chain,wallet)
 );
+INSERT INTO machine_entitlements_new SELECT chain,wallet,plan_id,expires_at FROM machine_entitlements;
 
-CREATE TABLE machine_api_keys (
+CREATE TABLE machine_api_keys_new (
   chain TEXT NOT NULL CHECK(chain IN ('ethereum','base','arbitrum','optimism','polygon','bnb','avalanche','solana','bitcoin','tron')),
   wallet TEXT NOT NULL,
   token_hash TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL,
   PRIMARY KEY(chain,wallet),
-  FOREIGN KEY(chain,wallet) REFERENCES machine_entitlements(chain,wallet)
+  FOREIGN KEY(chain,wallet) REFERENCES machine_entitlements_new(chain,wallet)
 );
+INSERT INTO machine_api_keys_new SELECT chain,wallet,token_hash,created_at FROM machine_api_keys;
 
-CREATE TABLE machine_api_usage (
+CREATE TABLE machine_api_usage_new (
   chain TEXT NOT NULL CHECK(chain IN ('ethereum','base','arbitrum','optimism','polygon','bnb','avalanche','solana','bitcoin','tron')),
   wallet TEXT NOT NULL,
   period_start TEXT NOT NULL,
   used INTEGER NOT NULL CHECK(used>=0),
   PRIMARY KEY(chain,wallet),
-  FOREIGN KEY(chain,wallet) REFERENCES machine_entitlements(chain,wallet)
+  FOREIGN KEY(chain,wallet) REFERENCES machine_entitlements_new(chain,wallet)
 );
+INSERT INTO machine_api_usage_new SELECT chain,wallet,period_start,used FROM machine_api_usage;
+
+DROP TABLE machine_api_usage;
+DROP TABLE machine_api_keys;
+DROP TABLE machine_entitlements;
+ALTER TABLE machine_entitlements_new RENAME TO machine_entitlements;
+ALTER TABLE machine_api_keys_new RENAME TO machine_api_keys;
+ALTER TABLE machine_api_usage_new RENAME TO machine_api_usage;
 
 PRAGMA foreign_keys=ON;

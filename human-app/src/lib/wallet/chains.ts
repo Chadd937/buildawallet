@@ -1,4 +1,4 @@
-export type ChainFamily = "evm" | "solana" | "bitcoin" | "tron";
+export type ChainFamily = "evm" | "solana" | "bitcoin";
 
 export type TokenDef = { symbol: string; name: string; address: string; decimals: number; custom?: boolean };
 

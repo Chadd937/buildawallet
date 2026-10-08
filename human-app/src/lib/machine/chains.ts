@@ -1,6 +1,6 @@
 import { isAddress as isSolanaAddress } from "@solana/addresses";
 
-export type MachineFamily = "evm" | "solana" | "bitcoin" | "tron";
+export type MachineFamily = "evm" | "solana" | "bitcoin";
 export type MachineChain = {
   id: string; name: string; family: MachineFamily; symbol: string; decimals: number;
   chainId?: number; env: string; fallback: string; explorer: string;
@@ -17,10 +17,9 @@ export const MACHINE_CHAINS: readonly MachineChain[] = [
   { id: "avalanche", name: "Avalanche", family: "evm", symbol: "AVAX", decimals: 18, chainId: 43114, env: "AVALANCHE_RPC_URL", fallback: "https://api.avax.network/ext/bc/C/rpc", explorer: "https://snowtrace.io", stablecoin: { symbol: "USDC", address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", decimals: 6 } },
   { id: "solana", name: "Solana", family: "solana", symbol: "SOL", decimals: 9, env: "SOLANA_RPC_URL", fallback: "https://solana-rpc.publicnode.com", explorer: "https://solscan.io", stablecoin: { symbol: "USDC", address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6 } },
   { id: "bitcoin", name: "Bitcoin", family: "bitcoin", symbol: "BTC", decimals: 8, env: "BITCOIN_API_URL", fallback: "https://mempool.space/api", explorer: "https://mempool.space" },
-  { id: "tron", name: "Tron", family: "tron", symbol: "TRX", decimals: 6, env: "TRON_API_URL", fallback: "https://api.trongrid.io", explorer: "https://tronscan.org", stablecoin: { symbol: "USDT", address: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", decimals: 6 } },
 ] as const;
 
-export type MachineChainId = "ethereum" | "base" | "arbitrum" | "optimism" | "polygon" | "bnb" | "avalanche" | "solana" | "bitcoin" | "tron";
+export type MachineChainId = "ethereum" | "base" | "arbitrum" | "optimism" | "polygon" | "bnb" | "avalanche" | "solana" | "bitcoin";
 export const machineChain = (id: string) => MACHINE_CHAINS.find((chain) => chain.id === id);
 export const rpcUrl = (chain: MachineChain) => process.env[chain.env]?.trim() || chain.fallback;
 

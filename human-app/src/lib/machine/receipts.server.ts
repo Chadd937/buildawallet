@@ -263,7 +263,7 @@ export async function verifyBitcoinReceipt(
   amountAtomic: bigint,
 ): Promise<number> {
   if (!/^[0-9a-fA-F]{64}$/.test(tx)) throw new Error("Invalid Bitcoin transaction id");
-  if (!/^bc1[ac-hj-np-z02-9]{11,71}$/.test(payer)) throw new Error("Valid Bitcoin Taproot wallet required");
+  if (!/^(bc1[ac-hj-np-z02-9]{11,71}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$/.test(payer)) throw new Error("Valid Bitcoin wallet required");
   const response = await fetch(`https://mempool.space/api/tx/${tx}`, {
     headers: { accept: "application/json" },
     signal: AbortSignal.timeout(12000),

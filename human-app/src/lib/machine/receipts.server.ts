@@ -1,4 +1,4 @@
-import { BASE_USDC, SOLANA_USDC, SOLANA_COLLECTOR, paymentCollector } from "./config";
+import { BASE_USDC, SOLANA_USDC, SOLANA_COLLECTOR, BITCOIN_COLLECTOR, paymentCollector, paymentRail, planById, type PlanId } from "./config";
 import type { MachineChain } from "./chains";
 
 export { BASE_USDC, SOLANA_USDC } from "./config";
@@ -218,4 +218,70 @@ export async function verifyTronReceipt(
   );
   if (match) return Math.floor(Number(match.block_timestamp) / 1000);
   throw new Error("No matching Tron USDT transfer to the developer treasury");
+}
+
+
+function decimalToScaled(value: string, scale: number): bigint {
+  if (!/^\d+(?:\.\d+)?$/.test(value)) throw new Error("Invalid price");
+  const [whole, fraction = ""] = value.split(".");
+  if (fraction.length > scale) return BigInt(whole) * 10n ** BigInt(scale) + BigInt(fraction.slice(0, scale));
+  return BigInt(whole) * 10n ** BigInt(scale) + BigInt(fraction.padEnd(scale, "0") || "0");
+}
+
+export async function btcUsdSpot(): Promise<string> {
+  const response = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot", {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error("Bitcoin price service unavailable");
+  const body: any = await response.json();
+  const price = body?.data?.amount;
+  if (typeof price !== "string" || !/^\d+(?:\.\d+)?$/.test(price)) throw new Error("Bitcoin price service returned an invalid price");
+  return price;
+}
+
+export async function paymentAmountAtomic(chain: string, planId: PlanId): Promise<bigint> {
+  const plan = planById(planId);
+  const rail = paymentRail(chain);
+  if (!plan) throw new RangeError("Unknown plan");
+  if (chain !== "bitcoin") {
+    const base = plan.amountAtomic;
+    if (rail.decimals === 6) return base;
+    if (rail.decimals === 18) return base * 1_000_000_000_000n;
+    throw new RangeError("Unsupported payment decimals");
+  }
+  const priceScaled = decimalToScaled(await btcUsdSpot(), 8);
+  // plan.amountAtomic is USD/USDC at 6 decimals. Round BTC upward so a
+  // price move against the merchant cannot turn a quoted plan into an underpayment.
+  return (plan.amountAtomic * 10_000_000_000n + priceScaled - 1n) / priceScaled;
+}
+
+export async function verifyBitcoinReceipt(
+  tx: string,
+  payer: string,
+  earliest: number,
+  amountAtomic: bigint,
+): Promise<number> {
+  if (!/^[0-9a-fA-F]{64}$/.test(tx)) throw new Error("Invalid Bitcoin transaction id");
+  if (!/^bc1[ac-hj-np-z02-9]{11,71}$/.test(payer)) throw new Error("Valid Bitcoin Taproot wallet required");
+  const response = await fetch(`https://mempool.space/api/tx/${tx}`, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(12000),
+  });
+  if (response.status === 404) throw new Error("Bitcoin transaction not found");
+  if (!response.ok) throw new Error("Bitcoin transaction service unavailable");
+  const body: any = await response.json();
+  const status = body?.status;
+  if (!status?.confirmed) {
+    if (status) throw new PendingReceipt("Bitcoin transaction is not confirmed yet");
+    throw new Error("Invalid Bitcoin transaction response");
+  }
+  const blockTime = Number(status.block_time);
+  if (!Number.isSafeInteger(blockTime) || blockTime < earliest - 30)
+    throw new Error("Bitcoin payment predates this checkout");
+  const paid = (body?.vout ?? []).some((output: any) =>
+    output?.scriptpubkey_address === BITCOIN_COLLECTOR && BigInt(output?.value ?? 0) >= amountAtomic
+  );
+  if (!paid) throw new Error("No matching Bitcoin payment to the developer treasury");
+  return blockTime;
 }

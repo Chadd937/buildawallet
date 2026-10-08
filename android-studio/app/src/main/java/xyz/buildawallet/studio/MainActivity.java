@@ -956,17 +956,53 @@ public final class MainActivity extends Activity {
     }
 
     private void settingsDialog() {
-        String[] choices = {"Rename wallet", "Change theme", "Manage networks"};
+        String[] choices = {"Rename wallet", "Change theme", "Manage networks", "Security limits", "Currency", "Layout & navigation"};
         new AlertDialog.Builder(this)
             .setTitle("Customize wallet")
             .setItems(choices, (dialog, which) -> {
                 if (which == 0) renameDialog();
                 else if (which == 1) themeDialog();
-                else manageNetworksDialog();
+                else if (which == 2) manageNetworksDialog();
+                else if (which == 3) securitySettingsDialog();
+                else if (which == 4) currencyDialog();
+                else layoutSettingsDialog();
             })
             .setNegativeButton("Close", null)
             .show();
     }
+
+
+    private void securitySettingsDialog() {
+        LinearLayout box = dialogBox();
+        EditText lock = input("Auto-lock minutes"); lock.setInputType(InputType.TYPE_CLASS_NUMBER); lock.setText(Integer.toString(profile.autoLockMin));
+        EditText large = input("Large-send threshold USD"); large.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); large.setText(Integer.toString(profile.bigSendUsd));
+        EditText limit = input("Session spend limit USD"); limit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); limit.setText(Integer.toString(profile.sessionLimitUsd));
+        box.addView(label("Auto-lock", 12, MUTED, true)); box.addView(lock); addTo(box, label("Large-send guard", 12, MUTED, true), 10); box.addView(large); addTo(box, label("Session spend limit", 12, MUTED, true), 10); box.addView(limit);
+        AlertDialog d = new AlertDialog.Builder(this).setTitle("Security settings").setView(box).setNegativeButton("Cancel", null).setPositiveButton("Save", null).create();
+        d.setOnShowListener(v -> d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(x -> { try { profile=profile.withSettings(Integer.parseInt(lock.getText().toString()), Integer.parseInt(large.getText().toString()), Integer.parseInt(limit.getText().toString()), profile.currency, profile.walletStyle, profile.navigationStyle, profile.assetStyle, profile.actionStyle); profile.save(this); d.dismiss(); render(); } catch(Exception e){ showError("Invalid security settings", e); } })); d.show();
+    }
+
+    private void currencyDialog() {
+        String[] currencies = {"usd","eur","gbp","jpy","cad","aud","chf","inr","brl"};
+        int current = 0; for(int i=0;i<currencies.length;i++) if(currencies[i].equalsIgnoreCase(profile.currency)) current=i;
+        new AlertDialog.Builder(this).setTitle("Display currency").setSingleChoiceItems(currencies,current,(d,w)->{ profile=profile.withSettings(profile.autoLockMin,profile.bigSendUsd,profile.sessionLimitUsd,currencies[w],profile.walletStyle,profile.navigationStyle,profile.assetStyle,profile.actionStyle); profile.save(this); d.dismiss(); Toast.makeText(this,"Currency saved",Toast.LENGTH_SHORT).show(); }).setNegativeButton("Cancel",null).show();
+    }
+
+    private void layoutSettingsDialog() {
+        String[] styles = {"classic","minimal","trader","neon","glass","gallery"};
+        String[] nav = {"bottom","icons","floating","text"};
+        String[] assets = {"compact","detailed","visual"};
+        String[] actions = {"duo","toolbar","round"};
+        LinearLayout box = dialogBox();
+        Spinner ws = new Spinner(this); ws.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,styles)); ws.setSelection(indexOf(styles,profile.walletStyle));
+        Spinner ns = new Spinner(this); ns.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,nav)); ns.setSelection(indexOf(nav,profile.navigationStyle));
+        Spinner as = new Spinner(this); as.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,assets)); as.setSelection(indexOf(assets,profile.assetStyle));
+        Spinner ac = new Spinner(this); ac.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,actions)); ac.setSelection(indexOf(actions,profile.actionStyle));
+        box.addView(label("Wallet style",12,MUTED,true)); box.addView(ws); addTo(box,label("Navigation style",12,MUTED,true),10); box.addView(ns); addTo(box,label("Asset style",12,MUTED,true),10); box.addView(as); addTo(box,label("Action style",12,MUTED,true),10); box.addView(ac);
+        new AlertDialog.Builder(this).setTitle("Layout & navigation").setView(box).setNegativeButton("Cancel",null).setPositiveButton("Save",(d,w)->{ profile=profile.withSettings(profile.autoLockMin,profile.bigSendUsd,profile.sessionLimitUsd,profile.currency,String.valueOf(ws.getSelectedItem()),String.valueOf(ns.getSelectedItem()),String.valueOf(as.getSelectedItem()),String.valueOf(ac.getSelectedItem())); profile.save(this); render(); }).show();
+    }
+
+    private static int indexOf(String[] values, String target) { for(int i=0;i<values.length;i++) if(values[i].equalsIgnoreCase(target)) return i; return 0; }
 
     private void renameDialog() {
         EditText name = input("Wallet name");

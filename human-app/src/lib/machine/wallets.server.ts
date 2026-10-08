@@ -54,7 +54,7 @@ export async function handleWalletRoute(
         explorers: Object.fromEntries(
           valid.map((c) => [
             c.id,
-            `${c.explorer}/${c.family === "bitcoin" ? "address" : c.family === "tron" ? "#/address" : c.family === "solana" ? "account" : "address"}/${address.trim()}`,
+            `${c.explorer}/${c.family === "bitcoin" ? "address" : c.family === "solana" ? "account" : "address"}/${address.trim()}`,
           ]),
         ),
       },

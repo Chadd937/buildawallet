@@ -5,6 +5,8 @@ import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
@@ -415,6 +417,9 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams actionGap3 = new LinearLayout.LayoutParams(0, dp(78), 1f);
         actionGap3.leftMargin = dp(8);
         actions.addView(walletAction("◎", "Networks", v -> selectNetworkDialog()), actionGap3);
+        LinearLayout.LayoutParams actionGap4 = new LinearLayout.LayoutParams(0, dp(78), 1f);
+        actionGap4.leftMargin = dp(8);
+        actions.addView(walletAction("✦", "Byte AI", v -> showByteChat()), actionGap4);
         add(actions, 14);
 
         add(sectionTitle("Assets", "Live balance on the selected network"), 28);
@@ -489,6 +494,33 @@ public final class MainActivity extends Activity {
 
         add(notice("Review the network, destination, amount and network fee before every send. Mainnet transactions are irreversible."), 18);
         refreshBalance();
+    }
+
+    private void showByteChat() {
+        LinearLayout box = dialogBox();
+        TextView intro = label(
+            "Hi, I’m Byte. I can help with BuildAWallet, supported networks, fees, receiving, safe transaction review, and the AI-agent service. Never paste a recovery phrase or private key here.",
+            14, TEXT, false);
+        intro.setPadding(dp(4), dp(4), dp(4), dp(12));
+        box.addView(intro);
+        EditText question = input("Ask Byte a wallet question…");
+        question.setSingleLine(false);
+        question.setMinLines(3);
+        box.addView(question);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Byte · Wallet & API Guide")
+            .setView(box)
+            .setNegativeButton("Close", null)
+            .setPositiveButton("Open full Byte chat", null)
+            .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://buildawallet.xyz/human/wallet")));
+            } catch (Exception error) {
+                showError("Could not open Byte chat", error);
+            }
+        }));
+        dialog.show();
     }
 
     private LinearLayout walletAction(String glyph, String title, View.OnClickListener listener) {

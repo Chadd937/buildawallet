@@ -157,7 +157,7 @@ export async function consumeApiKey(
 export async function txAlreadyUsed(chain: string, tx: string) {
   const row = await appDatabase()
     .prepare("SELECT 1 FROM api_payment_redemptions WHERE chain=? AND tx=?")
-    .bind(chain, chain === "base" ? tx.toLowerCase() : tx)
+    .bind(chain, EVM_CHAINS.has(chain) ? tx.toLowerCase() : tx)
     .first();
   return Boolean(row);
 }

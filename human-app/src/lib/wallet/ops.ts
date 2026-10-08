@@ -19,7 +19,7 @@ const ERC20 = [
 export type Holding = { chainId: string; symbol: string; name: string; amount: string; raw: bigint; decimals: number; token?: TokenDef };
 
 export const addressFor = (chain: ChainDef, a: PublicAddresses) =>
-  chain.family === "evm" ? a.evm : chain.family === "solana" ? a.solana : chain.family === "bitcoin" ? a.bitcoin : a.tron;
+  chain.family === "evm" ? a.evm : chain.family === "solana" ? a.solana : a.bitcoin;
 
 /* ---------------- EVM ---------------- */
 const providers = new Map<string, JsonRpcProvider>();
@@ -178,12 +178,14 @@ export function validateRecipient(chain: ChainDef, to: string) {
   if (chain.family === "bitcoin") {
     try { btc.Address(btc.NETWORK).decode(to); return true; } catch { return false; }
   }
+  return false;
 }
 
 export function validateTokenAddress(chain: ChainDef, address: string) {
   if (chain.family === "bitcoin") return false;
   if (chain.family === "evm") return isAddress(address);
   if (chain.family === "solana") return validSolAddress(address);
+  return false;
 }
 
 export async function fetchTokenMetadata(chain: ChainDef, address: string): Promise<Pick<TokenDef, "symbol" | "name" | "decimals">> {
@@ -300,4 +302,5 @@ export async function send(opts: {
     const r = await btcApi(chain, "/tx", { method: "POST", body: tx.hex });
     return (await r.text()).trim();
   }
+  throw new Error("Unsupported wallet network.");
 }

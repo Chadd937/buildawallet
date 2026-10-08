@@ -14,16 +14,14 @@ export type DerivedAccounts = {
   evm: { address: string; privateKey: Uint8Array };
   solana: { address: string; secret: Uint8Array; publicKey: Uint8Array };
   bitcoin: { address: string; privateKey: Uint8Array; publicKey: Uint8Array };
-  tron: { address: string; privateKey: Uint8Array };
 };
 
-export type PublicAddresses = { evm: string; solana: string; bitcoin: string; tron: string };
+export type PublicAddresses = { evm: string; solana: string; bitcoin: string };
 
 export const PATHS = {
   evm: "m/44'/60'/0'/0/0",
   solana: "m/44'/501'/0'/0'",
   bitcoin: "m/84'/0'/0'/0/0",
-  tron: "m/44'/195'/0'/0/0",
 } as const;
 
 export const normalizePhrase = (p: string) => p.trim().toLowerCase().replace(/\s+/g, " ");
@@ -60,34 +58,12 @@ function slip10Ed25519(seed: Uint8Array, path: string) {
   return key;
 }
 
-export function tronAddressFromPriv(priv: Uint8Array) {
-  const pub = secp256k1.getPublicKey(priv, false).slice(1);
-  const hash = keccak_256(pub).slice(-20);
-  const raw = new Uint8Array(21);
-  raw[0] = 0x41;
-  raw.set(hash, 1);
-  const check = sha256(sha256(raw)).slice(0, 4);
-  const full = new Uint8Array(25);
-  full.set(raw);
-  full.set(check, 21);
-  return base58.encode(full);
-}
-
-export function tronAddressToHex(addr: string) {
-  const bytes = base58.decode(addr);
-  if (bytes.length !== 25 || bytes[0] !== 0x41) throw new Error("Invalid Tron address");
-  const check = sha256(sha256(bytes.slice(0, 21))).slice(0, 4);
-  if (check.some((v, i) => v !== bytes[21 + i])) throw new Error("Invalid Tron address checksum");
-  return Array.from(bytes.slice(0, 21), (x) => x.toString(16).padStart(2, "0")).join("");
-}
-
 export function deriveAccounts(phrase: string): DerivedAccounts {
   const seed = mnemonicToSeedSync(normalizePhrase(phrase));
   const root = HDKey.fromMasterSeed(seed);
 
   const evmKey = root.derive(PATHS.evm).privateKey!;
   const btcNode = root.derive(PATHS.bitcoin);
-  const tronKey = root.derive(PATHS.tron).privateKey!;
   const solSeed = slip10Ed25519(seed, PATHS.solana);
   const solPub = ed25519.getPublicKey(solSeed);
 
@@ -99,12 +75,11 @@ export function deriveAccounts(phrase: string): DerivedAccounts {
       privateKey: btcNode.privateKey!,
       publicKey: btcNode.publicKey!,
     },
-    tron: { address: tronAddressFromPriv(tronKey), privateKey: tronKey },
   };
 }
 
 export function publicAddresses(a: DerivedAccounts): PublicAddresses {
-  return { evm: a.evm.address, solana: a.solana.address, bitcoin: a.bitcoin.address, tron: a.tron.address };
+  return { evm: a.evm.address, solana: a.solana.address, bitcoin: a.bitcoin.address };
 }
 
 export const privHex = toHex;

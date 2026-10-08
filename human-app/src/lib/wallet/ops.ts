@@ -154,7 +154,9 @@ export async function fetchHoldings(chain: ChainDef, a: PublicAddresses): Promis
     const j = (await r.json()) as { chain_stats: { funded_txo_sum: number; spent_txo_sum: number }; mempool_stats: { funded_txo_sum: number; spent_txo_sum: number } };
     const sats = j.chain_stats.funded_txo_sum - j.chain_stats.spent_txo_sum + j.mempool_stats.funded_txo_sum - j.mempool_stats.spent_txo_sum;
     return [native(BigInt(sats))];
-  }}
+  }
+  throw new Error("Unsupported wallet network.");
+}
 
 export async function fetchPrices(ids: string[], currency: string): Promise<Record<string, number>> {
   const uniq = [...new Set(ids)].join(",");

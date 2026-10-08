@@ -12,6 +12,7 @@ const NAV = [
   { to: "/nonhuman/prepaid", label: "Prepaid access" },
   { to: "/nonhuman/mcp", label: "MCP" },
   { to: "/nonhuman/api", label: "API explorer" },
+  { to: "/swagger", label: "Swagger" },
   { to: "/nonhuman/chains", label: "Chains" },
   { to: "/nonhuman/dashboard", label: "Dashboard" },
 ] as const;

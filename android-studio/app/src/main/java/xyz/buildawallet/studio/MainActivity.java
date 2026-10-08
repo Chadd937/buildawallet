@@ -43,6 +43,7 @@ public final class MainActivity extends Activity {
     private SecureSeedStore seedStore;
     private WalletProfile profile;
     private WalletEngine engine;
+    private NonEvmEngine nonEvm;
     private LinearLayout content;
     private TextView balanceView;
     private TextView assetBalanceView;
@@ -359,7 +360,9 @@ public final class MainActivity extends Activity {
 
     private void renderWallet() {
         try {
-            engine = WalletEngine.fromMnemonic(seedStore.loadMnemonic());
+            String mnemonic = seedStore.loadMnemonic();
+            engine = WalletEngine.fromMnemonic(mnemonic);
+            nonEvm = NonEvmEngine.fromMnemonic(mnemonic);
         } catch (Exception error) {
             showError("Could not unlock wallet", error);
             return;
@@ -447,6 +450,26 @@ public final class MainActivity extends Activity {
         assetRow.addView(assetBalanceView);
         assetCard.addView(assetRow);
         add(assetCard, 10);
+
+        add(sectionTitle("Solana & Bitcoin", "Native accounts derived from the same recovery phrase"), 28);
+        LinearLayout nonEvmCard = card();
+        nonEvmCard.setBackground(pill(0xff0f1115, 0xff24272e));
+        nonEvmCard.addView(label("SOLANA", 10, MUTED, true));
+        TextView solAddress = label(nonEvm == null ? "Unavailable" : nonEvm.solanaAddress(), 12, TEXT, true);
+        solAddress.setTextIsSelectable(true);
+        addTo(nonEvmCard, solAddress, 7);
+        TextView solBalance = label("Loading…", 13, MUTED, true);
+        addTo(nonEvmCard, solBalance, 5);
+        Button solSend = button("Send SOL", false);
+        solSend.setOnClickListener(v -> sendSolanaDialog());
+        addTo(nonEvmCard, solSend, 10);
+        addTo(nonEvmCard, label("BITCOIN", 10, MUTED, true), 12);
+        TextView btcAddress = label(nonEvm == null ? "Unavailable" : nonEvm.bitcoinAddress(), 12, TEXT, true);
+        btcAddress.setTextIsSelectable(true);
+        addTo(nonEvmCard, btcAddress, 7);
+        addTo(nonEvmCard, label("BIP-84 native SegWit receive address. Bitcoin spending is kept disabled until the native UTXO/signing path passes its dedicated integration tests.", 11, MUTED, false), 6);
+        add(nonEvmCard, 10);
+        refreshNonEvm(solBalance);
 
         add(sectionTitle("Receive", "Your on-chain account"), 28);
         LinearLayout addressCard = card();
@@ -627,6 +650,59 @@ public final class MainActivity extends Activity {
                 });
             }
         });
+    }
+
+    private void refreshNonEvm(TextView solBalance) {
+        if (nonEvm == null) return;
+        io.execute(() -> {
+            try {
+                String value = nonEvm.solanaBalance();
+                runOnUiThread(() -> solBalance.setText(value));
+            } catch (Exception error) {
+                runOnUiThread(() -> solBalance.setText("Solana RPC unavailable"));
+            }
+        });
+    }
+
+    private void sendSolanaDialog() {
+        EditText to = input("Solana destination");
+        EditText amount = input("0.01");
+        amount.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        LinearLayout box = dialogBox();
+        box.addView(label("Recipient", 12, MUTED, true));
+        box.addView(to);
+        addTo(box, label("Amount (SOL)", 12, MUTED, true), 12);
+        box.addView(amount);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Send SOL")
+            .setMessage("Review the Solana recipient and amount before local signing.")
+            .setView(box)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Review", null)
+            .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            try {
+                java.math.BigDecimal value = new java.math.BigDecimal(amount.getText().toString().trim());
+                String destination = to.getText().toString().trim();
+                if (destination.isEmpty() || value.signum() <= 0) throw new IllegalArgumentException("Enter a valid recipient and amount.");
+                new AlertDialog.Builder(this)
+                    .setTitle("Confirm SOL transfer")
+                    .setMessage("Network: Solana mainnet\nRecipient: " + destination + "\nAmount: " + value.toPlainString() + " SOL\n\nThe transaction will be signed on this device.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Sign & send", (d, w) -> io.execute(() -> {
+                        try {
+                            String signature = nonEvm.sendSolana(destination, value);
+                            runOnUiThread(() -> Toast.makeText(this, "SOL sent: " + signature, Toast.LENGTH_LONG).show());
+                        } catch (Exception error) {
+                            runOnUiThread(() -> showError("SOL transfer failed", error));
+                        }
+                    })).show();
+                dialog.dismiss();
+            } catch (Exception error) {
+                showError("Invalid SOL transfer", error);
+            }
+        }));
+        dialog.show();
     }
 
     private void sendDialog() {

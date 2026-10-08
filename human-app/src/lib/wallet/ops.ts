@@ -222,6 +222,7 @@ export async function estimateFee(chain: ChainDef, token?: TokenDef): Promise<{ 
     const rate = r ? ((await r.json()) as { halfHourFee: number }).halfHourFee : 10;
     return { label: `${rate} sat/vB`, detail: "~30 min confirmation", btcRate: rate };
   }
+  throw new Error("Unsupported wallet network.");
 }
 
 /* ================= Send ================= */

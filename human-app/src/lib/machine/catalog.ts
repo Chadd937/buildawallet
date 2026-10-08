@@ -80,7 +80,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     auth: "api-key",
     units: 1,
     tag: "Subscribed API",
-    summary: "Canonical stablecoin balance (USDC, or USDT on Tron).",
+    summary: "Canonical stablecoin balance (USDC).",
   },
   {
     method: "GET",

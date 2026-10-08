@@ -132,4 +132,35 @@ CREATE TRIGGER machine_payment_activate AFTER INSERT ON machine_payments BEGIN
       expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',max(machine_entitlements.expires_at,strftime('%Y-%m-%dT%H:%M:%fZ','now')),'+30 days');
 END;
 
+
+DROP TABLE machine_api_usage;
+DROP TABLE machine_api_keys;
+DROP TABLE machine_entitlements;
+
+CREATE TABLE machine_entitlements (
+  chain TEXT NOT NULL CHECK(chain IN ('ethereum','base','arbitrum','optimism','polygon','bnb','avalanche','solana','bitcoin','tron')),
+  wallet TEXT NOT NULL,
+  plan_id TEXT NOT NULL CHECK(plan_id IN ('builder','pro','scale')),
+  expires_at TEXT NOT NULL,
+  PRIMARY KEY(chain,wallet)
+);
+
+CREATE TABLE machine_api_keys (
+  chain TEXT NOT NULL CHECK(chain IN ('ethereum','base','arbitrum','optimism','polygon','bnb','avalanche','solana','bitcoin','tron')),
+  wallet TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(chain,wallet),
+  FOREIGN KEY(chain,wallet) REFERENCES machine_entitlements(chain,wallet)
+);
+
+CREATE TABLE machine_api_usage (
+  chain TEXT NOT NULL CHECK(chain IN ('ethereum','base','arbitrum','optimism','polygon','bnb','avalanche','solana','bitcoin','tron')),
+  wallet TEXT NOT NULL,
+  period_start TEXT NOT NULL,
+  used INTEGER NOT NULL CHECK(used>=0),
+  PRIMARY KEY(chain,wallet),
+  FOREIGN KEY(chain,wallet) REFERENCES machine_entitlements(chain,wallet)
+);
+
 PRAGMA foreign_keys=ON;

@@ -29,6 +29,8 @@ beforeEach(() => {
   db = new TestD1();
   db.sqlite.exec(readFileSync("migrations/baw_0001_app_data.sql", "utf8"));
   db.sqlite.exec(readFileSync("migrations/baw_0003_prepaid_plans.sql", "utf8"));
+  db.sqlite.exec(readFileSync("migrations/baw_0005_agent_accounts.sql", "utf8"));
+  db.sqlite.exec(readFileSync("migrations/baw_0006_multichain_payments.sql", "utf8"));
 });
 afterEach(() => db.close());
 

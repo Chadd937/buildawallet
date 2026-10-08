@@ -1,7 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { appDatabase } from "@/lib/db/context.server";
 import { activateWalletPayment, consumeUnits } from "@/lib/db/storage.server";
-import { BASE_MAINNET, SOLANA_MAINNET, planById, type PlanId, paymentCollector } from "./config";
+import { PAYMENT_RAILS, paymentCollector, planById, type PlanId, type PaymentChain } from "./config";
+import { paymentAmountAtomic } from "./receipts.server";
 
 export const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 export const secretToken = () => randomBytes(32).toString("hex");
@@ -16,10 +17,11 @@ type Challenge = {
 };
 type Session = { chain: string; wallet: string; issued_at: string; expires_at: string };
 const now = () => new Date().toISOString();
+const EVM_CHAINS = new Set(["ethereum","base","arbitrum","optimism","polygon","bnb","avalanche"]);
 const normalizeAgentWallet = (chain: string, wallet: string) =>
-  chain === "base" ? wallet.toLowerCase() : wallet;
+  EVM_CHAINS.has(chain) ? wallet.toLowerCase() : wallet;
 
-export async function ensureAgentAccount(chain: "base" | "solana", wallet: string) {
+export async function ensureAgentAccount(chain: PaymentChain, wallet: string) {
   const normalized = normalizeAgentWallet(chain, wallet);
   const db = appDatabase();
   const id = crypto.randomUUID();
@@ -34,7 +36,7 @@ export async function ensureAgentAccount(chain: "base" | "solana", wallet: strin
   ).bind(chain, normalized).first();
 }
 
-export async function agentAccountByWallet(chain: "base" | "solana", wallet: string) {
+export async function agentAccountByWallet(chain: PaymentChain, wallet: string) {
   return appDatabase().prepare(
     "SELECT id,chain,wallet,created_at,last_seen_at,total_paid_atomic,total_usage_units,request_count,settlement_threshold_atomic FROM machine_agent_accounts WHERE chain=? AND wallet=?",
   ).bind(chain, normalizeAgentWallet(chain, wallet)).first();
@@ -50,7 +52,7 @@ export async function recordAgentPayment(
   units = 0,
 ) {
   if (!payer) return null;
-  const chain = network === "eip155:8453" ? "base" : network.startsWith("solana:") ? "solana" : null;
+  const chain = (Object.entries(PAYMENT_RAILS).find(([, rail]) => rail.network === network)?.[0] ?? null) as PaymentChain | null;
   if (!chain) return null;
   const account = await ensureAgentAccount(chain, payer);
   if (!account) return null;
@@ -155,7 +157,7 @@ export async function consumeApiKey(
 export async function txAlreadyUsed(chain: string, tx: string) {
   const row = await appDatabase()
     .prepare("SELECT 1 FROM api_payment_redemptions WHERE chain=? AND tx=?")
-    .bind(chain, chain === "base" ? tx.toLowerCase() : tx)
+    .bind(chain, EVM_CHAINS.has(chain) ? tx.toLowerCase() : tx)
     .first();
   return Boolean(row);
 }
@@ -232,12 +234,14 @@ export async function revokeApiKey(request: Request) {
 
 
 export async function createMachineAccessQuote(
-  chain: "base" | "solana",
+  chain: PaymentChain,
   wallet: string,
   planId: PlanId,
 ) {
   const plan = planById(planId);
   if (!plan) throw new RangeError("Unknown plan");
+  const rail = PAYMENT_RAILS[chain];
+  const amountAtomic = await paymentAmountAtomic(chain, planId);
   const createdAt = now();
   const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString();
   const id = crypto.randomUUID();
@@ -245,16 +249,17 @@ export async function createMachineAccessQuote(
     .prepare(
       "INSERT INTO machine_access_quotes(id,chain,wallet,plan_id,amount_atomic,created_at,expires_at) VALUES(?,?,?,?,?,?,?)",
     )
-    .bind(id, chain, wallet, planId, String(plan.amountAtomic), createdAt, expiresAt)
+    .bind(id, chain, wallet, planId, String(amountAtomic), createdAt, expiresAt)
     .run();
   return {
     quoteId: id,
     chain,
     wallet,
     plan: { id: plan.id, name: plan.name, priceUSDC: plan.priceUSDC, units: plan.units },
-    amountAtomic: String(plan.amountAtomic),
-    asset: chain === "base" ? "USDC" : "USDC",
-    collector: paymentCollector(chain),
+    amountAtomic: String(amountAtomic),
+    asset: rail.asset,
+    decimals: rail.decimals,
+    collector: rail.collector,
     expiresAt,
     activate: "/machine/v1/agent/activate",
   };
@@ -268,7 +273,7 @@ export async function machineAccessQuote(id: string) {
     .bind(id, now())
     .first<{
       id: string;
-      chain: "base" | "solana";
+      chain: PaymentChain;
       wallet: string;
       plan_id: PlanId;
       amount_atomic: string;
@@ -282,17 +287,17 @@ export async function activateMachineAccessQuote(quoteId: string, tx: string, pa
   const quote = await machineAccessQuote(quoteId);
   if (!quote) throw new RangeError("Quote is invalid, expired or already consumed");
   const plan = planById(quote.plan_id);
-  if (!plan || String(plan.amountAtomic) !== quote.amount_atomic)
-    throw new RangeError("Quote amount no longer matches the active plan");
+  if (!plan || !/^\d+$/.test(quote.amount_atomic) || BigInt(quote.amount_atomic) <= 0n)
+    throw new RangeError("Quote amount is invalid");
 
-  const normalizedTx = quote.chain === "base" ? tx.toLowerCase() : tx;
+  const normalizedTx = EVM_CHAINS.has(quote.chain) ? tx.toLowerCase() : tx;
   const activated = await activateWalletPayment(
     quote.chain,
     quote.wallet,
     quote.plan_id,
     normalizedTx,
     new Date(paidAt * 1000).toISOString(),
-    plan.amountAtomic,
+    BigInt(quote.amount_atomic),
   );
 
   await appDatabase()
@@ -302,11 +307,11 @@ export async function activateMachineAccessQuote(quoteId: string, tx: string, pa
 
   await recordAgentPayment(
     "prepaid",
-    quote.chain === "base" ? BASE_MAINNET : SOLANA_MAINNET,
+    PAYMENT_RAILS[quote.chain as PaymentChain].network,
     normalizedTx,
     quote.wallet,
     paymentCollector(quote.chain),
-    String(plan.amountAtomic),
+    quote.amount_atomic,
     plan.units,
   );
 

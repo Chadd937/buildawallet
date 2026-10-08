@@ -1,5 +1,5 @@
 import { readJsonBody } from "@/lib/body";
-import { PREPAID_BILLING, publicPlans } from "./config";
+import { PAYMENT_CHAINS, PAYMENT_RAILS, PREPAID_BILLING, publicPlans } from "./config";
 import { MACHINE_CHAINS } from "./chains";
 import { handleMachineRequest } from "./router.server";
 
@@ -38,14 +38,14 @@ const tools = [
     title: "Agent payment account",
     description: "Get or initialize the persistent payment and usage ledger for the agent's public settlement wallet. Free.",
     inputSchema: schema(["chain", "wallet"], {
-      chain: { type: "string", enum: ["base", "solana"] },
+      chain: { type: "string", enum: [...PAYMENT_CHAINS] },
       wallet: { type: "string" },
     }),
   },
   {
     name: "agent_quote",
     title: "Create access quote",
-    description: "Create a short-lived exact USDC quote for a wallet and prepaid plan. Free.",
+    description: "Create a short-lived exact payment quote for a wallet and prepaid plan. Free.",
     inputSchema: schema(["chain", "wallet", "planId"], {
       chain: { type: "string", enum: ["base", "solana"] }, wallet: { type: "string" }, planId: { type: "string", enum: ["builder", "pro", "scale"] },
     }),
@@ -53,7 +53,7 @@ const tools = [
   {
     name: "agent_activate",
     title: "Activate paid access",
-    description: "Verify the quoted USDC transaction and return a machine API key. Payment must be signed by the agent wallet.",
+    description: "Verify the quoted payment transaction and return a machine API key. Payment must be signed by the agent wallet.",
     inputSchema: schema(["quoteId", "tx"], { quoteId: { type: "string" }, tx: { type: "string" } }),
   },
   {
@@ -195,7 +195,7 @@ async function callTool(request: Request, name: string, args: Record<string, unk
     return text({
       billing: PREPAID_BILLING,
       plans: publicPlans(),
-      settlement: ["Base USDC", "Solana USDC"],
+      settlement: PAYMENT_CHAINS.map((chain) => `${chain} ${PAYMENT_RAILS[chain].asset}`),
       chains: MACHINE_CHAINS.map((chain) => chain.id),
     });
   if (name === "agent_bootstrap") return invoke(request, "/machine/v1/agent/bootstrap");
@@ -296,7 +296,7 @@ export async function handleMcp(request: Request) {
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "buildawallet", version: "3.0.0" },
           instructions:
-            "BuildAWallet: get a wallet (wallet_local_kit preferred), read ten mainnets, prepare/broadcast locally-signed transfers, and use x402 or prepaid access. Every x402/prepaid agent payment is tracked by public settlement wallet in a persistent agent account.",
+            "BuildAWallet: get a wallet (wallet_local_kit preferred), read ten mainnets, prepare/broadcast locally-signed transfers where enabled, and use prepaid access.  Every x402/prepaid agent payment is tracked by public settlement wallet in a persistent agent account.",
         }
       : rpc.method === "tools/list"
         ? { tools }

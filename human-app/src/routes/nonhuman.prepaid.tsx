@@ -22,7 +22,7 @@ function Prepaid() {
           </>
         }
       >
-        Buy a block of API units with USDC on Base or Solana. Each metered request deducts units
+        Buy a block of API units on any supported payment network. EVM/Solana/Tron use their configured stablecoin; Bitcoin uses BTC. Each metered request deducts units
         from your account, without another blockchain payment.
       </PageHero>
       <Section title="Three steps">
@@ -36,8 +36,8 @@ function Prepaid() {
           . Plans last 30 days. Network fees apply to the purchase itself.
         </Step>
         <Step n={2} title="Get your API key">
-          Use the account dashboard, or prove control of a Base or Solana wallet and confirm your
-          exact USDC payment through the API. Keep your API key private.
+          Use the account dashboard, or use a supported public wallet and confirm the exact quoted payment
+          through the API. Keep your API key private.
         </Step>
         <Step n={3} title="Call the service">
           Attach your key as a bearer credential. Check remaining units at

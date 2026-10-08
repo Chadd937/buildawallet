@@ -60,7 +60,11 @@ export const createCheckoutQuote = createServerFn({ method: "POST" })
       throw new Error(`That is not a valid ${chain.name} wallet address.`);
     const { storeCheckoutQuote } = await import("@/lib/db/storage.server");
     const payer = chain.family === "evm" ? data.payer.toLowerCase() : data.payer;
-    return storeCheckoutQuote(context.userId, data.planId, data.chain, payer);
+    const { paymentRail } = await import("./config");
+    const { paymentAmountAtomic } = await import("./receipts.server");
+    const rail = paymentRail(data.chain);
+    const amountAtomic = await paymentAmountAtomic(data.chain, data.planId);
+    return storeCheckoutQuote(context.userId, data.planId, data.chain, payer, amountAtomic.toString(), rail.asset, rail.decimals);
   });
 
 export const confirmCheckout = createServerFn({ method: "POST" })
@@ -72,7 +76,7 @@ export const confirmCheckout = createServerFn({ method: "POST" })
     const { checkoutQuote, activateCheckout } = await import("@/lib/db/storage.server");
     const { planById } = await import("./config");
     const { machineChain, rpcUrl } = await import("./chains");
-    const { verifyEvmReceipt, verifySolanaReceipt, verifyTronReceipt, PendingReceipt } =
+    const { verifyEvmReceipt, verifySolanaReceipt, verifyTronReceipt, verifyBitcoinReceipt, paymentAmountAtomic, PendingReceipt } =
       await import("./receipts.server");
     const { txAlreadyUsed } = await import("./billing.server");
 
@@ -98,7 +102,7 @@ export const confirmCheckout = createServerFn({ method: "POST" })
           tx,
           quote.payer,
           earliest,
-          plan.amountAtomic,
+          BigInt(quote.amount_atomic),
         );
       } else if (chain.family === "solana") {
         paidAt = await verifySolanaReceipt(
@@ -106,7 +110,7 @@ export const confirmCheckout = createServerFn({ method: "POST" })
           tx,
           quote.payer,
           earliest,
-          plan.amountAtomic,
+          BigInt(quote.amount_atomic),
         );
       } else if (chain.family === "tron") {
         paidAt = await verifyTronReceipt(
@@ -114,12 +118,13 @@ export const confirmCheckout = createServerFn({ method: "POST" })
           tx,
           quote.payer,
           earliest,
-          plan.amountAtomic,
+          BigInt(quote.amount_atomic),
         );
       } else {
-        throw new Error(
-          "Bitcoin subscription verification is not enabled yet; use an EVM, Solana, or Tron payment.",
-        );
+        const minimumNow = await paymentAmountAtomic("bitcoin", quote.plan_id as any);
+        if (BigInt(quote.amount_atomic) < minimumNow)
+          throw new Error("Bitcoin price moved; send at least the updated BTC amount shown by a new checkout.");
+        paidAt = await verifyBitcoinReceipt(tx, quote.payer, earliest, BigInt(quote.amount_atomic));
       }
     } catch (error) {
       if (error instanceof PendingReceipt)

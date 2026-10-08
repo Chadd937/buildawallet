@@ -1,10 +1,8 @@
 import { MACHINE_CHAINS } from "./chains";
 import {
-  BASE_COLLECTOR,
-  BASE_USDC,
   ORIGIN,
-  SOLANA_COLLECTOR,
-  SOLANA_USDC,
+  PAYMENT_CHAINS,
+  PAYMENT_RAILS,
   publicPlans,
   PREPAID_BILLING,
   X402_PRICE_USD,
@@ -23,7 +21,7 @@ const settleParam = {
   name: "settlementChain",
   in: "path",
   required: true,
-  schema: { type: "string", enum: ["base", "solana"] },
+  schema: { type: "string", enum: [...PAYMENT_CHAINS] },
 };
 const addressParam = {
   name: "address",
@@ -84,7 +82,7 @@ export const openapi = {
     "/machine/v1/agent/quote": {
       post: {
         tags: ["Machine checkout"],
-        summary: "Create a short-lived USDC access quote",
+        summary: "Create a short-lived exact payment access quote",
         requestBody: body(
           {
             chain: { type: "string", enum: ["base", "solana"] },
@@ -100,7 +98,7 @@ export const openapi = {
     "/machine/v1/agent/activate": {
       post: {
         tags: ["Machine checkout"],
-        summary: "Verify an exact USDC payment and mint a machine API key",
+        summary: "Verify an exact quoted payment and mint a machine API key",
         requestBody: body(
           { quoteId: { type: "string" }, tx: { type: "string" } },
           ["quoteId", "tx"],
@@ -363,8 +361,7 @@ export const offer = {
     accountingBatchThresholdAtomic: AGENT_SETTLEMENT_THRESHOLD_ATOMIC,
   },
   payment: {
-    base: { asset: BASE_USDC, collector: BASE_COLLECTOR },
-    solana: { asset: SOLANA_USDC, collector: SOLANA_COLLECTOR },
+    ...PAYMENT_RAILS,
   },
 };
 
@@ -385,14 +382,14 @@ export const llms = `# BuildAWallet.xyz
 - Server-made (opt-in): POST ${ORIGIN}/machine/v1/wallets/generate {"acknowledgeCustodyRisk":true}. Phrase returned once, never stored.
 
 ## Machine-native instant access
-- Bootstrap: GET ${ORIGIN}/machine/v1/agent/bootstrap\n- Agent account: GET ${ORIGIN}/machine/v1/agent/account?chain=base&wallet=0x...\n- Agent accounting tracks x402/prepaid payments and API usage against the public settlement wallet.
+- Bootstrap: GET ${ORIGIN}/machine/v1/agent/bootstrap\n- Agent account: GET ${ORIGIN}/machine/v1/agent/account?chain={chain}&wallet={address}\n- Agent accounting tracks x402/prepaid payments and API usage against the public settlement wallet.
 - Quote: POST ${ORIGIN}/machine/v1/agent/quote with chain, wallet and planId.
-- Pay the exact USDC amount returned by the quote, then POST the transaction to ${ORIGIN}/machine/v1/agent/activate to receive a \`baw_live_\` API key.
+- Pay the exact asset amount returned by the quote, then POST the transaction to ${ORIGIN}/machine/v1/agent/activate to receive a \`baw_live_\` API key.
 - Metered endpoints also accept x402 v2 \`PAYMENT-SIGNATURE\` for direct $0.01 USDC-per-request access when the facilitator is configured.
 
 ## Prepaid access
 - Pay once for a block of service units. Every metered request deducts backend units, without a blockchain payment per call. Purchases and renewals settle in USDC on Base or Solana.
-- Subscribe: humans buy plans at ${ORIGIN}/nonhuman/dashboard (baw_acct_ keys). Agents can self-subscribe by wallet signature: POST /machine/v1/auth/challenge → /auth/verify → pay exact USDC → /subscription/confirm → /subscription/key (baw_live_ key).
+- Subscribe: humans buy plans at ${ORIGIN}/nonhuman/dashboard (baw_acct_ keys). Agents can self-subscribe through the machine quote flow on any payment network. Wallet-signature login remains Base/Solana-only for the legacy session flow.
 - Free: 1,000 units once for every new dashboard account.
 - Plans: ${publicPlans()
   .map((p) => `${p.name} $${p.priceUSDC}/30d ${p.units} units`)

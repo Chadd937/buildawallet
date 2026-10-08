@@ -10,11 +10,11 @@ import { EmailCodeConfirmation } from "@/components/human/email-code-confirmatio
 import { Badge, Code, CopyButton, PageHero, Panel, Section } from "@/components/machine/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BASE_COLLECTOR, FREE_UNITS, PLANS, SOLANA_COLLECTOR, type PlanId } from "@/lib/machine/config";
+import { FREE_UNITS, PLANS, PAYMENT_CHAINS, paymentRail, type PlanId } from "@/lib/machine/config";
 import { claimFreeUnits, confirmCheckout, createAccountKey, createCheckoutQuote, getAccountOverview, revokeAccountKey } from "@/lib/machine/account.functions";
 
 const TITLE = "API dashboard ,  BuildAWallet Machine";
-const DESC = "Sign in by email, buy API units with USDC on Base or Solana, manage API keys and see every metered call.";
+const DESC = "Sign in by email, buy API units on any supported payment network, manage API keys and see every metered call.";
 export const Route = createFileRoute("/nonhuman/dashboard")({
   head: () => ({ meta: [{ title: TITLE }, { name: "description", content: DESC }, { property: "og:title", content: TITLE }, { property: "og:description", content: DESC }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }] }),
   component: Dashboard,
@@ -97,11 +97,19 @@ function SignedIn() {
       </Section>
       <Section eyebrow="Billing" title="Payments">
         {data.payments.length === 0 ? <Panel><p className="text-sm text-muted-foreground">No payments yet.</p></Panel> : (
-          <Table head={["Paid", "Plan", "Chain", "Amount", "Transaction"]} rows={data.payments.map((p) => [fmt(p.paid_at), PLANS[p.plan_id as PlanId]?.name ?? p.plan_id, p.chain, `${(Number(p.amount_atomic) / 1e6).toFixed(2)} USDC`, p.tx])} />
+          <Table head={["Paid", "Plan", "Chain", "Amount", "Transaction"]} rows={data.payments.map((p) => [fmt(p.paid_at), PLANS[p.plan_id as PlanId]?.name ?? p.plan_id, p.chain, formatAtomic(p.amount_atomic, p.chain === "bnb" ? 18 : p.chain === "bitcoin" ? 8 : 6), p.tx])} />
         )}
       </Section>
     </>
   );
+}
+
+function formatAtomic(value: string, decimals: number) {
+  const n = BigInt(value);
+  const base = 10n ** BigInt(decimals);
+  const whole = n / base;
+  const fraction = (n % base).toString().padStart(decimals, "0").replace(/0+$/, "");
+  return fraction ? `${whole}.${fraction}` : whole.toString();
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -119,14 +127,14 @@ function Table({ head, rows }: { head: string[]; rows: string[][] }) {
   );
 }
 
-type Quote = { id: string; plan_id: string; chain: string; payer: string; created_at: string; expires_at: string };
+type Quote = { id: string; plan_id: string; chain: string; payer: string; amount_atomic: string; asset: string; decimals: number; created_at: string; expires_at: string };
 
 function Checkout({ quotes }: { quotes: Quote[] }) {
   const qc = useQueryClient();
   const startFn = useServerFn(createCheckoutQuote);
   const confirmFn = useServerFn(confirmCheckout);
   const [planId, setPlanId] = useState<PlanId>("pro");
-  const [chain, setChain] = useState<"base" | "solana">("base");
+  const [chain, setChain] = useState<(typeof PAYMENT_CHAINS)[number]>("base");
   const [payer, setPayer] = useState("");
   const [tx, setTx] = useState("");
   const [note, setNote] = useState<{ tone: "ok" | "wait" | "err"; text: string } | null>(null);
@@ -149,10 +157,11 @@ function Checkout({ quotes }: { quotes: Quote[] }) {
   });
 
   const qPlan = quote ? PLANS[quote.plan_id as PlanId] : null;
-  const collector = quote?.chain === "solana" ? SOLANA_COLLECTOR : BASE_COLLECTOR;
+  const rail = quote ? paymentRail(quote.chain) : null;
+  const displayAmount = quote && rail ? formatAtomic(quote.amount_atomic, quote.decimals) : "";
 
   return (
-    <Section eyebrow="Checkout" title="Buy units with USDC" intro="1) Choose a plan and tell us which wallet will pay. 2) Send the exact USDC amount from that wallet. 3) Paste the transaction id. We check it on-chain; each transaction works once.">
+    <Section eyebrow="Checkout" title="Buy units on your network" intro="1) Choose a plan and payment network. 2) Send the quoted asset amount from that wallet. 3) Paste the transaction id. We verify the payment on-chain; each transaction works once.">
       {!quote ? (
         <Panel>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -163,23 +172,23 @@ function Checkout({ quotes }: { quotes: Quote[] }) {
             ))}
           </div>
           <div className="mt-4 flex gap-2">
-            {(["base", "solana"] as const).map((c) => <button key={c} type="button" onClick={() => setChain(c)} className={`rounded-full px-4 py-1.5 font-mono text-[11px] uppercase tracking-widest ${chain === c ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground"}`}>{c} USDC</button>)}
+            {PAYMENT_CHAINS.map((c) => <button key={c} type="button" onClick={() => setChain(c)} className={`rounded-full px-4 py-1.5 font-mono text-[11px] uppercase tracking-widest ${chain === c ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground"}`}>{c === "bitcoin" ? "BTC" : paymentRail(c).asset} · {c}</button>)}
           </div>
           <label className="mt-4 block text-sm font-semibold" htmlFor="payer">Paying wallet address ({chain})</label>
-          <Input id="payer" value={payer} onChange={(e) => setPayer(e.target.value)} placeholder={chain === "base" ? "0x…" : "Solana address"} className="mt-2 h-11 rounded-xl font-mono" />
+          <Input id="payer" value={payer} onChange={(e) => setPayer(e.target.value)} placeholder={chain === "bitcoin" ? "bc1p…" : chain === "solana" ? "Solana address" : chain === "tron" ? "T…" : "0x…"} className="mt-2 h-11 rounded-xl font-mono" />
           <Button className="mt-4" disabled={start.isPending || payer.trim().length < 26} onClick={() => start.mutate()}>{start.isPending ? <Loader2 className="animate-spin" /> : <Wallet />} Continue to payment</Button>
         </Panel>
       ) : (
         <Panel className="border-primary/40">
           <div className="grid gap-6 md:grid-cols-[auto_1fr]">
-            <div className="rounded-xl bg-foreground p-3"><QRCodeSVG value={collector} size={150} /></div>
+            <div className="rounded-xl bg-foreground p-3"><QRCodeSVG value={rail?.collector ?? ""} size={150} /></div>
             <div className="min-w-0 space-y-3 text-sm">
-              <p>Send exactly <b className="text-primary">{qPlan?.priceUSDC} USDC</b> on <b className="uppercase">{quote.chain}</b> for the <b>{qPlan?.name}</b> plan.</p>
-              <div><div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">To</div><div className="flex items-center gap-2"><code className="truncate">{collector}</code><CopyButton value={collector} /></div></div>
+              <p>Send at least <b className="text-primary">{displayAmount} {quote.asset}</b> on <b className="uppercase">{quote.chain}</b> for the <b>{qPlan?.name}</b> plan.</p>
+              <div><div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">To</div><div className="flex items-center gap-2"><code className="truncate">{rail?.collector}</code><CopyButton value={rail?.collector ?? ""} /></div></div>
               <div><div className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">From (must match)</div><code className="block truncate">{quote.payer}</code></div>
-              <p className="text-xs text-muted-foreground">USDC only, not ETH or SOL. Open until {fmt(quote.expires_at)}. Base needs 2 confirmations; Solana must be finalized.</p>
+              <p className="text-xs text-muted-foreground">Only the quoted asset is accepted. Open until {fmt(quote.expires_at)}. EVM payments need confirmations; Solana must be finalized; Bitcoin requires confirmation.</p>
               <label className="block font-semibold" htmlFor="tx">Transaction id</label>
-              <Input id="tx" value={tx} onChange={(e) => setTx(e.target.value)} placeholder={quote.chain === "base" ? "0x… (66 characters)" : "Solana signature"} className="h-11 rounded-xl font-mono" />
+              <Input id="tx" value={tx} onChange={(e) => setTx(e.target.value)} placeholder={quote.chain === "bitcoin" ? "Bitcoin tx id" : quote.chain === "solana" ? "Solana signature" : quote.chain === "tron" ? "Tron tx id" : "0x… (66 characters)"} className="h-11 rounded-xl font-mono" />
               <Button disabled={confirm.isPending || tx.trim().length < 40} onClick={() => confirm.mutate(quote.id)}>{confirm.isPending ? <Loader2 className="animate-spin" /> : <ReceiptText />} {confirm.isPending ? "Checking the chain…" : "Verify payment"}</Button>
               <Button variant="ghost" size="sm" className="ml-2" onClick={() => { setDismissed(quote.id); setNote(null); }}>Change plan or wallet</Button>
               {note ? <p role="status" className={`text-sm ${note.tone === "err" ? "text-destructive" : note.tone === "ok" ? "text-primary" : "text-zap"}`}>{note.text}</p> : null}

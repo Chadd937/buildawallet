@@ -48,7 +48,7 @@ jobs:
           cache: npm
           cache-dependency-path: human-app/package-lock.json
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps --no-audit --no-fund
+        run: npm install --legacy-peer-deps --no-audit --no-fund
       - name: Build full production app
         run: npm run build
       - name: Typecheck and test full app

@@ -23,7 +23,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     auth: "none",
     units: 0,
     tag: "Discovery",
-    summary: "Prepaid API plans and USDC collector addresses.",
+    summary: "Prepaid API plans, payment assets and collector addresses for every supported payment network.",
   },
   {
     method: "GET",
@@ -108,20 +108,20 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "POST",
-    path: "/machine/v1/{base|solana}/transaction/prepare",
+    path: "/machine/v1/{chain}/transaction/prepare",
     auth: "api-key",
     units: 1,
     tag: "Transactions",
-    summary: "Build an unsigned native or USDC transfer for local signing.",
+    summary: "Build an unsigned transfer for a supported transaction network.",
   },
   {
     method: "POST",
-    path: "/machine/v1/{base|solana}/transaction/broadcast",
+    path: "/machine/v1/{chain}/transaction/broadcast",
     auth: "api-key",
     units: 1,
     tag: "Transactions",
     summary:
-      "Broadcast bytes you signed locally. One unit is reserved per attempt before dispatch, including upstream rejection.",
+      "Broadcast locally signed bytes for supported transaction networks. One unit is reserved per attempt before dispatch, including upstream rejection.",
   },
   {
     method: "POST",
@@ -129,7 +129,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     auth: "none",
     units: 0,
     tag: "Wallet subscription",
-    summary: "Get a one-use message to sign with a Base or Solana wallet.",
+    summary: "Get a one-use message to sign with a supported subscription wallet (Base or Solana).",
   },
   {
     method: "POST",
@@ -153,7 +153,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     auth: "session",
     units: 0,
     tag: "Wallet subscription",
-    summary: "Submit an exact USDC payment tx to activate a plan.",
+    summary: "Submit the exact quoted payment transaction to activate a plan.",
   },
   {
     method: "POST",

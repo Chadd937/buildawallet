@@ -6,6 +6,7 @@ DROP TRIGGER IF EXISTS account_payment_validate;
 DROP TRIGGER IF EXISTS account_payment_activate;
 DROP TRIGGER IF EXISTS prepaid_payment_reserve;
 DROP TRIGGER IF EXISTS prepaid_payment_activate;
+DROP TRIGGER IF EXISTS wallet_meter;
 DROP TRIGGER IF EXISTS machine_payment_reserve;
 DROP TRIGGER IF EXISTS machine_payment_activate;
 
@@ -174,5 +175,10 @@ INSERT INTO machine_api_usage SELECT chain,wallet,period_start,used FROM machine
 
 DROP TABLE machine_api_keys_copy;
 DROP TABLE machine_api_usage_copy;
+
+CREATE TRIGGER wallet_meter AFTER INSERT ON api_meter_requests WHEN NEW.kind='wallet' BEGIN
+  INSERT INTO machine_api_usage(chain,wallet,period_start,used) VALUES(NEW.chain,NEW.wallet,NEW.period_start,NEW.used)
+    ON CONFLICT(chain,wallet) DO UPDATE SET period_start=excluded.period_start,used=excluded.used;
+END;
 
 PRAGMA foreign_keys=ON;

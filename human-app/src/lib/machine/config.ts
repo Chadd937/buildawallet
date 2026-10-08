@@ -157,6 +157,7 @@ export const PREPAID_BILLING = {
   accountingBatchThresholdUSD: "1.00",
   paymentChains: PAYMENT_CHAINS,
   paymentRails: PAYMENT_RAILS,
+  x402Chains: ["base", "solana"] as const,
 } as const;
 
 export function paymentRail(chain: string) {

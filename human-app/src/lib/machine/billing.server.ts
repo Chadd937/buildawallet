@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { appDatabase } from "@/lib/db/context.server";
 import { activateWalletPayment, consumeUnits } from "@/lib/db/storage.server";
 import { PAYMENT_RAILS, paymentCollector, planById, type PlanId, type PaymentChain } from "./config";
+import { paymentAmountAtomic } from "./receipts.server";
 
 export const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 export const secretToken = () => randomBytes(32).toString("hex");
@@ -233,12 +234,14 @@ export async function revokeApiKey(request: Request) {
 
 
 export async function createMachineAccessQuote(
-  chain: "base" | "solana",
+  chain: PaymentChain,
   wallet: string,
   planId: PlanId,
 ) {
   const plan = planById(planId);
   if (!plan) throw new RangeError("Unknown plan");
+  const rail = PAYMENT_RAILS[chain];
+  const amountAtomic = await paymentAmountAtomic(chain, planId);
   const createdAt = now();
   const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString();
   const id = crypto.randomUUID();
@@ -246,16 +249,17 @@ export async function createMachineAccessQuote(
     .prepare(
       "INSERT INTO machine_access_quotes(id,chain,wallet,plan_id,amount_atomic,created_at,expires_at) VALUES(?,?,?,?,?,?,?)",
     )
-    .bind(id, chain, wallet, planId, String(plan.amountAtomic), createdAt, expiresAt)
+    .bind(id, chain, wallet, planId, String(amountAtomic), createdAt, expiresAt)
     .run();
   return {
     quoteId: id,
     chain,
     wallet,
     plan: { id: plan.id, name: plan.name, priceUSDC: plan.priceUSDC, units: plan.units },
-    amountAtomic: String(plan.amountAtomic),
-    asset: chain === "base" ? "USDC" : "USDC",
-    collector: paymentCollector(chain),
+    amountAtomic: String(amountAtomic),
+    asset: rail.asset,
+    decimals: rail.decimals,
+    collector: rail.collector,
     expiresAt,
     activate: "/machine/v1/agent/activate",
   };
@@ -269,7 +273,7 @@ export async function machineAccessQuote(id: string) {
     .bind(id, now())
     .first<{
       id: string;
-      chain: "base" | "solana";
+      chain: PaymentChain;
       wallet: string;
       plan_id: PlanId;
       amount_atomic: string;
@@ -293,7 +297,7 @@ export async function activateMachineAccessQuote(quoteId: string, tx: string, pa
     quote.plan_id,
     normalizedTx,
     new Date(paidAt * 1000).toISOString(),
-    plan.amountAtomic,
+    BigInt(quote.amount_atomic),
   );
 
   await appDatabase()
@@ -307,7 +311,7 @@ export async function activateMachineAccessQuote(quoteId: string, tx: string, pa
     normalizedTx,
     quote.wallet,
     paymentCollector(quote.chain),
-    String(plan.amountAtomic),
+    quote.amount_atomic,
     plan.units,
   );
 

@@ -8,6 +8,10 @@ def releaseKeyAlias = System.getenv('BAW_ANDROID_KEY_ALIAS')
 def releaseKeyPassword = System.getenv('BAW_ANDROID_KEY_PASSWORD')
 def hasReleaseSigning = releaseKeystore && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
 
+configurations.configureEach {
+    exclude group: 'org.bouncycastle', module: 'bcprov-jdk15to18'
+}
+
 android {
     namespace 'xyz.buildawallet.studio'
     compileSdk 35

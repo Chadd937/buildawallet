@@ -68,7 +68,6 @@ const root = HDKey.fromMasterSeed(seed);
 const evm = computeAddress(hex(root.derive("${KIT_PATHS.evm}").privateKey));
 const sol = base58.encode(ed25519.getPublicKey(slip10(seed, "${KIT_PATHS.solana}")));
 const bitcoin = btc.p2wpkh(root.derive("${KIT_PATHS.bitcoin}").publicKey).address;
-const tronAddr = tron(root.derive("${KIT_PATHS.tron}").privateKey);
 
 // Public addresses only. Same EVM address works on every EVM network.
 console.log(JSON.stringify({

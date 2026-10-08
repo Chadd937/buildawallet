@@ -22,7 +22,7 @@ function Prepaid() {
           </>
         }
       >
-        Buy a block of API units on any supported payment network. EVM/Solana/Tron use their configured stablecoin; Bitcoin uses BTC. Each metered request deducts units
+        Buy a block of API units on any supported payment network. EVM/Solana use USDC; Bitcoin uses BTC. Each metered request deducts units
         from your account, without another blockchain payment.
       </PageHero>
       <Section title="Three steps">

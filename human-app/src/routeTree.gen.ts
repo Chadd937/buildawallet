@@ -203,7 +203,6 @@ const ApiPublicMachineSplatRoute = ApiPublicMachineSplatRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 
-  '/swagger': typeof SwaggerRoute
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/advertising': typeof AdvertisingRoute
@@ -237,7 +236,6 @@ export interface FileRoutesByFullPath {
   '/api/public/openapi': typeof ApiPublicOpenapiRoute
   '/api/public/machine/$': typeof ApiPublicMachineSplatRoute
 }
-  '/swagger': typeof SwaggerRoute
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/advertising': typeof AdvertisingRoute
@@ -269,7 +267,6 @@ export interface FileRoutesByTo {
   '/api/public/openapi': typeof ApiPublicOpenapiRoute
   '/api/public/machine/$': typeof ApiPublicMachineSplatRoute
 }
-  '/swagger': typeof SwaggerRoute
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute

@@ -174,6 +174,7 @@ export async function handleMachineRequest(request: Request) {
           x402: true,
           settlementChains: PAYMENT_CHAINS,
           assets: Object.fromEntries(PAYMENT_CHAINS.map((id) => [id, PAYMENT_RAILS[id].asset])),
+          x402Chains: ["base", "solana"],
         },
         custody: "non-custodial",
         signing: "caller-controlled",

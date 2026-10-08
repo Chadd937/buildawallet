@@ -98,13 +98,6 @@ export const CHAINS: ChainDef[] = [
     tokens: [], tagline: "Native SegWit", hue: 45,
   },
   {
-    id: "tron", name: "Tron", family: "tron", symbol: "TRX", decimals: 6, coingeckoId: "tron",
-    rpc: ["https://api.trongrid.io"], explorer: "https://tronscan.org",
-    explorerTx: (h) => `https://tronscan.org/#/transaction/${h}`,
-    explorerAddress: (a) => `https://tronscan.org/#/address/${a}`,
-    tokens: [{ symbol: "USDT", name: "Tether USD", address: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", decimals: 6 }],
-    tagline: "Stablecoin highway", hue: 0,
-  },
 ];
 
 export const chainById = (id: string) => CHAINS.find((c) => c.id === id);

@@ -4,6 +4,8 @@ PRAGMA foreign_keys=OFF;
 
 DROP TRIGGER IF EXISTS account_payment_validate;
 DROP TRIGGER IF EXISTS account_payment_activate;
+DROP TRIGGER IF EXISTS prepaid_payment_reserve;
+DROP TRIGGER IF EXISTS prepaid_payment_activate;
 DROP TRIGGER IF EXISTS machine_payment_reserve;
 DROP TRIGGER IF EXISTS machine_payment_activate;
 

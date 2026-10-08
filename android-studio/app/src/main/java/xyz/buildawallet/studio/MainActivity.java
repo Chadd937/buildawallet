@@ -1031,51 +1031,6 @@ public final class MainActivity extends Activity {
 
     private static int indexOf(String[] values, String target) { for(int i=0;i<values.length;i++) if(values[i].equalsIgnoreCase(target)) return i; return 0; }
 
-    private void showByteChat() {
-        final AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Byte AI · Wallet guide").create();
-        LinearLayout root = dialogBox();
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout messages = new LinearLayout(this); messages.setOrientation(LinearLayout.VERTICAL);
-        scroll.addView(messages);
-        root.addView(scroll, new LinearLayout.LayoutParams(-1, dp(360)));
-        LinearLayout composer = new LinearLayout(this); composer.setOrientation(LinearLayout.HORIZONTAL);
-        EditText input = input("Ask Byte about your wallet…"); input.setSingleLine(true);
-        Button send = button("Send", true);
-        composer.addView(input, new LinearLayout.LayoutParams(0, dp(52), 1f)); LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(76), dp(52)); sp.leftMargin=dp(8); composer.addView(send, sp);
-        root.addView(composer);
-        addChatMessage(messages, "Byte", "Hi! I’m Byte. I can help with networks, balances, receiving, fees, security, dapps, and transaction review. I never need your recovery phrase or private key.", false);
-        Runnable submit = () -> {
-            String q = input.getText().toString().trim(); if (q.isEmpty()) return;
-            addChatMessage(messages, "You", q, true); input.setText("");
-            addChatMessage(messages, "Byte", localByteAnswer(q), false);
-            scroll.post(() -> scroll.fullScroll(View.FOCUS_DOWN));
-        };
-        send.setOnClickListener(v -> submit.run());
-        input.setOnEditorActionListener((v, actionId, event) -> { submit.run(); return true; });
-        dialog.setView(root); dialog.setOnShowListener(v -> input.requestFocus()); dialog.show();
-    }
-
-    private void addChatMessage(LinearLayout parent, String speaker, String text, boolean user) {
-        TextView bubble = label(speaker + "\n" + text, 13, TEXT, user ? true : false);
-        bubble.setPadding(dp(14), dp(10), dp(14), dp(10));
-        bubble.setBackground(pill(user ? 0xff17223a : CARD, 0xff31405a));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lp.topMargin = dp(8); parent.addView(bubble, lp);
-    }
-
-    private String localByteAnswer(String q) {
-        String s=q.toLowerCase(java.util.Locale.ROOT);
-        if (s.contains("recovery") || s.contains("seed") || s.contains("private key")) return "Never paste recovery words or private keys into chat. Keep the recovery phrase offline and use the wallet’s on-device signing flow.";
-        if (s.contains("bitcoin") || s.matches(".*\\bbtc\\b.*")) return "Bitcoin is available as a native account in this APK. Review the destination, amount and fee rate carefully before signing because BTC transfers are irreversible.";
-        if (s.contains("solana") || s.matches(".*\\bsol\\b.*")) return "Solana is available as a native account. Use the Solana send flow and review the destination and amount before signing.";
-        if (s.contains("dapp") || s.contains("connect")) return "Open Dapps from the wallet action bar. BuildAWallet exposes a local EIP-1193 provider inside its dapp browser, so no WalletConnect API key is required for dapps loaded there.";
-        if (s.contains("fee") || s.contains("gas")) return "Network fees vary with chain conditions. The transaction review screen shows the estimated fee before you approve a send.";
-        if (s.contains("usdc") || s.contains("token")) return "Select the network and open the Assets area. The displayed native asset and supported USDC balance are live-read from the selected network; tap the asset for detailed market information.";
-        if (s.contains("security") || s.contains("safe")) return "Keep the recovery phrase offline, verify the network and destination, and never approve an unexpected signature or transaction. BuildAWallet signs locally on the device.";
-        if (s.contains("ethereum") || s.contains("base") || s.contains("arbitrum") || s.contains("optimism") || s.contains("polygon") || s.contains("bnb") || s.contains("avalanche")) return "Choose Networks to switch between the supported EVM mainnets. Your EVM address is the same across EVM networks, but always confirm the selected chain before sending.";
-        return "I can help with wallet setup, networks, BTC, Solana, EVM transfers, fees, security, token information and the Dapp browser. Try asking “How do I connect to a dapp?” or “How do I send BTC?”";
-    }
-
     private void renameDialog() {
         EditText name = input("Wallet name");
         name.setSingleLine(true);

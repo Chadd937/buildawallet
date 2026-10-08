@@ -467,9 +467,13 @@ public final class MainActivity extends Activity {
         TextView btcAddress = label(nonEvm == null ? "Unavailable" : nonEvm.bitcoinAddress(), 12, TEXT, true);
         btcAddress.setTextIsSelectable(true);
         addTo(nonEvmCard, btcAddress, 7);
-        addTo(nonEvmCard, label("BIP-84 native SegWit receive address. Bitcoin spending is kept disabled until the native UTXO/signing path passes its dedicated integration tests.", 11, MUTED, false), 6);
+        TextView btcBalance = label("Loading…", 13, MUTED, true);
+        addTo(nonEvmCard, btcBalance, 5);
+        Button btcSend = button("Send BTC", false);
+        btcSend.setOnClickListener(v -> sendBitcoinDialog());
+        addTo(nonEvmCard, btcSend, 10);
         add(nonEvmCard, 10);
-        refreshNonEvm(solBalance);
+        refreshNonEvm(solBalance, btcBalance);
 
         add(sectionTitle("Receive", "Your on-chain account"), 28);
         LinearLayout addressCard = card();
@@ -652,12 +656,18 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void refreshNonEvm(TextView solBalance) {
+    private void refreshNonEvm(TextView solBalance, TextView btcBalance) {
         if (nonEvm == null) return;
         io.execute(() -> {
             try {
                 String value = nonEvm.solanaBalance();
                 runOnUiThread(() -> solBalance.setText(value));
+                try {
+                    String btc = nonEvm.bitcoinBalance();
+                    runOnUiThread(() -> btcBalance.setText(btc));
+                } catch (Exception ignored) {
+                    runOnUiThread(() -> btcBalance.setText("Bitcoin RPC unavailable"));
+                }
             } catch (Exception error) {
                 runOnUiThread(() -> solBalance.setText("Solana RPC unavailable"));
             }
@@ -700,6 +710,56 @@ public final class MainActivity extends Activity {
                 dialog.dismiss();
             } catch (Exception error) {
                 showError("Invalid SOL transfer", error);
+            }
+        }));
+        dialog.show();
+    }
+
+    private void sendBitcoinDialog() {
+        EditText to = input("bc1… Bitcoin mainnet destination");
+        EditText amount = input("0.001");
+        amount.setSingleLine(true);
+        amount.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText fee = input("10");
+        fee.setSingleLine(true);
+        fee.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        LinearLayout box = dialogBox();
+        box.addView(label("Destination", 12, MUTED, true));
+        box.addView(to);
+        addTo(box, label("Amount (BTC)", 12, MUTED, true), 12);
+        box.addView(amount);
+        addTo(box, label("Fee rate (sat/vB)", 12, MUTED, true), 12);
+        box.addView(fee);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Send Bitcoin")
+            .setMessage("Native SegWit mainnet transaction. The transaction is constructed and signed locally; only the signed transaction is broadcast.")
+            .setView(box)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Review", null)
+            .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            try {
+                java.math.BigDecimal value = new java.math.BigDecimal(amount.getText().toString().trim());
+                long feeRate = new java.math.BigDecimal(fee.getText().toString().trim()).longValueExact();
+                String destination = to.getText().toString().trim();
+                if (!destination.startsWith("bc1") || value.signum() <= 0 || feeRate <= 0) {
+                    throw new IllegalArgumentException("Enter a valid bc1 mainnet destination, amount and fee rate.");
+                }
+                new AlertDialog.Builder(this)
+                    .setTitle("Confirm BTC transfer")
+                    .setMessage("Network: Bitcoin mainnet\nRecipient: " + destination + "\nAmount: " + value.toPlainString() + " BTC\nFee rate: " + feeRate + " sat/vB\n\nThis is irreversible.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Sign & broadcast", (d, w) -> io.execute(() -> {
+                        try {
+                            String txid = nonEvm.sendBitcoin(destination, value, feeRate);
+                            runOnUiThread(() -> Toast.makeText(this, "BTC sent: " + txid, Toast.LENGTH_LONG).show());
+                        } catch (Exception error) {
+                            runOnUiThread(() -> showError("BTC transfer failed", error));
+                        }
+                    })).show();
+                dialog.dismiss();
+            } catch (Exception error) {
+                showError("Invalid BTC transfer", error);
             }
         }));
         dialog.show();

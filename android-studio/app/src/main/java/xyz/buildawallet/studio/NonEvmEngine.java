@@ -22,7 +22,7 @@ final class NonEvmEngine {
     private final RpcClient solanaRpc;
 
     private NonEvmEngine(String mnemonic) {
-        solana = Account.fromMnemonic(mnemonic, "");
+        solana = Account.fromMnemonic(java.util.Arrays.asList(mnemonic.trim().split("\\s+")), "");
         DeterministicSeed seed = DeterministicSeed.ofMnemonic(mnemonic, "");
         bitcoin = Wallet.fromSeed(BitcoinNetwork.MAINNET, seed, ScriptType.P2WPKH, KeyChainGroupStructure.BIP43);
         solanaRpc = new RpcClient(Cluster.MAINNET);

@@ -185,6 +185,33 @@ final class WalletEngine {
     }
 
 
+
+    String dappRead(EvmNetwork network, String method, org.json.JSONArray params) throws Exception {
+        Web3j web3j = client(network);
+        try {
+            verifyNetwork(web3j, network);
+            switch (method) {
+                case "eth_chainId": return "0x" + Long.toHexString(network.chainId);
+                case "net_version": return Long.toString(network.chainId);
+                case "eth_accounts": return new org.json.JSONArray().put(address()).toString();
+                case "eth_getBalance": return Numeric.toHexStringWithPrefix(web3j.ethGetBalance(params.getString(0), DefaultBlockParameterName.LATEST).send().getBalance());
+                case "eth_blockNumber": return Numeric.toHexStringWithPrefix(web3j.ethBlockNumber().send().getBlockNumber());
+                case "eth_gasPrice": return Numeric.toHexStringWithPrefix(web3j.ethGasPrice().send().getGasPrice());
+                case "eth_getTransactionCount": return Numeric.toHexStringWithPrefix(web3j.ethGetTransactionCount(params.getString(0), DefaultBlockParameterName.PENDING).send().getTransactionCount());
+                case "eth_call": {
+                    org.json.JSONObject call = params.getJSONObject(0);
+                    String from = call.optString("from", address());
+                    String to = call.getString("to");
+                    String data = call.optString("data", "0x");
+                    var result = web3j.ethCall(org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(from, to, data), DefaultBlockParameterName.LATEST).send();
+                    if (result.hasError()) throw rpcError(result.getError().getMessage());
+                    return result.getValue();
+                }
+                default: throw new UnsupportedOperationException("Unsupported dapp RPC method: " + method);
+            }
+        } finally { web3j.shutdown(); }
+    }
+
     String signPersonalMessage(String message) {
         org.web3j.crypto.Sign.SignatureData sig = org.web3j.crypto.Sign.signPrefixedMessage(message.getBytes(java.nio.charset.StandardCharsets.UTF_8), credentials.getEcKeyPair());
         byte[] out = new byte[65];

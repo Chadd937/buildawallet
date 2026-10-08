@@ -47,7 +47,7 @@ const tools = [
     title: "Create access quote",
     description: "Create a short-lived exact payment quote for a wallet and prepaid plan. Free.",
     inputSchema: schema(["chain", "wallet", "planId"], {
-      chain: { type: "string", enum: ["base", "solana"] }, wallet: { type: "string" }, planId: { type: "string", enum: ["builder", "pro", "scale"] },
+      chain: { type: "string", enum: [...PAYMENT_CHAINS] }, wallet: { type: "string" }, planId: { type: "string", enum: ["builder", "pro", "scale"] },
     }),
   },
   {

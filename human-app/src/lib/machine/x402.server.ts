@@ -4,7 +4,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { appDatabase } from "@/lib/db/context.server";
 import { recordAgentPayment } from "./billing.server";
-import { BASE_COLLECTOR, BASE_MAINNET, SOLANA_COLLECTOR, SOLANA_MAINNET } from "./config";
+import { EVM_MAINNETS, BASE_COLLECTOR, SOLANA_COLLECTOR, SOLANA_MAINNET } from "./config";
 
 type PaymentContext = {
   payload: any;
@@ -28,9 +28,12 @@ const adapter = (request: Request) => ({
 function makeServer() {
   if (!process.env["CDP_API_KEY_ID"]?.trim() || !process.env["CDP_API_KEY_SECRET"]?.trim()) return null;
   const facilitator = createCdpFacilitatorClient();
-  return new x402ResourceServer(facilitator)
-    .register(BASE_MAINNET, new ExactEvmScheme())
-    .register(SOLANA_MAINNET, new ExactSvmScheme());
+  const server = new x402ResourceServer(facilitator);
+  for (const network of Object.values(EVM_MAINNETS)) {
+    server.register(network, new ExactEvmScheme());
+  }
+  server.register(SOLANA_MAINNET, new ExactSvmScheme());
+  return server;
 }
 
 export function x402Configured() {
@@ -65,7 +68,49 @@ export async function x402Protect(
         {
           scheme: "exact",
           price: priceUSD,
-          network: BASE_MAINNET,
+          network: EVM_MAINNETS.ethereum,
+          payTo: BASE_COLLECTOR,
+          maxTimeoutSeconds: 300,
+        },
+        {
+          scheme: "exact",
+          price: priceUSD,
+          network: EVM_MAINNETS.base,
+          payTo: BASE_COLLECTOR,
+          maxTimeoutSeconds: 300,
+        },
+        {
+          scheme: "exact",
+          price: priceUSD,
+          network: EVM_MAINNETS.arbitrum,
+          payTo: BASE_COLLECTOR,
+          maxTimeoutSeconds: 300,
+        },
+        {
+          scheme: "exact",
+          price: priceUSD,
+          network: EVM_MAINNETS.optimism,
+          payTo: BASE_COLLECTOR,
+          maxTimeoutSeconds: 300,
+        },
+        {
+          scheme: "exact",
+          price: priceUSD,
+          network: EVM_MAINNETS.polygon,
+          payTo: BASE_COLLECTOR,
+          maxTimeoutSeconds: 300,
+        },
+        {
+          scheme: "exact",
+          price: priceUSD,
+          network: EVM_MAINNETS.bnb,
+          payTo: BASE_COLLECTOR,
+          maxTimeoutSeconds: 300,
+        },
+        {
+          scheme: "exact",
+          price: priceUSD,
+          network: EVM_MAINNETS.avalanche,
           payTo: BASE_COLLECTOR,
           maxTimeoutSeconds: 300,
         },

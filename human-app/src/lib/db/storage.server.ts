@@ -79,7 +79,7 @@ export async function accountOverview(userId: string) {
       userId,
     ),
     statement(
-      "SELECT id,user_id,plan_id,chain,payer,created_at,expires_at,consumed_at FROM api_checkout_quotes WHERE user_id=? AND consumed_at IS NULL AND expires_at>? ORDER BY created_at DESC LIMIT 5",
+      "SELECT id,user_id,plan_id,chain,payer,amount_atomic,asset,decimals,created_at,expires_at,consumed_at FROM api_checkout_quotes WHERE user_id=? AND consumed_at IS NULL AND expires_at>? ORDER BY created_at DESC LIMIT 5",
       userId,
       now(),
     ),

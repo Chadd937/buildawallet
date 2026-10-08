@@ -97,7 +97,7 @@ function SignedIn() {
       </Section>
       <Section eyebrow="Billing" title="Payments">
         {data.payments.length === 0 ? <Panel><p className="text-sm text-muted-foreground">No payments yet.</p></Panel> : (
-          <Table head={["Paid", "Plan", "Chain", "Amount", "Transaction"]} rows={data.payments.map((p) => [fmt(p.paid_at), PLANS[p.plan_id as PlanId]?.name ?? p.plan_id, p.chain, `${(Number(p.amount_atomic) / 1e6).toFixed(2)} USDC`, p.tx])} />
+          <Table head={["Paid", "Plan", "Chain", "Amount", "Transaction"]} rows={data.payments.map((p) => [fmt(p.paid_at), PLANS[p.plan_id as PlanId]?.name ?? p.plan_id, p.chain, formatAtomic(p.amount_atomic, p.chain === "bnb" ? 18 : p.chain === "bitcoin" ? 8 : 6), p.tx])} />
         )}
       </Section>
     </>

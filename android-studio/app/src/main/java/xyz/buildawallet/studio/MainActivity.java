@@ -458,6 +458,7 @@ public final class MainActivity extends Activity {
 
         assetBalanceView = label("—", 15, TEXT, true);
         assetBalanceView.setGravity(Gravity.END);
+        assetBalanceView.setOnClickListener(v -> openExternal(tokenInfoUrl(selectedNetwork.symbol, selectedNetwork.name, selectedNetwork.chainId)));
         assetRow.addView(assetBalanceView);
         assetCard.addView(assetRow);
         add(assetCard, 10);

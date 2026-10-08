@@ -561,7 +561,13 @@ public final class MainActivity extends Activity {
         root.addView(controls);
         Button connect = button("Connect wallet to this dapp", false); root.addView(connect, new LinearLayout.LayoutParams(-1, dp(48)));
         dappWebView = new WebView(this); WebSettings ws = dappWebView.getSettings(); ws.setJavaScriptEnabled(true); ws.setDomStorageEnabled(true); ws.setJavaScriptCanOpenWindowsAutomatically(false); ws.setAllowFileAccess(false); ws.setAllowContentAccess(false);
-        dappWebView.setWebViewClient(new WebViewClient() { @Override public boolean shouldOverrideUrlLoading(WebView v, String u) { if (u.startsWith("https://") || u.startsWith("http://")) return false; openExternal(u); return true; } @Override public void onPageFinished(WebView v, String u) { injectEip1193(v); } });
+        dappWebView.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView v, String u) {
+                if (u.startsWith("https://") || u.startsWith("http://")) return false;
+                openExternal(u); return true;
+            }
+            @Override public void onPageFinished(WebView v, String u) { injectEip1193(v); }
+        });
         dappWebView.addJavascriptInterface(new DappBridge(), "BuildAWallet");
         root.addView(dappWebView, new LinearLayout.LayoutParams(-1, dp(420)));
         root.addView(label("Built-in EVM dapp connection uses the wallet's local signing provider. Dapps never receive the recovery phrase.", 11, MUTED, false));
@@ -579,7 +585,7 @@ public final class MainActivity extends Activity {
     }
 
     private void injectEip1193(WebView view) {
-        String js = "(function(){if(window.__bawProvider)return;const listeners={};function emit(e,d){(listeners[e]||[]).forEach(f=>{try{f(d)}catch(_){}})}window.ethereum={isBuildAWallet:true,request:function(a){return new Promise((resolve,reject)=>{const id=Date.now()+Math.floor(Math.random()*100000);window.__bawCallbacks=window.__bawCallbacks||{};window.__bawCallbacks[id]={resolve:resolve,reject:reject};BuildAWallet.request(String(id),String(a&&a.method||''),JSON.stringify(a&&a.params||[]));})},on:function(e,f){(listeners[e]||(listeners[e]=[])).push(f);return this},removeListener:function(e,f){listeners[e]=(listeners[e]||[]).filter(x=>x!==f);return this}};window.__bawProvider=true;emit('connect',{chainId:'0x" + Long.toHexString(selectedNetwork.chainId) + "'});})();";
+        String js = "(function(){if(window.__bawProvider)return;const listeners={};function emit(e,d){(listeners[e]||[]).forEach(f=>{try{f(d)}catch(_){}})}const p={isBuildAWallet:true,request:function(a){return new Promise((resolve,reject)=>{const id=Date.now()+Math.floor(Math.random()*100000);window.__bawCallbacks=window.__bawCallbacks||{};window.__bawCallbacks[id]={resolve:resolve,reject:reject};BuildAWallet.request(String(id),String(a&&a.method||''),JSON.stringify(a&&a.params||[]));})},on:function(e,f){(listeners[e]||(listeners[e]=[])).push(f);return this},removeListener:function(e,f){listeners[e]=(listeners[e]||[]).filter(x=>x!==f);return this}};window.ethereum=p;window.__bawProvider=true;window.dispatchEvent(new CustomEvent('eip6963:announceProvider',{detail:{info:{uuid:'buildawallet-local',name:'BuildAWallet',icon:'https://buildawallet.xyz/favicon.ico',rdns:'xyz.buildawallet'},provider:p}}));emit('connect',{chainId:'0x" + Long.toHexString(selectedNetwork.chainId) + "'});})();";
         view.evaluateJavascript(js, null);
     }
 

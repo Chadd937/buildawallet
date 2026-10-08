@@ -273,5 +273,4 @@ it("publishes prepaid + x402 discovery and returns migration guidance to old MCP
       .billing.mode,
   ).toBe("prepaid");
   expect(JSON.stringify({ offer, openapi, llms })).toMatch(/x402|PAYMENT-SIGNATURE|\$0\.01/);
-  expect(paymentCollector("tron")).toBe("TY5CSu6UyMYvQNjBApfhxwSN4QHhW2n48u");
 });

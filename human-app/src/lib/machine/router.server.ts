@@ -15,11 +15,9 @@ import {
 } from "./billing.server";
 import { MACHINE_CHAINS, machineChain, rpcUrl, validAddress } from "./chains";
 import {
-  BASE_COLLECTOR,
-  BASE_USDC,
+  PAYMENT_CHAINS,
+  PAYMENT_RAILS,
   PLANS,
-  SOLANA_COLLECTOR,
-  SOLANA_USDC,
   planById,
   publicPlans,
   PREPAID_BILLING,
@@ -35,7 +33,7 @@ import {
 } from "./data.server";
 import { apiError, cors, json, objectBody } from "./http";
 import { x402Protect, x402Settle } from "./x402.server";
-import { PendingReceipt, verifyBaseReceipt, verifySolanaReceipt } from "./receipts.server";
+import { PendingReceipt, paymentAmountAtomic, verifyBitcoinReceipt, verifyEvmReceipt, verifySolanaReceipt, verifyTronReceipt } from "./receipts.server";
 import {
   broadcastBaseTransaction,
   broadcastSolanaTransaction,
@@ -45,6 +43,7 @@ import {
 } from "./transactions.server";
 import { handleWalletRoute } from "./wallets.server";
 
+const EVM_PAYMENT_CHAINS = new Set(["ethereum","base","arbitrum","optimism","polygon","bnb","avalanche"]);
 const segments = (request: Request) =>
   new URL(request.url).pathname
     .replace(/^\/api\/public(?=\/machine(?:\/|$))/, "")
@@ -168,13 +167,13 @@ export async function handleMachineRequest(request: Request) {
           quote: "POST /machine/v1/agent/quote",
           activate: "POST /machine/v1/agent/activate",
           x402: "PAYMENT-SIGNATURE on metered endpoints",
-          account: "GET /machine/v1/agent/account?chain={base|solana}&wallet={address}",
+          account: "GET /machine/v1/agent/account?chain={chain}&wallet={address}",
         },
         payment: {
           prepaid: true,
           x402: true,
-          settlementChains: ["base", "solana"],
-          asset: "USDC",
+          settlementChains: PAYMENT_CHAINS,
+          assets: Object.fromEntries(PAYMENT_CHAINS.map((id) => [id, PAYMENT_RAILS[id].asset])),
         },
         custody: "non-custodial",
         signing: "caller-controlled",
@@ -183,18 +182,19 @@ export async function handleMachineRequest(request: Request) {
       const url = new URL(request.url);
       const chain = url.searchParams.get("chain");
       const wallet = url.searchParams.get("wallet");
-      if ((chain !== "base" && chain !== "solana") || !wallet)
+      if (!PAYMENT_CHAINS.includes(chain as any) || !wallet)
         throw new RangeError("chain and wallet query parameters are required");
       const selected = machineChain(chain);
       if (!selected || !validAddress(selected, wallet))
-        throw new RangeError("Valid Base or Solana wallet required");
+        throw new RangeError("Valid wallet required");
       const account = await agentAccountByWallet(chain, wallet);
       return json(
         account
           ? {
               ...account,
-              currency: "USDC",
+              currency: PAYMENT_RAILS[chain as keyof typeof PAYMENT_RAILS].asset,
               settlementThresholdUSD: "1.00",
+              paymentRail: PAYMENT_RAILS[chain as keyof typeof PAYMENT_RAILS],
               x402PriceUSD: "0.01",
               ledger: "machine_agent_ledger",
             }
@@ -209,8 +209,8 @@ export async function handleMachineRequest(request: Request) {
       const wallet = body["wallet"];
       const plan = body["planId"];
       const selected = typeof chain === "string" ? machineChain(chain) : undefined;
-      if ((chain !== "base" && chain !== "solana") || typeof wallet !== "string" || !selected || !validAddress(selected, wallet))
-        throw new RangeError("Valid Base or Solana wallet required");
+      if (!PAYMENT_CHAINS.includes(chain as any) || typeof wallet !== "string" || !selected || !validAddress(selected, wallet))
+        throw new RangeError("Valid wallet required");
       if (typeof plan !== "string") throw new RangeError("planId required");
       return json(await createMachineAccessQuote(chain, chain === "base" ? wallet.toLowerCase() : wallet, plan as any), 201, cors);
     }
@@ -222,30 +222,28 @@ export async function handleMachineRequest(request: Request) {
       if (!quote) throw new RangeError("Quote is invalid, expired or already consumed");
       const paymentChain = machineChain(quote.chain);
       if (!paymentChain) throw new RangeError("Unsupported payment chain");
-      const paidAt =
-        quote.chain === "base"
-          ? await verifyBaseReceipt(
-              rpcUrl(paymentChain),
-              body["tx"],
-              quote.wallet,
-              Math.floor(new Date(quote.created_at).getTime() / 1000),
-              BigInt(quote.amount_atomic),
-            )
-          : await verifySolanaReceipt(
-              rpcUrl(paymentChain),
-              body["tx"],
-              quote.wallet,
-              Math.floor(new Date(quote.created_at).getTime() / 1000),
-              BigInt(quote.amount_atomic),
-            );
-      return json(await activateMachineAccessQuote(body["quoteId"], body["tx"], paidAt), 200, cors);
+      const tx = EVM_PAYMENT_CHAINS.has(quote.chain) ? String(body["tx"]).toLowerCase() : String(body["tx"]);
+      const earliest = Math.floor(new Date(quote.created_at).getTime() / 1000);
+      let paidAt: number;
+      if (paymentChain.family === "evm") {
+        paidAt = await verifyEvmReceipt(rpcUrl(paymentChain), paymentChain, tx, quote.wallet, earliest, BigInt(quote.amount_atomic));
+      } else if (paymentChain.family === "solana") {
+        paidAt = await verifySolanaReceipt(rpcUrl(paymentChain), tx, quote.wallet, earliest, BigInt(quote.amount_atomic));
+      } else if (paymentChain.family === "tron") {
+        paidAt = await verifyTronReceipt(rpcUrl(paymentChain), tx, quote.wallet, earliest, BigInt(quote.amount_atomic));
+      } else {
+        const minimumNow = await paymentAmountAtomic("bitcoin", quote.plan_id);
+        if (BigInt(quote.amount_atomic) < minimumNow) throw new RangeError("Bitcoin quote is stale; create a new quote");
+        paidAt = await verifyBitcoinReceipt(tx, quote.wallet, earliest, BigInt(quote.amount_atomic));
+      }
+      return json(await activateMachineAccessQuote(body["quoteId"], tx, paidAt), 200, cors);
     }
     if (request.method === "GET" && tail[0] === "chains")
       return json(
         {
           chains: MACHINE_CHAINS.map(({ env: _env, fallback: _fallback, ...chain }) => chain),
           configured: configuredNetworks(),
-          settlementChains: ["base", "solana"],
+          settlementChains: PAYMENT_CHAINS,
         },
         200,
         cors,
@@ -255,10 +253,7 @@ export async function handleMachineRequest(request: Request) {
         {
           plans: publicPlans(),
           billing: PREPAID_BILLING,
-          payment: {
-            base: { asset: BASE_USDC, collector: BASE_COLLECTOR },
-            solana: { asset: SOLANA_USDC, collector: SOLANA_COLLECTOR },
-          },
+          payment: PAYMENT_RAILS,
         },
         200,
         cors,

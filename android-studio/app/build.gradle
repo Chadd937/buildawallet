@@ -10,6 +10,7 @@ def hasReleaseSigning = releaseKeystore && releaseStorePassword && releaseKeyAli
 
 configurations.configureEach {
     exclude group: 'org.bouncycastle', module: 'bcprov-jdk15to18'
+    exclude group: 'com.squareup.okhttp3', module: 'okhttp-jvm'
 }
 
 android {

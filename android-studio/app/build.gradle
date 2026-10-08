@@ -65,6 +65,7 @@ android {
 }
 
 dependencies {
+    implementation 'com.mmorrell:solanaj:1.28.0'
     implementation 'org.web3j:core:4.12.3-android'
     implementation 'org.web3j:crypto:4.12.3-android'
     implementation 'org.web3j:utils:4.12.3-android'

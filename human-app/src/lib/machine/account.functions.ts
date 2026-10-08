@@ -76,7 +76,7 @@ export const confirmCheckout = createServerFn({ method: "POST" })
     const { checkoutQuote, activateCheckout } = await import("@/lib/db/storage.server");
     const { planById } = await import("./config");
     const { machineChain, rpcUrl } = await import("./chains");
-    const { verifyEvmReceipt, verifySolanaReceipt, verifyTronReceipt, verifyBitcoinReceipt, paymentAmountAtomic, PendingReceipt } =
+    const { verifyEvmReceipt, verifySolanaReceipt, verifyBitcoinReceipt, paymentAmountAtomic, PendingReceipt } =
       await import("./receipts.server");
     const { txAlreadyUsed } = await import("./billing.server");
 
@@ -106,14 +106,6 @@ export const confirmCheckout = createServerFn({ method: "POST" })
         );
       } else if (chain.family === "solana") {
         paidAt = await verifySolanaReceipt(
-          rpcUrl(chain),
-          tx,
-          quote.payer,
-          earliest,
-          BigInt(quote.amount_atomic),
-        );
-      } else if (chain.family === "tron") {
-        paidAt = await verifyTronReceipt(
           rpcUrl(chain),
           tx,
           quote.payer,

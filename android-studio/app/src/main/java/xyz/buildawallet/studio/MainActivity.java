@@ -23,6 +23,10 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.webkit.WebSettings;
+import android.webkit.JavascriptInterface;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -51,6 +55,7 @@ public final class MainActivity extends Activity {
     private Spinner networkSpinner;
     private List<EvmNetwork> enabledNetworks;
     private EvmNetwork selectedNetwork;
+    private WebView dappWebView;
 
     private int setupStep = 0;
     private String pendingName = "My Wallet";
@@ -423,6 +428,8 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams actionGap4 = new LinearLayout.LayoutParams(0, dp(78), 1f);
         actionGap4.leftMargin = dp(8);
         actions.addView(walletAction("✦", "Byte AI", v -> showByteChat()), actionGap4);
+        LinearLayout.LayoutParams actionGap5 = new LinearLayout.LayoutParams(0, dp(78), 1f); actionGap5.leftMargin = dp(8);
+        actions.addView(walletAction("◈", "Dapps", v -> showDapps()), actionGap5);
         add(actions, 14);
 
         add(sectionTitle("Assets", "Live balance on the selected network"), 28);
@@ -441,12 +448,17 @@ public final class MainActivity extends Activity {
         LinearLayout assetMeta = new LinearLayout(this);
         assetMeta.setOrientation(LinearLayout.VERTICAL);
         assetMeta.setPadding(dp(12), 0, 0, 0);
-        assetMeta.addView(label(selectedNetwork.symbol, 16, TEXT, true));
-        assetMeta.addView(label(selectedNetwork.name + " · native asset", 11, MUTED, false));
+        TextView nativeLink = label(selectedNetwork.symbol + " · " + selectedNetwork.name + " ↗", 16, TEXT, true);
+        nativeLink.setOnClickListener(v -> openExternal(tokenInfoUrl(selectedNetwork.symbol, selectedNetwork.name, selectedNetwork.chainId)));
+        assetMeta.addView(nativeLink);
+        TextView nativeInfo = label("Detailed market / coin information", 11, MUTED, false);
+        nativeInfo.setOnClickListener(v -> openExternal(tokenInfoUrl(selectedNetwork.symbol, selectedNetwork.name, selectedNetwork.chainId)));
+        assetMeta.addView(nativeInfo);
         assetRow.addView(assetMeta, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         assetBalanceView = label("—", 15, TEXT, true);
         assetBalanceView.setGravity(Gravity.END);
+        assetBalanceView.setOnClickListener(v -> openExternal(tokenInfoUrl(selectedNetwork.symbol, selectedNetwork.name, selectedNetwork.chainId)));
         assetRow.addView(assetBalanceView);
         assetCard.addView(assetRow);
         add(assetCard, 10);
@@ -460,6 +472,7 @@ public final class MainActivity extends Activity {
         addTo(nonEvmCard, solAddress, 7);
         TextView solBalance = label("Loading…", 13, MUTED, true);
         addTo(nonEvmCard, solBalance, 5);
+        TextView solInfo = label("SOL token info ↗", 11, MUTED, false); solInfo.setOnClickListener(v -> openExternal("https://www.coingecko.com/en/coins/solana")); addTo(nonEvmCard, solInfo, 5);
         Button solSend = button("Send SOL", false);
         solSend.setOnClickListener(v -> sendSolanaDialog());
         addTo(nonEvmCard, solSend, 10);
@@ -469,6 +482,7 @@ public final class MainActivity extends Activity {
         addTo(nonEvmCard, btcAddress, 7);
         TextView btcBalance = label("Loading…", 13, MUTED, true);
         addTo(nonEvmCard, btcBalance, 5);
+        TextView btcInfo = label("BTC token info ↗", 11, MUTED, false); btcInfo.setOnClickListener(v -> openExternal("https://www.coingecko.com/en/coins/bitcoin")); addTo(nonEvmCard, btcInfo, 5);
         Button btcSend = button("Send BTC", false);
         btcSend.setOnClickListener(v -> sendBitcoinDialog());
         addTo(nonEvmCard, btcSend, 10);
@@ -521,6 +535,80 @@ public final class MainActivity extends Activity {
 
         add(notice("Review the network, destination, amount and network fee before every send. Mainnet transactions are irreversible."), 18);
         refreshBalance();
+    }
+
+    private String tokenInfoUrl(String symbol, String name, long chainId) {
+        String s = symbol == null ? "" : symbol.toLowerCase();
+        if ("eth".equals(s)) return "https://www.coingecko.com/en/coins/ethereum";
+        if ("pol".equals(s)) return "https://www.coingecko.com/en/coins/polygon-ecosystem-token";
+        if ("bnb".equals(s)) return "https://www.coingecko.com/en/coins/bnb";
+        if ("avax".equals(s)) return "https://www.coingecko.com/en/coins/avalanche";
+        return "https://www.coingecko.com/en/search?query=" + Uri.encode(name == null ? symbol : name);
+    }
+
+    private void openExternal(String url) {
+        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+        catch (Exception error) { showError("Could not open link", error); }
+    }
+
+    private void showDapps() {
+        final AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Dapps · Web3 browser").create();
+        LinearLayout root = dialogBox();
+        LinearLayout controls = new LinearLayout(this); controls.setOrientation(LinearLayout.HORIZONTAL);
+        EditText url = input("Search or enter https://…"); url.setSingleLine(true);
+        Button go = button("Go", true);
+        controls.addView(url, new LinearLayout.LayoutParams(0, dp(48), 1f)); LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(dp(70), dp(48)); gp.leftMargin = dp(8); controls.addView(go, gp);
+        root.addView(controls);
+        Button connect = button("Connect wallet to this dapp", false); root.addView(connect, new LinearLayout.LayoutParams(-1, dp(48)));
+        dappWebView = new WebView(this); WebSettings ws = dappWebView.getSettings(); ws.setJavaScriptEnabled(true); ws.setDomStorageEnabled(true); ws.setJavaScriptCanOpenWindowsAutomatically(false); ws.setAllowFileAccess(false); ws.setAllowContentAccess(false);
+        dappWebView.setWebViewClient(new WebViewClient() { @Override public boolean shouldOverrideUrlLoading(WebView v, String u) { if (u.startsWith("https://") || u.startsWith("http://")) return false; openExternal(u); return true; } @Override public void onPageFinished(WebView v, String u) { injectEip1193(v); } });
+        dappWebView.addJavascriptInterface(new DappBridge(), "BuildAWallet");
+        root.addView(dappWebView, new LinearLayout.LayoutParams(-1, dp(420)));
+        root.addView(label("Built-in EVM dapp connection uses the wallet's local signing provider. Dapps never receive the recovery phrase.", 11, MUTED, false));
+        String[] apps = {"Uniswap|https://app.uniswap.org","Aave|https://app.aave.com","OpenSea|https://opensea.io","Jupiter|https://jup.ag","Raydium|https://raydium.io","BTCme.click|https://btcme.click","LTCme.click|https://ltcme.click","BnbBlockchain.com|https://bnbblockchain.com","MonadBlockchain.com|https://monadblockchain.com","ClickSolana.xyz|https://clicksolana.xyz"};
+        for (String item : apps) { String[] parts = item.split("\\|",2); Button b = button("↗ " + parts[0], false); b.setOnClickListener(v -> { url.setText(parts[1]); dappWebView.loadUrl(parts[1]); }); root.addView(b, new LinearLayout.LayoutParams(-1, dp(42))); }
+        go.setOnClickListener(v -> loadDappUrl(url.getText().toString(), dappWebView));
+        connect.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("Connect wallet").setMessage("This browser exposes an EIP-1193 wallet provider to the current dapp. The dapp must request accounts before it can see your address. Every transaction still requires an explicit confirmation.").setPositiveButton("Continue", null).setNegativeButton("Cancel", null).show());
+        dialog.setView(root); dialog.setOnDismissListener(v -> { if (dappWebView != null) { dappWebView.removeJavascriptInterface("BuildAWallet"); dappWebView.destroy(); dappWebView = null; } }); dialog.setOnShowListener(v -> dappWebView.loadUrl("https://app.uniswap.org")); dialog.show();
+    }
+
+    private void loadDappUrl(String raw, WebView view) {
+        String u = raw == null ? "" : raw.trim();
+        if (!u.startsWith("http://") && !u.startsWith("https://")) u = "https://www.google.com/search?q=" + Uri.encode(u);
+        view.loadUrl(u);
+    }
+
+    private void injectEip1193(WebView view) {
+        String js = "(function(){if(window.__bawProvider)return;const listeners={};function emit(e,d){(listeners[e]||[]).forEach(f=>{try{f(d)}catch(_){}})}window.ethereum={isBuildAWallet:true,request:function(a){return new Promise((resolve,reject)=>{const id=Date.now()+Math.floor(Math.random()*100000);window.__bawCallbacks=window.__bawCallbacks||{};window.__bawCallbacks[id]={resolve:resolve,reject:reject};BuildAWallet.request(String(id),String(a&&a.method||''),JSON.stringify(a&&a.params||[]));})},on:function(e,f){(listeners[e]||(listeners[e]=[])).push(f);return this},removeListener:function(e,f){listeners[e]=(listeners[e]||[]).filter(x=>x!==f);return this}};window.__bawProvider=true;emit('connect',{chainId:'0x" + Long.toHexString(selectedNetwork.chainId) + "'});})();";
+        view.evaluateJavascript(js, null);
+    }
+
+    private final class DappBridge {
+        @JavascriptInterface public void request(String id, String method, String params) { runOnUiThread(() -> handleDappRequest(id, method, params)); }
+    }
+
+    private void handleDappRequest(String id, String method, String rawParams) {
+        try {
+            org.json.JSONArray params = new org.json.JSONArray(rawParams == null ? "[]" : rawParams);
+            if ("eth_requestAccounts".equals(method)) {
+                new AlertDialog.Builder(this).setTitle("Dapp account access").setMessage("Allow this dapp to view and use your EVM address for this session?").setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Connect", (d,w) -> resolveDapp(id, new org.json.JSONArray().put(engine.address()).toString(), 0, null)).show(); return;
+            }
+            if ("personal_sign".equals(method)) {
+                String message = params.length() > 0 ? params.getString(0) : "";
+                new AlertDialog.Builder(this).setTitle("Dapp signature request").setMessage("Sign this message?\\n\\n" + message).setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Sign", (d,w) -> io.execute(() -> { try { resolveDapp(id, engine.signPersonalMessage(message), 0, null); } catch (Exception e) { resolveDapp(id, null, 4000, safeMessage(e)); } })).show(); return;
+            }
+            if ("eth_sendTransaction".equals(method)) {
+                org.json.JSONObject tx = params.getJSONObject(0);
+                new AlertDialog.Builder(this).setTitle("Dapp transaction").setMessage("Destination: " + tx.optString("to") + "\\nValue: " + tx.optString("value","0x0") + "\\nGas: " + tx.optString("gas","estimated") + "\\n\\nReview carefully before signing.").setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected transaction")).setPositiveButton("Sign & send", (d,w) -> io.execute(() -> { try { resolveDapp(id, engine.dappSendTransaction(selectedNetwork, tx), 0, null); } catch(Exception e){ resolveDapp(id,null,4000,safeMessage(e)); } })).show(); return;
+            }
+            io.execute(() -> { try { resolveDapp(id, engine.dappRead(selectedNetwork, method, params), 0, null); } catch(Exception e) { resolveDapp(id,null,4200,safeMessage(e)); } });
+        } catch (Exception e) { resolveDapp(id,null,4000,safeMessage(e)); }
+    }
+
+    private void resolveDapp(String id, String result, int code, String message) {
+        if (dappWebView == null) return;
+        String rid = org.json.JSONObject.quote(id), rr = result == null ? "null" : org.json.JSONObject.quote(result), err = message == null ? "null" : "{code:" + code + ",message:" + org.json.JSONObject.quote(message) + "}";
+        dappWebView.evaluateJavascript("window.__bawResolve(" + rid + "," + rr + "," + err + ")", null);
     }
 
     private void showByteChat() {
@@ -869,17 +957,53 @@ public final class MainActivity extends Activity {
     }
 
     private void settingsDialog() {
-        String[] choices = {"Rename wallet", "Change theme", "Manage networks"};
+        String[] choices = {"Rename wallet", "Change theme", "Manage networks", "Security limits", "Currency", "Layout & navigation"};
         new AlertDialog.Builder(this)
             .setTitle("Customize wallet")
             .setItems(choices, (dialog, which) -> {
                 if (which == 0) renameDialog();
                 else if (which == 1) themeDialog();
-                else manageNetworksDialog();
+                else if (which == 2) manageNetworksDialog();
+                else if (which == 3) securitySettingsDialog();
+                else if (which == 4) currencyDialog();
+                else layoutSettingsDialog();
             })
             .setNegativeButton("Close", null)
             .show();
     }
+
+
+    private void securitySettingsDialog() {
+        LinearLayout box = dialogBox();
+        EditText lock = input("Auto-lock minutes"); lock.setInputType(InputType.TYPE_CLASS_NUMBER); lock.setText(Integer.toString(profile.autoLockMin));
+        EditText large = input("Large-send threshold USD"); large.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); large.setText(Integer.toString(profile.bigSendUsd));
+        EditText limit = input("Session spend limit USD"); limit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); limit.setText(Integer.toString(profile.sessionLimitUsd));
+        box.addView(label("Auto-lock", 12, MUTED, true)); box.addView(lock); addTo(box, label("Large-send guard", 12, MUTED, true), 10); box.addView(large); addTo(box, label("Session spend limit", 12, MUTED, true), 10); box.addView(limit);
+        AlertDialog d = new AlertDialog.Builder(this).setTitle("Security settings").setView(box).setNegativeButton("Cancel", null).setPositiveButton("Save", null).create();
+        d.setOnShowListener(v -> d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(x -> { try { profile=profile.withSettings(Integer.parseInt(lock.getText().toString()), Integer.parseInt(large.getText().toString()), Integer.parseInt(limit.getText().toString()), profile.currency, profile.walletStyle, profile.navigationStyle, profile.assetStyle, profile.actionStyle); profile.save(this); d.dismiss(); render(); } catch(Exception e){ showError("Invalid security settings", e); } })); d.show();
+    }
+
+    private void currencyDialog() {
+        String[] currencies = {"usd","eur","gbp","jpy","cad","aud","chf","inr","brl"};
+        int current = 0; for(int i=0;i<currencies.length;i++) if(currencies[i].equalsIgnoreCase(profile.currency)) current=i;
+        new AlertDialog.Builder(this).setTitle("Display currency").setSingleChoiceItems(currencies,current,(d,w)->{ profile=profile.withSettings(profile.autoLockMin,profile.bigSendUsd,profile.sessionLimitUsd,currencies[w],profile.walletStyle,profile.navigationStyle,profile.assetStyle,profile.actionStyle); profile.save(this); d.dismiss(); Toast.makeText(this,"Currency saved",Toast.LENGTH_SHORT).show(); }).setNegativeButton("Cancel",null).show();
+    }
+
+    private void layoutSettingsDialog() {
+        String[] styles = {"classic","minimal","trader","neon","glass","gallery"};
+        String[] nav = {"bottom","icons","floating","text"};
+        String[] assets = {"compact","detailed","visual"};
+        String[] actions = {"duo","toolbar","round"};
+        LinearLayout box = dialogBox();
+        Spinner ws = new Spinner(this); ws.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,styles)); ws.setSelection(indexOf(styles,profile.walletStyle));
+        Spinner ns = new Spinner(this); ns.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,nav)); ns.setSelection(indexOf(nav,profile.navigationStyle));
+        Spinner as = new Spinner(this); as.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,assets)); as.setSelection(indexOf(assets,profile.assetStyle));
+        Spinner ac = new Spinner(this); ac.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,actions)); ac.setSelection(indexOf(actions,profile.actionStyle));
+        box.addView(label("Wallet style",12,MUTED,true)); box.addView(ws); addTo(box,label("Navigation style",12,MUTED,true),10); box.addView(ns); addTo(box,label("Asset style",12,MUTED,true),10); box.addView(as); addTo(box,label("Action style",12,MUTED,true),10); box.addView(ac);
+        new AlertDialog.Builder(this).setTitle("Layout & navigation").setView(box).setNegativeButton("Cancel",null).setPositiveButton("Save",(d,w)->{ profile=profile.withSettings(profile.autoLockMin,profile.bigSendUsd,profile.sessionLimitUsd,profile.currency,String.valueOf(ws.getSelectedItem()),String.valueOf(ns.getSelectedItem()),String.valueOf(as.getSelectedItem()),String.valueOf(ac.getSelectedItem())); profile.save(this); render(); }).show();
+    }
+
+    private static int indexOf(String[] values, String target) { for(int i=0;i<values.length;i++) if(values[i].equalsIgnoreCase(target)) return i; return 0; }
 
     private void renameDialog() {
         EditText name = input("Wallet name");

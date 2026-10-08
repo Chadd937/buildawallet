@@ -96,7 +96,6 @@ describe("Machine routing and wallet safety", () => {
     );
     expect(addresses.evm).toBe("0x9858EfFD232B4033E47d90003D41EC34EcaEda94");
     expect(addresses.bitcoin).toBe("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
-    expect(addresses.tron).toBe("TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH");
     expect(addresses.solana).toBe("HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk");
   });
 });

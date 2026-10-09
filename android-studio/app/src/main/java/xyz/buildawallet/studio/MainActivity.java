@@ -462,6 +462,7 @@ public final class MainActivity extends Activity {
         assetRow.addView(assetBalanceView);
         assetCard.addView(assetRow);
         add(assetCard, 10);
+        addCustomTokensSection();
 
         add(sectionTitle("Solana & Bitcoin", "Native accounts derived from the same recovery phrase"), 28);
         LinearLayout nonEvmCard = card();
@@ -544,6 +545,125 @@ public final class MainActivity extends Activity {
         if ("bnb".equals(s)) return "https://www.coingecko.com/en/coins/bnb";
         if ("avax".equals(s)) return "https://www.coingecko.com/en/coins/avalanche";
         return "https://www.coingecko.com/en/search?query=" + Uri.encode(name == null ? symbol : name);
+    }
+
+    private void addCustomTokensSection() {
+        add(sectionTitle("Custom tokens", "Import ERC-20 tokens that are not shown by default"), 20);
+        Button addToken = button("+ Import token", true);
+        add(addToken, 8);
+        addToken.setOnClickListener(v -> importCustomTokenDialog());
+
+        List<CustomToken> tokens = CustomToken.load(this, selectedNetwork.chainId);
+        if (tokens.isEmpty()) {
+            add(label("No custom tokens imported on " + selectedNetwork.name + ".", 12, MUTED, false), 8);
+            return;
+        }
+        for (CustomToken token : tokens) {
+            LinearLayout row = card();
+            row.setBackground(pill(0xff0f1115, 0xff24272e));
+            LinearLayout top = new LinearLayout(this);
+            top.setOrientation(LinearLayout.HORIZONTAL);
+            top.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout meta = new LinearLayout(this);
+            meta.setOrientation(LinearLayout.VERTICAL);
+            TextView tokenName = label(token.name + " · " + token.symbol, 15, TEXT, true);
+            tokenName.setOnClickListener(v -> customTokenInfo(token));
+            meta.addView(tokenName);
+            TextView address = label(shortAddress(token.address) + " · " + token.decimals + " decimals", 10, MUTED, false);
+            address.setOnClickListener(v -> customTokenInfo(token));
+            meta.addView(address);
+            top.addView(meta, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            TextView balance = label("Loading…", 14, TEXT, true);
+            balance.setGravity(Gravity.END);
+            top.addView(balance);
+            row.addView(top);
+            TextView info = label("Token details ↗", 11, activeAccent(), true);
+            info.setPadding(0, dp(10), 0, 0);
+            info.setOnClickListener(v -> customTokenInfo(token));
+            row.addView(info);
+            add(row, 8);
+            EvmNetwork network = selectedNetwork;
+            io.execute(() -> {
+                try {
+                    String value = engine.tokenBalance(network, token.address, token.decimals) + " " + token.symbol;
+                    runOnUiThread(() -> { if (network == selectedNetwork) balance.setText(value); });
+                } catch (Exception error) {
+                    runOnUiThread(() -> { if (network == selectedNetwork) balance.setText("Unavailable"); });
+                }
+            });
+        }
+    }
+
+    private void importCustomTokenDialog() {
+        LinearLayout box = dialogBox();
+        EditText name = input("Token name, e.g. My Token");
+        EditText symbol = input("Symbol, e.g. MTK");
+        EditText address = input("ERC-20 contract address (0x...)");
+        EditText decimals = input("Decimals (usually 18 or 6)");
+        name.setSingleLine(true);
+        symbol.setSingleLine(true);
+        address.setSingleLine(true);
+        decimals.setSingleLine(true);
+        decimals.setInputType(InputType.TYPE_CLASS_NUMBER);
+        box.addView(label("Network: " + selectedNetwork.name + " (chain " + selectedNetwork.chainId + ")", 12, MUTED, true));
+        addTo(box, name, 8); addTo(box, symbol, 8); addTo(box, address, 8); addTo(box, decimals, 8);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Import custom ERC-20")
+            .setMessage("Imports display metadata only. Verify the contract address from a trusted source. Anyone can create tokens with misleading names or symbols.")
+            .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Import", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            try {
+                String cleanName = name.getText().toString().trim();
+                String cleanSymbol = symbol.getText().toString().trim();
+                String cleanAddress = address.getText().toString().trim();
+                if (cleanName.isEmpty() || cleanName.length() > 60) throw new IllegalArgumentException("Enter a token name up to 60 characters.");
+                if (!cleanSymbol.matches("[A-Za-z0-9._-]{1,16}")) throw new IllegalArgumentException("Enter a valid token symbol (1 to 16 letters, numbers, or . _ -).");
+                if (!org.web3j.crypto.WalletUtils.isValidAddress(cleanAddress)) throw new IllegalArgumentException("Enter a valid EVM contract address.");
+                int decimalsValue = Integer.parseInt(decimals.getText().toString().trim());
+                if (decimalsValue < 0 || decimalsValue > 36) throw new IllegalArgumentException("Decimals must be between 0 and 36.");
+                CustomToken token = new CustomToken(selectedNetwork.chainId, cleanName, cleanSymbol, cleanAddress, decimalsValue);
+                CustomToken.save(this, token);
+                dialog.dismiss();
+                render();
+                Toast.makeText(this, "Custom token imported", Toast.LENGTH_SHORT).show();
+            } catch (Exception error) {
+                showError("Could not import token", error);
+            }
+        }));
+        dialog.show();
+    }
+
+    private String tokenExplorerBase(long chainId) {
+        switch ((int) chainId) {
+            case 1: return "https://etherscan.io";
+            case 8453: return "https://basescan.org";
+            case 137: return "https://polygonscan.com";
+            case 42161: return "https://arbiscan.io";
+            case 10: return "https://optimistic.etherscan.io";
+            case 43114: return "https://snowtrace.io";
+            case 56: return "https://bscscan.com";
+            default: return "https://etherscan.io";
+        }
+    }
+
+    private void customTokenInfo(CustomToken token) {
+        String explorer = tokenExplorerBase(token.chainId) + "/token/" + Uri.encode(token.address);
+        String message = "Name: " + token.name
+            + "\nSymbol: " + token.symbol
+            + "\nNetwork: " + selectedNetwork.name + " (chain " + token.chainId + ")"
+            + "\nContract: " + token.address
+            + "\nDecimals: " + token.decimals
+            + "\n\nThis token was imported by you. The app reads its ERC-20 balance but does not independently certify the token, its issuer, value, liquidity, or safety. Verify the contract on the official project site and explorer before relying on it.";
+        new AlertDialog.Builder(this).setTitle(token.name + " · Token information")
+            .setMessage(message)
+            .setNeutralButton("Remove token", (d, w) -> new AlertDialog.Builder(this)
+                .setTitle("Remove " + token.symbol + "?")
+                .setMessage("This removes its saved display entry from this device. It does not affect tokens on-chain.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Remove", (dd, ww) -> { CustomToken.remove(this, token); render(); })
+                .show())
+            .setPositiveButton("Open explorer", (d, w) -> openExternal(explorer))
+            .setNegativeButton("Close", null).show();
     }
 
     private void openExternal(String url) {

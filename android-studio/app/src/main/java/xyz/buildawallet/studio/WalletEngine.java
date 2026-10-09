@@ -117,6 +117,25 @@ final class WalletEngine {
         }
     }
 
+    /** Read-only ERC-20 balance for a user-imported contract. */
+    String tokenBalance(EvmNetwork network, String tokenAddress, int decimals) throws Exception {
+        if (!WalletUtils.isValidAddress(tokenAddress)) throw new IllegalArgumentException("Invalid token contract address.");
+        if (decimals < 0 || decimals > 36) throw new IllegalArgumentException("Token decimals must be between 0 and 36.");
+        Web3j web3j = client(network);
+        try {
+            verifyNetwork(web3j, network);
+            Function fn = new Function("balanceOf",
+                java.util.List.of(new Address(address())),
+                java.util.List.of(new org.web3j.abi.TypeReference<Uint256>() {}));
+            var response = web3j.ethCall(
+                org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(address(), tokenAddress, FunctionEncoder.encode(fn)),
+                DefaultBlockParameterName.LATEST).send();
+            if (response.hasError()) throw rpcError(response.getError().getMessage());
+            BigInteger raw = Numeric.toBigInt(response.getValue());
+            return formatToken(raw, decimals);
+        } finally { web3j.shutdown(); }
+    }
+
     String usdcBalance(EvmNetwork network) throws Exception {
         String token = usdcAddress(network);
         Web3j web3j = client(network);

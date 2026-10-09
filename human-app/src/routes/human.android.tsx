@@ -46,7 +46,7 @@ function AndroidBuild() {
   }, [ready, draft.name]);
 
   const walletUrl = origin ? `${origin}/human/wallet` : "";
-  const apkUrl = origin ? `${origin}/downloads/BuildAWallet-1.0.0.apk` : "";
+  const apkUrl = "https://github.com/Chadd937/buildawallet/releases/download/android-latest/BuildAWallet-Wallet.apk";
   const secureWalletUrl = /^https:\/\//.test(walletUrl);
   const ok = appName.trim().length > 0 && validPackage(pkg) && /^\d+\.\d+\.\d+$/.test(version) && secureWalletUrl;
 
@@ -75,12 +75,7 @@ function AndroidBuild() {
 
   function downloadApk() {
     if (!apkUrl) return;
-    const el = document.createElement("a");
-    el.href = apkUrl;
-    el.download = "BuildAWallet-1.0.0.apk";
-    document.body.appendChild(el);
-    el.click();
-    el.remove();
+    window.location.assign(apkUrl);
     setStep(3);
     toast.success("BuildAWallet Android APK download started");
   }
@@ -121,7 +116,7 @@ function AndroidBuild() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="font-semibold">Official BuildAWallet Android app</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Use the finished signed APK now. No Android Studio or build step required.</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Download the installer directly as an APK file. No Android Studio or project ZIP required.</p>
                     </div>
                     <Button size="sm" variant="outline" disabled={!apkUrl} onClick={downloadApk}><Download />APK</Button>
                   </div>

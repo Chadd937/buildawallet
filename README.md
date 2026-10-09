@@ -10,7 +10,7 @@ BuildAWallet has a HUMAN wallet designer and a NON-HUMAN read-only machine data 
 | --- | --- | --- |
 | HUMAN Pages site | Email-verified account, four-step onboarding, interactive Studio blueprint, release choice, crypto subscription handoff and build-status download screen | Cloudflare Pages serves `/human/*`; Cloudflare Access can guard account and release services |
 | HUMAN API | Architect chat, saved designs, gallery and stats | `cloudflare-human/` Python Worker with D1, routes `/api/*` and `/healthz` |
-| NON-HUMAN data | ten-mainnet read API, composite snapshots, MCP tools, and $0.01 USDC native snapshots through x402 | `agent-pay/` Worker, route `/machine/*` and `/mcp` |
+| NON-HUMAN data | nine-network read API, composite snapshots, MCP tools, prepaid access, and locally signed transfers on EVM + Solana | `human-app/` machine routes; `agent-pay/` remains a separate worker |
 | Agent wallet signer | Local prototype only | Not mounted on the public container or Cloudflare |
 
 The optional Docker/see.io server in `main.py` serves the website and a read-only MCP preview. It deliberately does not mount `agent_protocol.py`. A `BAW_MASTER_KEY` environment variable does not turn the public server into a signer. Do not put signing keys or bootstrap credentials into either Cloudflare Worker.

@@ -77,7 +77,7 @@ const tools = [
           {
             name: `${chain.id}_stablecoin`,
             title: `${chain.name} ${chain.stablecoin.symbol}`,
-            description: `Read the configured ${chain.stablecoin.symbol} balance. Costs one API unit with prepaid access or $0.01 via x402.`,
+            description: `Read the configured ${chain.stablecoin.symbol} balance. Costs one prepaid API unit.`,
             inputSchema: schema(["address"], { address: { type: "string" } }),
           },
         ]
@@ -85,13 +85,13 @@ const tools = [
     {
       name: `${chain.id}_transaction`,
       title: `${chain.name} transaction`,
-      description: `Look up a public ${chain.name} transaction. Costs one API unit with prepaid access or $0.01 via x402.`,
+      description: `Look up a public ${chain.name} transaction. Costs one prepaid API unit.`,
       inputSchema: schema(["tx"], { tx: { type: "string" } }),
     },
     {
       name: `${chain.id}_snapshot`,
       title: `${chain.name} snapshot`,
-      description: `Read native${chain.stablecoin ? ` and ${chain.stablecoin.symbol}` : ""} balances. Costs one API unit with prepaid access or $0.01 via x402.`,
+      description: `Read native${chain.stablecoin ? ` and ${chain.stablecoin.symbol}` : ""} balances. Costs one prepaid API unit.`,
       inputSchema: schema(["address"], { address: { type: "string" } }),
     },
   ]),
@@ -99,7 +99,7 @@ const tools = [
     name: "portfolio",
     title: "Multichain portfolio (full query)",
     description:
-      "Native and stablecoin balances on EVERY network that accepts the address (7 EVM chains for a 0x address), in one call. Costs one API unit with prepaid access or $0.01 via x402.",
+      "Native and stablecoin balances on EVERY network that accepts the address (7 EVM chains for a 0x address), in one call. Costs one prepaid API unit.",
     inputSchema: schema(["address"], { address: { type: "string" } }),
   },
   {

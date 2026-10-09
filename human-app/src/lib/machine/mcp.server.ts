@@ -67,7 +67,7 @@ const tools = [
     {
       name: `${chain.id}_wallet`,
       title: `${chain.name} wallet`,
-      description: `Read the live ${chain.symbol} balance for a public ${chain.name} mainnet address. Costs one API unit with prepaid access or $0.01 via x402.`,
+      description: `Read the live ${chain.symbol} balance for a public ${chain.name} mainnet address. Costs one prepaid API unit.`,
       inputSchema: schema(["address"], {
         address: { type: "string", description: "Public wallet address" },
       }),
@@ -141,7 +141,7 @@ const tools = [
   {
     name: "base_transaction_prepare",
     title: "Prepare Base transfer",
-    description: "Build an unsigned Base native or USDC transfer for local signing. 1 API unit with prepaid access or $0.01 via x402.",
+    description: "Build an unsigned Base native or USDC transfer for local signing. 1 prepaid API unit.",
     inputSchema: schema(["from", "to", "asset", "amountAtomic"], {
       from: { type: "string" },
       to: { type: "string" },
@@ -170,7 +170,7 @@ const tools = [
   {
     name: "solana_transaction_prepare",
     title: "Prepare Solana transfer",
-    description: "Build an unsigned Solana native or USDC transfer for local signing. 1 unit.",
+    description: "Build an unsigned Solana native or USDC transfer for local signing. 1 prepaid API unit.",
     inputSchema: schema(["from", "to", "asset", "amountAtomic"], {
       from: { type: "string" },
       to: { type: "string" },
@@ -181,13 +181,13 @@ const tools = [
   {
     name: "base_transaction_broadcast",
     title: "Broadcast Base transaction",
-    description: "Broadcast a 0x-hex transaction you signed locally. 1 unit.",
+    description: "Broadcast a raw signed Base transaction you signed locally. 1 prepaid API unit.",
     inputSchema: schema(["signedTransaction"], { signedTransaction: { type: "string" } }),
   },
   {
     name: "solana_transaction_broadcast",
     title: "Broadcast Solana transaction",
-    description: "Broadcast a base64 transaction you signed locally. 1 unit.",
+    description: "Broadcast a signed Solana transaction you signed locally. 1 prepaid API unit.",
     inputSchema: schema(["signedTransactionBase64"], {
       signedTransactionBase64: { type: "string" },
     }),

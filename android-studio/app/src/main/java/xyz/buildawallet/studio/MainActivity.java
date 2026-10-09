@@ -745,10 +745,29 @@ public final class MainActivity extends Activity {
             }
             if ("eth_sendTransaction".equals(method)) {
                 org.json.JSONObject tx = params.getJSONObject(0);
-                new AlertDialog.Builder(this).setTitle("Dapp transaction").setMessage("Destination: " + tx.optString("to") + "\\nValue: " + tx.optString("value","0x0") + "\\nGas: " + tx.optString("gas","estimated") + "\\n\\nReview carefully before signing.").setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected transaction")).setPositiveButton("Sign & send", (d,w) -> io.execute(() -> { try { resolveDapp(id, engine.dappSendTransaction(selectedNetwork, tx), 0, null); } catch(Exception e){ resolveDapp(id,null,4000,safeMessage(e)); } })).show(); return;
+                new AlertDialog.Builder(this).setTitle("Dapp transaction · review carefully").setMessage(dappTransactionPreview(tx)).setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected transaction")).setPositiveButton("Sign & send", (d,w) -> io.execute(() -> { try { resolveDapp(id, engine.dappSendTransaction(selectedNetwork, tx), 0, null); } catch(Exception e){ resolveDapp(id,null,4000,safeMessage(e)); } })).show(); return;
             }
             io.execute(() -> { try { resolveDapp(id, engine.dappRead(selectedNetwork, method, params), 0, null); } catch(Exception e) { resolveDapp(id,null,4200,safeMessage(e)); } });
         } catch (Exception e) { resolveDapp(id,null,4000,safeMessage(e)); }
+    }
+
+    private String dappTransactionPreview(org.json.JSONObject tx) {
+        String to = tx.optString("to", "(missing)");
+        String value = tx.optString("value", "0x0");
+        String gas = tx.optString("gas", "estimated by network");
+        String data = tx.optString("data", tx.optString("input", "0x"));
+        String selector = data.length() >= 10 ? data.substring(0, 10).toLowerCase(java.util.Locale.ROOT) : data;
+        String action = "Contract call is not decoded by this wallet. Treat unknown calldata as high risk.";
+        if ("0xa9059cbb".equals(selector)) action = "ERC-20 transfer call detected. Verify the token contract and recipient before signing.";
+        if ("0x095ea7b3".equals(selector)) action = "ERC-20 approval call detected. Verify the token contract and spender; this may grant token-spending permission.";
+        String shownData = data.length() > 600 ? data.substring(0, 600) + "… (truncated)" : data;
+        return "Network: " + selectedNetwork.name + " (chain " + selectedNetwork.chainId + ")"
+            + "\nDestination / contract: " + to
+            + "\nNative value: " + value
+            + "\nGas limit: " + gas
+            + "\nCall data: " + shownData
+            + "\n\n" + action
+            + "\n\nOnly sign if you understand the transaction. Contract data may not be fully decoded.";
     }
 
     private void resolveDapp(String id, String result, int code, String message) {

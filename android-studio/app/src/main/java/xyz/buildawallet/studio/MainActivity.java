@@ -1121,9 +1121,10 @@ public final class MainActivity extends Activity {
 
     private void securitySettingsDialog() {
         LinearLayout box = dialogBox();
-        EditText lock = input("Auto-lock minutes"); lock.setInputType(InputType.TYPE_CLASS_NUMBER); lock.setText(Integer.toString(profile.autoLockMin));
-        EditText large = input("Large-send threshold USD"); large.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); large.setText(Integer.toString(profile.bigSendUsd));
-        EditText limit = input("Session spend limit USD"); limit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); limit.setText(Integer.toString(profile.sessionLimitUsd));
+        addTo(box, notice("Important: these three values are currently saved as preferences only. The native wallet does not yet enforce automatic locking, a USD large-send threshold, or a session spending limit. Do not rely on them as security controls."), 8);
+        EditText lock = input("Auto-lock minutes (not enforced yet)"); lock.setInputType(InputType.TYPE_CLASS_NUMBER); lock.setText(Integer.toString(profile.autoLockMin));
+        EditText large = input("Large-send threshold USD (not enforced yet)"); large.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); large.setText(Integer.toString(profile.bigSendUsd));
+        EditText limit = input("Session spend limit USD (not enforced yet)"); limit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); limit.setText(Integer.toString(profile.sessionLimitUsd));
         box.addView(label("Auto-lock", 12, MUTED, true)); box.addView(lock); addTo(box, label("Large-send guard", 12, MUTED, true), 10); box.addView(large); addTo(box, label("Session spend limit", 12, MUTED, true), 10); box.addView(limit);
         AlertDialog d = new AlertDialog.Builder(this).setTitle("Security settings").setView(box).setNegativeButton("Cancel", null).setPositiveButton("Save", null).create();
         d.setOnShowListener(v -> d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(x -> { try { profile=profile.withSettings(Integer.parseInt(lock.getText().toString()), Integer.parseInt(large.getText().toString()), Integer.parseInt(limit.getText().toString()), profile.currency, profile.walletStyle, profile.navigationStyle, profile.assetStyle, profile.actionStyle); profile.save(this); d.dismiss(); render(); } catch(Exception e){ showError("Invalid security settings", e); } })); d.show();

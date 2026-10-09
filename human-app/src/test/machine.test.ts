@@ -129,7 +129,7 @@ describe("multi-chain EVM transaction support", () => {
     }, "arbitrum");
     expect(usdc.chain).toBe("arbitrum");
     expect(usdc.token).toBe("0xaf88d065e77c8C2239327C5EDb3A432268e5831");
-    expect(usdc.unsignedTransaction.data).toMatch(/^0xa9059cbb/);
+    expect((usdc.unsignedTransaction as Record<string, string>)["data"]).toMatch(/^0xa9059cbb/);
   });
 
   it("rejects an RPC endpoint whose chain ID does not match the requested EVM chain", async () => {

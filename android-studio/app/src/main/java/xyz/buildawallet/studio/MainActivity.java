@@ -439,7 +439,7 @@ public final class MainActivity extends Activity {
         assetRow.setOrientation(LinearLayout.HORIZONTAL);
         assetRow.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView tokenIcon = label(selectedNetwork.symbol.substring(0, 1), 16, 0xff080a0d, true);
+        TextView tokenIcon = label("U", 16, 0xff080a0d, true);
         tokenIcon.setGravity(Gravity.CENTER);
         tokenIcon.setBackground(pill(accent, accent));
         LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(42), dp(42));
@@ -448,17 +448,17 @@ public final class MainActivity extends Activity {
         LinearLayout assetMeta = new LinearLayout(this);
         assetMeta.setOrientation(LinearLayout.VERTICAL);
         assetMeta.setPadding(dp(12), 0, 0, 0);
-        TextView nativeLink = label(selectedNetwork.symbol + " · " + selectedNetwork.name + " ↗", 16, TEXT, true);
-        nativeLink.setOnClickListener(v -> openExternal(tokenInfoUrl(selectedNetwork.symbol, selectedNetwork.name, selectedNetwork.chainId)));
+        TextView nativeLink = label("USDC · USD Coin ↗", 16, TEXT, true);
+        nativeLink.setOnClickListener(v -> openExternal(usdcInfoUrl(selectedNetwork)));
         assetMeta.addView(nativeLink);
-        TextView nativeInfo = label("Detailed market / coin information", 11, MUTED, false);
-        nativeInfo.setOnClickListener(v -> openExternal(tokenInfoUrl(selectedNetwork.symbol, selectedNetwork.name, selectedNetwork.chainId)));
+        TextView nativeInfo = label("Stablecoin balance · token contract details", 11, MUTED, false);
+        nativeInfo.setOnClickListener(v -> openExternal(usdcInfoUrl(selectedNetwork)));
         assetMeta.addView(nativeInfo);
         assetRow.addView(assetMeta, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         assetBalanceView = label("—", 15, TEXT, true);
         assetBalanceView.setGravity(Gravity.END);
-        assetBalanceView.setOnClickListener(v -> openExternal(tokenInfoUrl(selectedNetwork.symbol, selectedNetwork.name, selectedNetwork.chainId)));
+        assetBalanceView.setOnClickListener(v -> openExternal(usdcInfoUrl(selectedNetwork)));
         assetRow.addView(assetBalanceView);
         assetCard.addView(assetRow);
         add(assetCard, 10);
@@ -536,6 +536,21 @@ public final class MainActivity extends Activity {
 
         add(notice("Review the network, destination, amount and network fee before every send. Mainnet transactions are irreversible."), 18);
         refreshBalance();
+    }
+
+    private String usdcInfoUrl(EvmNetwork network) {
+        String address;
+        switch ((int) network.chainId) {
+            case 1: address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"; break;
+            case 8453: address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; break;
+            case 42161: address = "0xaf88d065e77c8C2239327C5EDb3A432268e5831"; break;
+            case 10: address = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"; break;
+            case 137: address = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"; break;
+            case 56: address = "0x8AC76a51cc950982D68b83f1D09cd849c35F18"; break;
+            case 43114: address = "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"; break;
+            default: return tokenInfoUrl("USDC", "USD Coin", network.chainId);
+        }
+        return tokenExplorerBase(network.chainId) + "/token/" + Uri.encode(address);
     }
 
     private String tokenInfoUrl(String symbol, String name, long chainId) {

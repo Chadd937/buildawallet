@@ -5,12 +5,10 @@ const BASE_USDC_ADDRESS = BASE_USDC.toLowerCase();
 const SYSTEM_PROGRAM = "11111111111111111111111111111111";
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-const base = machineChain("base")!;
 const solana = machineChain("solana")!;
-const validBaseAddress = (value?: string) => Boolean(value && validAddress(base, value));
 const validSolanaAddress = (value?: string) => Boolean(value && validAddress(solana, value));
-const checkBaseRpc = async (url: string) => {
-  if (Number(BigInt(await jsonRpc(url, "eth_chainId", []))) !== 8453) throw new Error("Base RPC network mismatch");
+const checkEvmRpc = async (url: string, expectedChainId: number) => {
+  if (Number(BigInt(await jsonRpc(url, "eth_chainId", []))) !== expectedChainId) throw new Error("EVM RPC network mismatch");
 };
 const checkSolanaRpc = async (url: string) => {
   if (await jsonRpc(url, "getGenesisHash", []) !== "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d") throw new Error("Solana RPC network mismatch");
@@ -143,11 +141,14 @@ export type PrepareIntent = {
   destinationTokenAccount?: string;
 };
 
-export async function prepareBaseTransaction(url: string, intent: PrepareIntent) {
-  if (!validBaseAddress(intent.from) || !validBaseAddress(intent.to)) throw new Error("Valid Base from and to addresses required");
+export async function prepareBaseTransaction(url: string, intent: PrepareIntent, chainId = "base") {
+  const selectedChain = machineChain(chainId);
+  if (!selectedChain || selectedChain.family !== "evm" || !selectedChain.chainId) throw new Error("Unsupported EVM transaction chain");
+  if (!intent.from || !intent.to || !validAddress(selectedChain, intent.from) || !validAddress(selectedChain, intent.to)) throw new Error("Valid EVM from and to addresses required");
   const asset = intent.asset === "usdc" ? "usdc" : "native";
   const amount = quantity(intent.amountAtomic ?? "", "amountAtomic");
-  await checkBaseRpc(url);
+  if (asset === "usdc" && !selectedChain.stablecoin) throw new Error("No stablecoin configured for this chain");
+  await checkEvmRpc(url, selectedChain.chainId);
   const from = intent.from;
   const to = intent.to;
   if (!from || !to) throw new Error("Valid Base from and to addresses required");
@@ -160,7 +161,7 @@ export async function prepareBaseTransaction(url: string, intent: PrepareIntent)
       tx["data"] = intent.data;
     }
   } else {
-    tx["to"] = BASE_USDC_ADDRESS;
+    tx["to"] = selectedChain.stablecoin!.address;
     tx["value"] = "0x0";
     tx["data"] = erc20Transfer(to, amount);
   }
@@ -177,14 +178,14 @@ export async function prepareBaseTransaction(url: string, intent: PrepareIntent)
   const priorityFee = BigInt(priority);
   const maxFee = BigInt(block.baseFeePerGas) * 2n + priorityFee;
   return {
-    chain: "base",
+    chain: selectedChain.id,
     network: "mainnet",
     asset,
-    token: asset === "usdc" ? BASE_USDC : undefined,
+    token: asset === "usdc" ? selectedChain.stablecoin!.address : undefined,
     amountAtomic: amount.toString(),
     unsignedTransaction: {
       ...tx,
-      chainId: "0x2105",
+      chainId: hexQuantity(BigInt(selectedChain.chainId)),
       nonce,
       gas,
       maxPriorityFeePerGas: hexQuantity(priorityFee),
@@ -195,13 +196,15 @@ export async function prepareBaseTransaction(url: string, intent: PrepareIntent)
   };
 }
 
-export async function broadcastBaseTransaction(url: string, signedTransaction: string) {
+export async function broadcastBaseTransaction(url: string, signedTransaction: string, chainId = "base") {
   if (!/^0x[0-9a-fA-F]{2,262144}$/.test(signedTransaction) || signedTransaction.length % 2 !== 0)
     throw new Error("signedTransaction must be a raw signed EVM transaction hex string");
-  await checkBaseRpc(url);
+  const selectedChain = machineChain(chainId);
+  if (!selectedChain || selectedChain.family !== "evm" || !selectedChain.chainId) throw new Error("Unsupported EVM transaction chain");
+  await checkEvmRpc(url, selectedChain.chainId);
   const tx = await jsonRpc(url, "eth_sendRawTransaction", [signedTransaction]);
-  if (typeof tx !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(tx)) throw new Error("Base RPC returned invalid transaction hash");
-  return { chain: "base", submitted: true, tx, explorer: `https://basescan.org/tx/${tx}` };
+  if (typeof tx !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(tx)) throw new Error("EVM RPC returned invalid transaction hash");
+  return { chain: selectedChain.id, submitted: true, tx, explorer: selectedChain.explorer + "/tx/" + tx };
 }
 
 export async function prepareSolanaTransaction(url: string, intent: PrepareIntent) {

@@ -1,7 +1,6 @@
-import { BASE_USDC, SOLANA_USDC } from "./config";
+import { SOLANA_USDC } from "./config";
 import { machineChain, validAddress } from "./chains";
 
-const BASE_USDC_ADDRESS = BASE_USDC.toLowerCase();
 const SYSTEM_PROGRAM = "11111111111111111111111111111111";
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";

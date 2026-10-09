@@ -4,7 +4,7 @@
 
 # BuildAWallet.xyz
 
-BuildAWallet has a HUMAN wallet designer and a NON-HUMAN read-only machine data API. The public website does **not** create custodial wallets or sign and broadcast transactions.
+BuildAWallet has a HUMAN wallet designer and a NON-HUMAN machine data API. The public website does **not** custody customer wallets or sign transactions; the machine API only relays transactions that the caller has already signed locally on supported chains.
 
 | Surface | Current capability | Deployment |
 | --- | --- | --- |
@@ -22,13 +22,13 @@ The optional Docker/see.io server in `main.py` serves the website and a read-onl
 3. `/human/release` is mainnet only. It checks entitlement and sends an unsubscribed user to the $1.99 monthly crypto-only `/human/pay` confirmation flow.
 4. `/human/download` polls the build service and displays a QR code and APK link only after the API reports a completed signed artifact. `/human/live` remains available for free read-only Base or Solana mainnet balances.
 
-The previously shared APK is a WebView wrapper, not a functional Android wallet. The download screen therefore stays locked unless the build API returns a completed signed artifact and its URL. HUMAN design remains a browser-local preview. The current API plans are Starter $15, Pro $49 and Scale $149 for 30 days. Prepaid checkout supports Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, Avalanche, Solana, Bitcoin and. Wallet ownership, confirmed payment receipts, one-time transaction accounting and subscription expiry govern API access only. See [the Access setup](CLOUDFLARE_ACCESS.md), [deployment steps](DEPLOY_MAINNET.md), and [Android release gap](ANDROID_RELEASE.md).
+The previously shared APK is a WebView wrapper, not a functional Android wallet. The download screen therefore stays locked unless the build API returns a completed signed artifact and its URL. HUMAN design remains a browser-local preview. The current API plans are Starter $15, Pro $49 and Scale $149 for 30 days. Prepaid checkout supports Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, Avalanche, Solana and Bitcoin. Wallet ownership, confirmed payment receipts, one-time transaction accounting and subscription expiry govern API access only. See [the Access setup](CLOUDFLARE_ACCESS.md), [deployment steps](DEPLOY_MAINNET.md), and [Android release gap](ANDROID_RELEASE.md).
 
-## NON-HUMAN payment flow
+## Legacy NON-HUMAN worker reference
 
-`GET /machine/info` is free discovery. `GET /machine/wallet?address=0x...` reads Base mainnet and `GET /machine/solana-wallet?address=...` reads Solana mainnet. A valid unpaid request gets an x402 HTTP 402 challenge for $0.01 USDC on either chain. Payments on Base go to `0xBcCA6AED433d9020C50D44560F9679F1B5eB511d`; payments on Solana go to `Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC`. The Worker needs separate mainnet RPC URLs and a production facilitator. See [the machine service README](agent-pay/README.md).
+The older `agent-pay/` Worker documentation below is retained for migration context and may not match the current `human-app/` production routes. The current app exposes nine configured mainnets, prepaid API units, native/stablecoin/transaction/snapshot reads, and locally signed EVM + Solana transaction preparation/broadcast. Bitcoin is read-only for transaction preparation/broadcast. See [the current app guide](human-app/README.md) and [integration guide](human-app/INTEGRATION.md) before deploying or relying on route behavior.
 
-The free `/machine/quote` gives supported prices and API unit costs. Subscribed reads cover native balances, USDC and transaction status (one unit each), plus composite native and USDC snapshots (two units each, independent RPC reads). MCP exposes those reads, quota and quote tools, and x402 paid native wallet tools. The Worker returns a payment challenge to a compatible client; the payer signs locally.
+The legacy worker previously exposed `/machine/info`, `/machine/wallet`, `/machine/solana-wallet` and x402 challenges. Per-call x402 billing is retired in the current app. Do not use old route examples as current production instructions.
 
 ## Deploy
 

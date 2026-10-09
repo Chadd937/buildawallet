@@ -15,7 +15,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     auth: "none",
     units: 0,
     tag: "Discovery",
-    summary: "List all ten networks with symbols, decimals and stablecoins.",
+    summary: "List all nine configured networks with symbols, decimals and stablecoins.",
   },
   {
     method: "GET",
@@ -56,7 +56,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     units: 0,
     tag: "Agent wallets",
     summary:
-      "Opt-in server-made wallet covering all ten networks. Returns the phrase once; nothing stored. 5 per hour.",
+      "Opt-in server-made wallet covering all nine configured networks. Returns the phrase once; nothing stored. 5 per hour.",
   },
   {
     method: "GET",

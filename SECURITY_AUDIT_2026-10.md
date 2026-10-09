@@ -3,7 +3,7 @@
 Date: 2026-10-09
 Branch: `feat/android-token-support-chain-matrix-audit`
 
-This is a source-level review of the Android wallet and the current `human-app` machine API. CI results are pending; do not treat this document as a penetration test or a release certification.
+This is a source-level review of the Android wallet and the current `human-app` machine API. CI passed for the implementation changes; see the pull request for the latest check status. Do not treat this document as a penetration test or a release certification.
 
 ## Changes made in this branch
 

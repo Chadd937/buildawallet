@@ -76,4 +76,4 @@ removed from MCP discovery; old callers get the same retirement guidance.
 The additive `baw_0003_prepaid_plans.sql` migration aligns activation with the
 current 15/49/149 USDC prices. Historical receipts, login data, existing keys,
 entitlements, quota usage and global receipt replay reservations remain intact.
-Plan purchases are enabled on all ten configured payment rails. The quote identifies the chain, asset, collector, decimals and exact atomic amount; Bitcoin quotes use the current BTC/USD spot price and are rechecked at confirmation. Create a fresh checkout before paying.
+Plan purchases are enabled on all nine configured payment rails. The quote identifies the chain, asset, collector, decimals and exact atomic amount; Bitcoin quotes use the current BTC/USD spot price and are rechecked at confirmation. Create a fresh checkout before paying.

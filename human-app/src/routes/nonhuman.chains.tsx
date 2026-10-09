@@ -5,7 +5,7 @@ import { PageHero, Section } from "@/components/machine/ui";
 
 const TITLE = "Supported chains ,  BuildAWallet Machine";
 const DESC =
-  "Capability matrix for all ten networks: balances, stablecoins, transactions, snapshots, transfers and prepaid plan purchases.";
+  "Capability matrix for the nine networks exposed by the machine API: balances, stablecoins, transactions, snapshots, transfers and prepaid plan purchases.";
 export const Route = createFileRoute("/nonhuman/chains")({
   head: () => ({
     meta: [
@@ -26,7 +26,7 @@ const COLS = [
   "Transaction status",
   "Composite snapshot",
   "Unsigned transfer + broadcast",
-  "Plan payment rail",
+  "Prepaid plan payment",
 ] as const;
 const Yes = () => <Check className="mx-auto size-4 text-primary" aria-label="yes" />;
 const No = () => <Minus className="mx-auto size-4 text-muted-foreground/50" aria-label="no" />;
@@ -38,7 +38,7 @@ function Chains() {
         eyebrow="Network matrix"
         title={
           <>
-            Ten mainnets.
+            Nine mainnets.
             <br />
             One schema.
           </>
@@ -63,7 +63,7 @@ function Chains() {
             </thead>
             <tbody>
               {MACHINE_CHAINS.map((c) => {
-                const settle = c.id === "base" || c.id === "solana";
+                const canTransfer = c.family !== "bitcoin";
                 const canReadStablecoin = Boolean(c.stablecoin);
                 return (
                   <tr key={c.id} className="border-t border-border">
@@ -78,8 +78,8 @@ function Chains() {
                     <td className="p-3">{canReadStablecoin ? <span className="font-mono text-xs text-primary">{c.stablecoin!.symbol}</span> : <No />}</td>
                     <td className="p-3"><Yes /></td>
                     <td className="p-3"><Yes /></td>
+                    <td className="p-3">{canTransfer ? <Yes /> : <No />}</td>
                     <td className="p-3"><Yes /></td>
-                    <td className="p-3">{settle ? <Yes /> : <No />}</td>
                   </tr>
                 );
               })}

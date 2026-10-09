@@ -129,7 +129,7 @@ const tools = [
   {
     name: "list_chains",
     title: "Supported networks",
-    description: "All ten networks with symbols, decimals and stablecoins. Free.",
+    description: "All nine configured networks with symbols, decimals and stablecoins. Free.",
     inputSchema: schema([], {}),
   },
   {
@@ -296,7 +296,7 @@ export async function handleMcp(request: Request) {
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "buildawallet", version: "3.0.0" },
           instructions:
-            "BuildAWallet: get a wallet (wallet_local_kit preferred), read ten mainnets, prepare/broadcast locally-signed transfers where enabled, and use prepaid access.  Every x402/prepaid agent payment is tracked by public settlement wallet in a persistent agent account.",
+            "BuildAWallet: get a wallet (wallet_local_kit preferred), read nine configured mainnets, prepare/broadcast locally-signed transfers where enabled, and use prepaid access.  Every x402/prepaid agent payment is tracked by public settlement wallet in a persistent agent account.",
         }
       : rpc.method === "tools/list"
         ? { tools }

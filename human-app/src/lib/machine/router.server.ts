@@ -382,48 +382,49 @@ export async function handleMachineRequest(request: Request) {
           chainId,
         );
     }
+    const transactionChain = machineChain(chainId ?? "");
+    const transactionSupported = transactionChain?.family === "evm" || transactionChain?.family === "solana";
     if (
       request.method === "POST" &&
-      (chainId === "base" || chainId === "solana") &&
+      transactionSupported &&
       kind === "transaction" &&
       value === "prepare"
     ) {
       const body = (await objectBody(request)) as PrepareIntent;
-      const selectedChain = machineChain(chainId);
-      if (!selectedChain) throw new RangeError("Unsupported transaction chain");
+      if (!transactionChain) throw new RangeError("Unsupported transaction chain");
       return subscriptionRead(
         request,
         1,
         () =>
-          chainId === "base"
-            ? prepareBaseTransaction(rpcUrl(selectedChain), body)
-            : prepareSolanaTransaction(rpcUrl(selectedChain), body),
-        chainId,
+          transactionChain.family === "evm"
+            ? prepareBaseTransaction(rpcUrl(transactionChain), body, transactionChain.id)
+            : prepareSolanaTransaction(rpcUrl(transactionChain), body),
+        transactionChain.id,
       );
     }
     if (
       request.method === "POST" &&
-      (chainId === "base" || chainId === "solana") &&
+      transactionSupported &&
       kind === "transaction" &&
       value === "broadcast"
     ) {
       const body = await objectBody(request);
-      const selectedChain = machineChain(chainId);
-      if (!selectedChain) throw new RangeError("Unsupported transaction chain");
+      if (!transactionChain) throw new RangeError("Unsupported transaction chain");
       return subscriptionRead(
         request,
         1,
         () =>
-          chainId === "base"
+          transactionChain.family === "evm"
             ? broadcastBaseTransaction(
-                rpcUrl(selectedChain),
+                rpcUrl(transactionChain),
                 String(body["signedTransaction"] ?? ""),
+                transactionChain.id,
               )
             : broadcastSolanaTransaction(
-                rpcUrl(selectedChain),
+                rpcUrl(transactionChain),
                 String(body["signedTransactionBase64"] ?? ""),
               ),
-        chainId,
+        transactionChain.id,
         true,
         true,
       );

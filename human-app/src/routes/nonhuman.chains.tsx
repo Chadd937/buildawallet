@@ -44,9 +44,7 @@ function Chains() {
           </>
         }
       >
-        Every network the human wallet supports is available to agents. Reads are live from mainnet
-        nodes. Transfers are prepared unsigned and broadcast after the agent signs locally; plan
-        purchases settle in USDC on Base or Solana; requests consume prepaid units.
+        The nine configured networks expose live mainnet reads. Unsigned transfers can be prepared and broadcast after local signing on all seven EVM networks and Solana; Bitcoin supports balance and transaction-status reads only. Plan purchases use the configured payment rail for each network and requests consume prepaid units.
       </PageHero>
       <Section title="Capabilities">
         <div className="overflow-x-auto rounded-2xl border border-border bg-card/70">
@@ -63,7 +61,7 @@ function Chains() {
             </thead>
             <tbody>
               {MACHINE_CHAINS.map((c) => {
-                const canTransfer = c.family !== "bitcoin";
+                const canTransfer = c.family === "evm" || c.family === "solana";
                 const canReadStablecoin = Boolean(c.stablecoin);
                 return (
                   <tr key={c.id} className="border-t border-border">

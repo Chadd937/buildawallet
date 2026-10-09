@@ -149,6 +149,24 @@ const tools = [
       amountAtomic: { type: "string" },
     }),
   },
+  ...MACHINE_CHAINS.filter((chain) => chain.family === "evm" && chain.id !== "base").flatMap((chain) => [
+    {
+      name: `${chain.id}_transaction_prepare`,
+      title: `Prepare ${chain.name} transfer`,
+      description: `Build an unsigned ${chain.name} native or USDC transfer for local signing. 1 API unit with prepaid access.`,
+      inputSchema: schema(["from", "to", "asset", "amountAtomic"], {
+        from: { type: "string" }, to: { type: "string" },
+        asset: { type: "string", enum: ["native", "usdc"] },
+        amountAtomic: { type: "string" },
+      }),
+    },
+    {
+      name: `${chain.id}_transaction_broadcast`,
+      title: `Broadcast ${chain.name} transaction`,
+      description: `Broadcast a raw signed EVM transaction on ${chain.name}. 1 API unit.`,
+      inputSchema: schema(["signedTransaction"], { signedTransaction: { type: "string" } }),
+    },
+  ]),
   {
     name: "solana_transaction_prepare",
     title: "Prepare Solana transfer",
@@ -228,7 +246,7 @@ async function callTool(request: Request, name: string, args: Record<string, unk
       method: "POST",
       body: { address: String(args["address"] ?? "") },
     });
-  for (const chain of ["base", "solana"] as const) {
+  for (const chain of [...MACHINE_CHAINS.filter((item) => item.family === "evm").map((item) => item.id), "solana"]) {
     if (name === `${chain}_transaction_prepare`)
       return invoke(request, `/machine/v1/${chain}/transaction/prepare`, {
         method: "POST",

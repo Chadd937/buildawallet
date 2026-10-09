@@ -112,7 +112,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     auth: "api-key",
     units: 1,
     tag: "Transactions",
-    summary: "Build an unsigned transfer for a supported transaction network.",
+    summary: "Build an unsigned transfer for any configured EVM mainnet or Solana. Bitcoin transaction preparation is not implemented.",
   },
   {
     method: "POST",
@@ -121,7 +121,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     units: 1,
     tag: "Transactions",
     summary:
-      "Broadcast locally signed bytes for supported transaction networks. One unit is reserved per attempt before dispatch, including upstream rejection.",
+      "Broadcast locally signed EVM or Solana bytes on configured transaction networks. Bitcoin broadcast is not implemented. One unit is reserved per attempt before dispatch, including upstream rejection.",
   },
   {
     method: "POST",

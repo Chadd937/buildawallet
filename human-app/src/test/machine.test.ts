@@ -12,7 +12,7 @@ vi.mock("@/lib/machine/billing.server", () => ({
   statusForSession: vi.fn(),
 }));
 import { handleMachineRequest } from "@/lib/machine/router.server";
-import { prepareBaseTransaction, broadcastBaseTransaction } from "@/lib/machine/transactions.server";
+import { prepareBaseTransaction } from "@/lib/machine/transactions.server";
 import { handleWalletRoute } from "@/lib/machine/wallets.server";
 import { isValidMnemonic, deriveAccounts, publicAddresses } from "@/lib/wallet/derive";
 

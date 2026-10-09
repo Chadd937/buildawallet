@@ -21,13 +21,12 @@ export const Route = createFileRoute("/nonhuman/chains")({
 });
 
 const COLS = [
-  "Wallet",
   "Native balance",
-  "Stablecoin",
-  "Tx status",
-  "Snapshot",
-  "Prepare + broadcast",
-  "Pays plans",
+  "Stablecoin balance",
+  "Transaction status",
+  "Composite snapshot",
+  "Unsigned transfer + broadcast",
+  "Plan payment rail",
 ] as const;
 const Yes = () => <Check className="mx-auto size-4 text-primary" aria-label="yes" />;
 const No = () => <Minus className="mx-auto size-4 text-muted-foreground/50" aria-label="no" />;
@@ -65,6 +64,7 @@ function Chains() {
             <tbody>
               {MACHINE_CHAINS.map((c) => {
                 const settle = c.id === "base" || c.id === "solana";
+                const canReadStablecoin = Boolean(c.stablecoin);
                 return (
                   <tr key={c.id} className="border-t border-border">
                     <td className="p-3 text-left">
@@ -74,28 +74,11 @@ function Chains() {
                         {c.chainId ? ` · id ${c.chainId}` : ""}
                       </div>
                     </td>
-                    <td className="p-3">
-                      <Yes />
-                    </td>
-                    <td className="p-3">
-                      <Yes />
-                    </td>
-                    <td className="p-3">
-                      {c.stablecoin ? (
-                        <span className="font-mono text-xs text-primary">
-                          {c.stablecoin.symbol}
-                        </span>
-                      ) : (
-                        <No />
-                      )}
-                    </td>
-                    <td className="p-3">
-                      <Yes />
-                    </td>
-                    <td className="p-3">
-                      <Yes />
-                    </td>
-                    <td className="p-3">{settle ? <Yes /> : <No />}</td>
+                    <td className="p-3"><Yes /></td>
+                    <td className="p-3">{canReadStablecoin ? <span className="font-mono text-xs text-primary">{c.stablecoin!.symbol}</span> : <No />}</td>
+                    <td className="p-3"><Yes /></td>
+                    <td className="p-3"><Yes /></td>
+                    <td className="p-3"><Yes /></td>
                     <td className="p-3">{settle ? <Yes /> : <No />}</td>
                   </tr>
                 );
@@ -105,7 +88,7 @@ function Chains() {
         </div>
         <p className="mt-4 text-sm text-muted-foreground">
           Path ids for API calls: <code>{MACHINE_CHAINS.map((c) => c.id).join(", ")}</code>.
-          Stablecoin contracts are the canonical issuer deployments.
+          Stablecoin entries show the configured token contract for each chain. A check mark means the endpoint is implemented in this service, not that an external RPC provider is guaranteed to be online.
         </p>
       </Section>
       <Section title="Stablecoin contracts">

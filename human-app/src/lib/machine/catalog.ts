@@ -72,7 +72,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     auth: "api-key",
     units: 1,
     tag: "Subscribed API",
-    summary: "Live native balance on any of the ten networks.",
+    summary: "Live native balance on any of the nine configured networks.",
   },
   {
     method: "GET",

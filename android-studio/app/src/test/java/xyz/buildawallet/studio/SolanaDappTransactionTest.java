@@ -60,6 +60,20 @@ public class SolanaDappTransactionTest {
         assertEquals(Boolean.FALSE, field(view, "lookupTables"));
     }
 
+    @Test public void supportsFullUnsigned64BitTokenAmounts() {
+        assertEquals(new java.math.BigInteger("18446744073709551615"),
+            SolanaToken.toRawAmount("18446744073709.551615", 6));
+    }
+
+    @Test public void rejectsAmountsAboveUnsigned64BitTokenRange() {
+        try {
+            SolanaToken.toRawAmount("18446744073709.551616", 6);
+            throw new AssertionError("Expected amount outside u64 range to be rejected");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains("unsigned 64-bit"));
+        }
+    }
+
     @Test public void rejectsTruncatedTransaction() throws Exception {
         try {
             inspect(new byte[] {1, 0, 0});

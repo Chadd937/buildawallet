@@ -43,6 +43,16 @@ final class WalletSecurity {
         return tokenAmount.multiply(price).setScale(8, RoundingMode.HALF_UP);
     }
 
+    static BigDecimal coinUsdValue(String coinId, BigDecimal amount) throws Exception {
+        if (!"bitcoin".equals(coinId) && !"solana".equals(coinId)) {
+            throw new IllegalArgumentException("Unsupported price asset.");
+        }
+        JSONObject root = getJson("https://api.coingecko.com/api/v3/simple/price?ids=" + enc(coinId) + "&vs_currencies=usd");
+        JSONObject item = root.optJSONObject(coinId);
+        if (item == null || !item.has("usd") || item.isNull("usd")) throw new IllegalStateException("USD price feed did not return a price for " + coinId + ".");
+        return amount.multiply(new BigDecimal(item.get("usd").toString())).setScale(8, RoundingMode.HALF_UP);
+    }
+
     private static BigDecimal nativePrice(EvmNetwork network) throws Exception {
         String id;
         switch ((int) network.chainId) {

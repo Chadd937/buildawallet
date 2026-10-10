@@ -67,6 +67,7 @@ public final class MainActivity extends Activity {
     private EvmNetwork selectedNetwork;
     private WebView dappWebView;
     private AlertDialog dappDialog;
+    private boolean solanaDappConnected;
 
     private int setupStep = 0;
     private String pendingName = "My Wallet";
@@ -824,7 +825,7 @@ public final class MainActivity extends Activity {
         for (String item : apps) { String[] parts = item.split("\\|",2); Button b = button("↗ " + parts[0], false); b.setOnClickListener(v -> { url.setText(parts[1]); dappWebView.loadUrl(parts[1]); }); root.addView(b, new LinearLayout.LayoutParams(-1, dp(42))); }
         go.setOnClickListener(v -> loadDappUrl(url.getText().toString(), dappWebView));
         connect.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("Connect wallet").setMessage("This browser exposes an EIP-1193 wallet provider to the current dapp. The dapp must request accounts before it can see your address. Every transaction still requires an explicit confirmation.").setPositiveButton("Continue", null).setNegativeButton("Cancel", null).show());
-        dialog.setView(root); dialog.setOnDismissListener(v -> { dappDialog = null; if (dappWebView != null) { dappWebView.removeJavascriptInterface("BuildAWallet"); dappWebView.destroy(); dappWebView = null; } }); dialog.setOnShowListener(v -> loadDappUrl("https://app.uniswap.org", dappWebView)); dialog.show();
+        dialog.setView(root); dialog.setOnDismissListener(v -> { dappDialog = null; solanaDappConnected = false; if (dappWebView != null) { dappWebView.removeJavascriptInterface("BuildAWallet"); dappWebView.destroy(); dappWebView = null; } }); dialog.setOnShowListener(v -> loadDappUrl("https://app.uniswap.org", dappWebView)); dialog.show();
     }
 
     private boolean isTrustedDappOrigin(String rawUrl) {
@@ -857,6 +858,23 @@ public final class MainActivity extends Activity {
     private void injectEip1193(WebView view) {
         String js = "(function(){if(window.__bawProvider)return;const listeners={};function emit(e,d){(listeners[e]||[]).forEach(f=>{try{f(d)}catch(_){}})}const p={isBuildAWallet:true,request:function(a){return new Promise((resolve,reject)=>{const id=Date.now()+Math.floor(Math.random()*100000);window.__bawCallbacks=window.__bawCallbacks||{};window.__bawCallbacks[id]={resolve:resolve,reject:reject};BuildAWallet.request(String(id),String(a&&a.method||''),JSON.stringify(a&&a.params||[]));})},on:function(e,f){(listeners[e]||(listeners[e]=[])).push(f);return this},removeListener:function(e,f){listeners[e]=(listeners[e]||[]).filter(x=>x!==f);return this}};window.ethereum=p;window.__bawProvider=true;const announce=()=>window.dispatchEvent(new CustomEvent('eip6963:announceProvider',{detail:Object.freeze({info:{uuid:'350670db-19fa-4704-a166-e52e178b59d2',name:'BuildAWallet',icon:'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2296%22 height=%2296%22 viewBox=%220 0 96 96%22%3E%3Crect width=%2296%22 height=%2296%22 rx=%2220%22 fill=%22%2317223a%22/%3E%3Ctext x=%2248%22 y=%2262%22 text-anchor=%22middle%22 font-size=%2248%22 fill=%22white%22%3EB%3C/text%3E%3C/svg%3E',rdns:'xyz.buildawallet'},provider:p})}));window.addEventListener('eip6963:requestProvider',announce);announce();emit('connect',{chainId:'0x" + Long.toHexString(selectedNetwork.chainId) + "'});})();";
         view.evaluateJavascript(js, null);
+        injectSolanaProvider(view);
+    }
+
+    private void injectSolanaProvider(WebView view) {
+        String js = "(function(){if(window.__bawSolanaProvider)return;"
+            + "window.__bawResolve=window.__bawResolve||function(id,value,error){const c=window.__bawCallbacks&&window.__bawCallbacks[id];if(!c)return;delete window.__bawCallbacks[id];if(error){const e=new Error(error.message||'Wallet request failed');e.code=error.code||4000;c.reject(e);}else c.resolve(value);};"
+            + "const listeners={};function emit(e,d){(listeners[e]||[]).forEach(f=>{try{f(d)}catch(_){}})}"
+            + "function call(method,params){return new Promise((resolve,reject)=>{const id='solana_'+Date.now()+'_'+Math.floor(Math.random()*1000000);window.__bawCallbacks=window.__bawCallbacks||{};window.__bawCallbacks[id]={resolve,reject};BuildAWallet.request(id,method,JSON.stringify(params||[]));});}"
+            + "function pubkey(s){return {toBase58:()=>s,toString:()=>s,toJSON:()=>s,equals:(x)=>!!x&&(typeof x.toBase58==='function'?x.toBase58():String(x))===s};}"
+            + "function b64(bytes){let s='';for(let i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s);}"
+            + "function bytes(s){const x=atob(s);const a=new Uint8Array(x.length);for(let i=0;i<x.length;i++)a[i]=x.charCodeAt(i);return a;}"
+            + "function serialize(tx){try{return tx.serialize({requireAllSignatures:false,verifySignatures:false});}catch(e){return tx.serialize();}}"
+            + "function deserialize(tx,s){const a=bytes(s);if(tx&&tx.constructor&&typeof tx.constructor.deserialize==='function')return tx.constructor.deserialize(a);if(tx&&tx.constructor&&typeof tx.constructor.from==='function')return tx.constructor.from(a);throw new Error('Unsupported Solana transaction object; use a compatible web3.js transaction.');}"
+            + "const p={isBuildAWallet:true,isPhantom:false,isConnected:false,publicKey:null,connect:async function(){const a=await call('solana_connect',[]);this.publicKey=pubkey(a);this.isConnected=true;emit('connect',this.publicKey);return {publicKey:this.publicKey};},disconnect:async function(){await call('solana_disconnect',[]);this.isConnected=false;this.publicKey=null;emit('disconnect');},signMessage:async function(message){const a=message instanceof Uint8Array?message:new Uint8Array(message);const sig=await call('solana_signMessage',[b64(a)]);return {signature:bytes(sig),publicKey:this.publicKey};},signTransaction:async function(tx){if(!this.isConnected)throw new Error('Connect BuildAWallet first');const signed=await call('solana_signTransaction',[b64(serialize(tx))]);return deserialize(tx,signed);},signAllTransactions:async function(txs){const out=[];for(const tx of txs)out.push(await this.signTransaction(tx));return out;},sendTransaction:async function(tx,connection,options){if(!this.isConnected)throw new Error('Connect BuildAWallet first');return await call('solana_sendTransaction',[b64(serialize(tx))]);},signAndSendTransaction:async function(tx){return {signature:await this.sendTransaction(tx)};},on:function(e,f){(listeners[e]||(listeners[e]=[])).push(f);return this;},off:function(e,f){listeners[e]=(listeners[e]||[]).filter(x=>x!==f);return this;},removeListener:function(e,f){return this.off(e,f);}};"
+            + "Object.defineProperty(window,'solana',{configurable:true,value:p});window.__bawSolanaProvider=true;"
+            + "})();";
+        view.evaluateJavascript(js, null);
     }
 
     private final class DappBridge {
@@ -866,6 +884,10 @@ public final class MainActivity extends Activity {
     private void handleDappRequest(String id, String method, String rawParams) {
         try {
             org.json.JSONArray params = new org.json.JSONArray(rawParams == null ? "[]" : rawParams);
+            if (method != null && method.startsWith("solana_")) {
+                handleSolanaDappRequest(id, method, params);
+                return;
+            }
             if ("eth_requestAccounts".equals(method)) {
                 new AlertDialog.Builder(this).setTitle("Dapp account access").setMessage("Allow this dapp to view and use your EVM address for this session?").setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Connect", (d,w) -> resolveDapp(id, new org.json.JSONArray().put(engine.address()).toString(), 0, null)).show(); return;
             }

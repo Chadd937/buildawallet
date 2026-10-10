@@ -136,6 +136,57 @@ final class NonEvmEngine {
     }
 
 
+    String previewSolanaTokenTransfer(SolanaToken token, String destinationText, String amountText) throws Exception {
+        PublicKey destination = new PublicKey(destinationText.trim());
+        if (destination.equals(solana.getPublicKey())) throw new IllegalArgumentException("Recipient is this wallet's own address.");
+        SolanaMintInfo info = inspectSolanaMint(token.mint);
+        if (!info.extensionsSupported) throw new IllegalArgumentException(info.extensionWarning);
+        if (info.decimals != token.decimals || !info.programId.equals(token.programId)) {
+            throw new IllegalArgumentException("Imported token metadata no longer matches the on-chain mint. Re-import it before sending.");
+        }
+        BigDecimal amount;
+        try { amount = new BigDecimal(amountText.trim()); }
+        catch (Exception error) { throw new IllegalArgumentException("Enter a valid token amount."); }
+        if (amount.signum() <= 0) throw new IllegalArgumentException("Amount must be greater than zero.");
+        BigInteger raw;
+        try { raw = amount.movePointRight(info.decimals).toBigIntegerExact(); }
+        catch (ArithmeticException error) { throw new IllegalArgumentException("Amount has too many decimal places for this token."); }
+        if (raw.signum() <= 0 || raw.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) throw new IllegalArgumentException("Amount is outside the supported SPL token transfer range.");
+
+        TokenAccountInfo accounts = solanaRpc.getApi().getTokenAccountsByOwner(
+            solana.getPublicKey(), Map.of("mint", info.mint), Map.of("encoding", "jsonParsed"));
+        BigInteger available = BigInteger.ZERO;
+        if (accounts != null && accounts.getValue() != null) for (TokenAccountInfo.Value account : accounts.getValue()) {
+            TokenResultObjects.Value rawAccount = account.getAccount();
+            TokenResultObjects.Data data = rawAccount == null ? null : rawAccount.getData();
+            TokenResultObjects.ParsedData parsed = data == null ? null : data.getParsed();
+            TokenResultObjects.TokenInfo parsedInfo = parsed == null ? null : parsed.getInfo();
+            if (parsedInfo != null && parsedInfo.getTokenAmount() != null && parsedInfo.getTokenAmount().getAmount() != null)
+                available = available.add(new BigInteger(parsedInfo.getTokenAmount().getAmount()));
+        }
+        if (available.compareTo(raw) < 0) throw new IllegalArgumentException("Insufficient " + token.symbol + " balance.");
+
+        PublicKey mint = new PublicKey(info.mint);
+        PublicKey tokenProgram = new PublicKey(info.programId);
+        PublicKey destinationAta = associatedTokenAddress(destination, mint, tokenProgram);
+        org.p2p.solanaj.rpc.types.AccountInfo existing = solanaRpc.getApi().getAccountInfo(destinationAta);
+        long rent = 0L;
+        if (existing == null || existing.getValue() == null) {
+            long size = TokenProgram.PROGRAM_ID.toBase58().equals(info.programId) ? 165L : 170L;
+            rent = solanaRpc.getApi().getMinimumBalanceForRentExemption(size);
+        }
+        long feeBuffer = 100_000L;
+        long required = Math.addExact(feeBuffer, rent);
+        long solBalance = solanaRpc.getApi().getBalance(solana.getPublicKey());
+        if (solBalance < required) throw new IllegalArgumentException("Insufficient SOL to cover the estimated transaction fee"
+            + (rent > 0 ? " and recipient token-account rent" : "") + ".");
+        BigDecimal fee = BigDecimal.valueOf(feeBuffer).movePointLeft(9);
+        String result = "Estimated network-fee buffer: about " + fee.stripTrailingZeros().toPlainString() + " SOL.";
+        if (rent > 0) result += "\nRecipient associated token account is missing; refundable rent deposit estimate: "
+            + BigDecimal.valueOf(rent).movePointLeft(9).stripTrailingZeros().toPlainString() + " SOL.";
+        return result;
+    }
+
     /** Local-sign and broadcast a checked SPL transfer; unsupported Token-2022 extensions fail closed. */
     String sendSolanaToken(String mintText, String destinationText, String amountText, int expectedDecimals,
                            String expectedProgramId) throws Exception {

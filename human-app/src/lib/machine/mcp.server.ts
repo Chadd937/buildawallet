@@ -67,7 +67,7 @@ const tools = [
     {
       name: `${chain.id}_wallet`,
       title: `${chain.name} wallet`,
-      description: `Read the live ${chain.symbol} balance for a public ${chain.name} mainnet address. Costs one API unit with prepaid access or $0.01 via x402.`,
+      description: `Read the live ${chain.symbol} balance for a public ${chain.name} mainnet address. Costs one prepaid API unit.`,
       inputSchema: schema(["address"], {
         address: { type: "string", description: "Public wallet address" },
       }),
@@ -77,7 +77,7 @@ const tools = [
           {
             name: `${chain.id}_stablecoin`,
             title: `${chain.name} ${chain.stablecoin.symbol}`,
-            description: `Read the configured ${chain.stablecoin.symbol} balance. Costs one API unit with prepaid access or $0.01 via x402.`,
+            description: `Read the configured ${chain.stablecoin.symbol} balance. Costs one prepaid API unit.`,
             inputSchema: schema(["address"], { address: { type: "string" } }),
           },
         ]
@@ -85,13 +85,13 @@ const tools = [
     {
       name: `${chain.id}_transaction`,
       title: `${chain.name} transaction`,
-      description: `Look up a public ${chain.name} transaction. Costs one API unit with prepaid access or $0.01 via x402.`,
+      description: `Look up a public ${chain.name} transaction. Costs one prepaid API unit.`,
       inputSchema: schema(["tx"], { tx: { type: "string" } }),
     },
     {
       name: `${chain.id}_snapshot`,
       title: `${chain.name} snapshot`,
-      description: `Read native${chain.stablecoin ? ` and ${chain.stablecoin.symbol}` : ""} balances. Costs one API unit with prepaid access or $0.01 via x402.`,
+      description: `Read native${chain.stablecoin ? ` and ${chain.stablecoin.symbol}` : ""} balances. Costs one prepaid API unit.`,
       inputSchema: schema(["address"], { address: { type: "string" } }),
     },
   ]),
@@ -99,7 +99,7 @@ const tools = [
     name: "portfolio",
     title: "Multichain portfolio (full query)",
     description:
-      "Native and stablecoin balances on EVERY network that accepts the address (7 EVM chains for a 0x address), in one call. Costs one API unit with prepaid access or $0.01 via x402.",
+      "Native and stablecoin balances on EVERY network that accepts the address (7 EVM chains for a 0x address), in one call. Costs one prepaid API unit.",
     inputSchema: schema(["address"], { address: { type: "string" } }),
   },
   {
@@ -129,7 +129,7 @@ const tools = [
   {
     name: "list_chains",
     title: "Supported networks",
-    description: "All ten networks with symbols, decimals and stablecoins. Free.",
+    description: "All nine configured networks with symbols, decimals and stablecoins. Free.",
     inputSchema: schema([], {}),
   },
   {
@@ -141,7 +141,7 @@ const tools = [
   {
     name: "base_transaction_prepare",
     title: "Prepare Base transfer",
-    description: "Build an unsigned Base native or USDC transfer for local signing. 1 API unit with prepaid access or $0.01 via x402.",
+    description: "Build an unsigned Base native or USDC transfer for local signing. 1 prepaid API unit.",
     inputSchema: schema(["from", "to", "asset", "amountAtomic"], {
       from: { type: "string" },
       to: { type: "string" },
@@ -149,10 +149,28 @@ const tools = [
       amountAtomic: { type: "string" },
     }),
   },
+  ...MACHINE_CHAINS.filter((chain) => chain.family === "evm" && chain.id !== "base").flatMap((chain) => [
+    {
+      name: `${chain.id}_transaction_prepare`,
+      title: `Prepare ${chain.name} transfer`,
+      description: `Build an unsigned ${chain.name} native or USDC transfer for local signing. 1 API unit with prepaid access.`,
+      inputSchema: schema(["from", "to", "asset", "amountAtomic"], {
+        from: { type: "string" }, to: { type: "string" },
+        asset: { type: "string", enum: ["native", "usdc"] },
+        amountAtomic: { type: "string" },
+      }),
+    },
+    {
+      name: `${chain.id}_transaction_broadcast`,
+      title: `Broadcast ${chain.name} transaction`,
+      description: `Broadcast a raw signed EVM transaction on ${chain.name}. 1 API unit.`,
+      inputSchema: schema(["signedTransaction"], { signedTransaction: { type: "string" } }),
+    },
+  ]),
   {
     name: "solana_transaction_prepare",
     title: "Prepare Solana transfer",
-    description: "Build an unsigned Solana native or USDC transfer for local signing. 1 unit.",
+    description: "Build an unsigned Solana native or USDC transfer for local signing. 1 prepaid API unit.",
     inputSchema: schema(["from", "to", "asset", "amountAtomic"], {
       from: { type: "string" },
       to: { type: "string" },
@@ -163,13 +181,13 @@ const tools = [
   {
     name: "base_transaction_broadcast",
     title: "Broadcast Base transaction",
-    description: "Broadcast a 0x-hex transaction you signed locally. 1 unit.",
+    description: "Broadcast a raw signed Base transaction you signed locally. 1 prepaid API unit.",
     inputSchema: schema(["signedTransaction"], { signedTransaction: { type: "string" } }),
   },
   {
     name: "solana_transaction_broadcast",
     title: "Broadcast Solana transaction",
-    description: "Broadcast a base64 transaction you signed locally. 1 unit.",
+    description: "Broadcast a signed Solana transaction you signed locally. 1 prepaid API unit.",
     inputSchema: schema(["signedTransactionBase64"], {
       signedTransactionBase64: { type: "string" },
     }),
@@ -228,7 +246,7 @@ async function callTool(request: Request, name: string, args: Record<string, unk
       method: "POST",
       body: { address: String(args["address"] ?? "") },
     });
-  for (const chain of ["base", "solana"] as const) {
+  for (const chain of [...MACHINE_CHAINS.filter((item) => item.family === "evm").map((item) => item.id), "solana"]) {
     if (name === `${chain}_transaction_prepare`)
       return invoke(request, `/machine/v1/${chain}/transaction/prepare`, {
         method: "POST",
@@ -296,7 +314,7 @@ export async function handleMcp(request: Request) {
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "buildawallet", version: "3.0.0" },
           instructions:
-            "BuildAWallet: get a wallet (wallet_local_kit preferred), read ten mainnets, prepare/broadcast locally-signed transfers where enabled, and use prepaid access.  Every x402/prepaid agent payment is tracked by public settlement wallet in a persistent agent account.",
+            "BuildAWallet: get a wallet (wallet_local_kit preferred), read nine configured mainnets, prepare/broadcast locally-signed transfers where enabled, and use prepaid access.  Every x402/prepaid agent payment is tracked by public settlement wallet in a persistent agent account.",
         }
       : rpc.method === "tools/list"
         ? { tools }

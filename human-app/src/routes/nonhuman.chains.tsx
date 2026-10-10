@@ -5,7 +5,7 @@ import { PageHero, Section } from "@/components/machine/ui";
 
 const TITLE = "Supported chains ,  BuildAWallet Machine";
 const DESC =
-  "Capability matrix for all ten networks: balances, stablecoins, transactions, snapshots, transfers and prepaid plan purchases.";
+  "Capability matrix for the nine networks exposed by the machine API: balances, stablecoins, transactions, snapshots, transfers and prepaid plan purchases.";
 export const Route = createFileRoute("/nonhuman/chains")({
   head: () => ({
     meta: [
@@ -21,13 +21,12 @@ export const Route = createFileRoute("/nonhuman/chains")({
 });
 
 const COLS = [
-  "Wallet",
   "Native balance",
-  "Stablecoin",
-  "Tx status",
-  "Snapshot",
-  "Prepare + broadcast",
-  "Pays plans",
+  "Stablecoin balance",
+  "Transaction status",
+  "Composite snapshot",
+  "Unsigned transfer + broadcast",
+  "Prepaid plan payment",
 ] as const;
 const Yes = () => <Check className="mx-auto size-4 text-primary" aria-label="yes" />;
 const No = () => <Minus className="mx-auto size-4 text-muted-foreground/50" aria-label="no" />;
@@ -39,15 +38,13 @@ function Chains() {
         eyebrow="Network matrix"
         title={
           <>
-            Ten mainnets.
+            Nine mainnets.
             <br />
             One schema.
           </>
         }
       >
-        Every network the human wallet supports is available to agents. Reads are live from mainnet
-        nodes. Transfers are prepared unsigned and broadcast after the agent signs locally; plan
-        purchases settle in USDC on Base or Solana; requests consume prepaid units.
+        The nine configured networks expose live mainnet reads. Unsigned transfers can be prepared and broadcast after local signing on all seven EVM networks and Solana; Bitcoin supports balance and transaction-status reads only. Plan purchases use the configured payment rail for each network and requests consume prepaid units.
       </PageHero>
       <Section title="Capabilities">
         <div className="overflow-x-auto rounded-2xl border border-border bg-card/70">
@@ -64,7 +61,8 @@ function Chains() {
             </thead>
             <tbody>
               {MACHINE_CHAINS.map((c) => {
-                const settle = c.id === "base" || c.id === "solana";
+                const canTransfer = c.family === "evm" || c.family === "solana";
+                const canReadStablecoin = Boolean(c.stablecoin);
                 return (
                   <tr key={c.id} className="border-t border-border">
                     <td className="p-3 text-left">
@@ -74,29 +72,12 @@ function Chains() {
                         {c.chainId ? ` · id ${c.chainId}` : ""}
                       </div>
                     </td>
-                    <td className="p-3">
-                      <Yes />
-                    </td>
-                    <td className="p-3">
-                      <Yes />
-                    </td>
-                    <td className="p-3">
-                      {c.stablecoin ? (
-                        <span className="font-mono text-xs text-primary">
-                          {c.stablecoin.symbol}
-                        </span>
-                      ) : (
-                        <No />
-                      )}
-                    </td>
-                    <td className="p-3">
-                      <Yes />
-                    </td>
-                    <td className="p-3">
-                      <Yes />
-                    </td>
-                    <td className="p-3">{settle ? <Yes /> : <No />}</td>
-                    <td className="p-3">{settle ? <Yes /> : <No />}</td>
+                    <td className="p-3"><Yes /></td>
+                    <td className="p-3">{canReadStablecoin ? <span className="font-mono text-xs text-primary">{c.stablecoin!.symbol}</span> : <No />}</td>
+                    <td className="p-3"><Yes /></td>
+                    <td className="p-3"><Yes /></td>
+                    <td className="p-3">{canTransfer ? <Yes /> : <No />}</td>
+                    <td className="p-3"><Yes /></td>
                   </tr>
                 );
               })}
@@ -105,7 +86,7 @@ function Chains() {
         </div>
         <p className="mt-4 text-sm text-muted-foreground">
           Path ids for API calls: <code>{MACHINE_CHAINS.map((c) => c.id).join(", ")}</code>.
-          Stablecoin contracts are the canonical issuer deployments.
+          Stablecoin entries show the configured token contract for each chain. A check mark means the endpoint is implemented in this service, not that an external RPC provider is guaranteed to be online.
         </p>
       </Section>
       <Section title="Stablecoin contracts">

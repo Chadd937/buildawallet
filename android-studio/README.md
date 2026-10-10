@@ -19,7 +19,10 @@ The website Studio is not required and no Studio JSON/deep-link import is suppor
 - New recovery phrases are not persisted until the user completes the backup-word check.
 - Restored phrases are validated as BIP-39 before encrypted storage.
 - Private keys and recovery phrases are never sent to BuildAWallet.
-- Native transfers are reviewed before signing and are signed on-device.
+- Native transfers and supported token transfers are reviewed before signing and are signed on-device.
+- EVM custom ERC-20 tokens can be imported per supported chain; mint/contract addresses are displayed in the confirmation and token decimals are checked on-chain.
+- Solana supports native SOL and imported SPL tokens. The original SPL Token program and basic Token-2022 mints are supported; mints with unimplemented Token-2022 extensions are blocked from sending rather than guessed at.
+- SPL transfers validate mint ownership/decimals and source/destination token accounts, can create a recipient associated token account, and check estimated SOL fee/rent capacity.
 - The app verifies the RPC chain ID before balance, nonce or broadcast operations.
 - App backup is disabled in the Android manifest.
 
@@ -33,7 +36,16 @@ The website Studio is not required and no Studio JSON/deep-link import is suppor
 - Avalanche C-Chain
 - BNB Chain
 
-The same standard EVM account is derived at `m/44'/60'/0'/0/0` across the selected networks.
+The same standard EVM account is derived at `m/44'/60'/0'/0/0` across the selected networks. Solana uses its separate Solana derivation path from the same recovery phrase; Bitcoin uses its own BIP-39/BIP-84 account.
+
+## Token coverage and limitations
+
+- EVM: native assets, configured USDC and user-imported ERC-20 tokens on all seven listed networks.
+- Solana: native SOL, user-imported SPL Token mints, and basic Token-2022 mints. The wallet blocks mints with unsupported extensions such as transfer fees, transfer hooks, confidential transfer, non-transferable, and unrecognized extensions until those behaviors are explicitly implemented and tested.
+- Solana dapp browser: HTTPS sites receive a `window.solana` provider after per-site connection consent with connect/disconnect, message signing, transaction signing, sequential sign-all, and send-transaction methods. Solana dapp transactions are simulated against mainnet-beta, decoded for common System/SPL/associated-token/memo/compute-budget instructions, and require explicit two-step confirmation before signing. Unknown program instructions are shown as high risk rather than silently treated as known.
+- Token labels are display metadata and do not prove authenticity. Verify mint/contract addresses with the issuer or another trusted source.
+- The Android dapp browser exposes `window.ethereum`, `window.solana`, and Wallet Standard registration to top-level HTTPS pages through AndroidX WebMessageListener, which verifies source origin and main-frame status before dispatching wallet requests. Each site must request account access; every signing/send operation has a native confirmation. The separate Mobile Wallet Adapter protocol for external Android/native dapps is not implemented yet.
+- Spending limits and market-price guardrails are local user protections, not an on-chain cryptographic policy. Rooted or modified devices can bypass local controls.
 
 ## Build
 

@@ -1,16 +1,14 @@
-import { BASE_USDC, SOLANA_USDC } from "./config";
+import { SOLANA_USDC } from "./config";
 import { machineChain, validAddress } from "./chains";
 
-const BASE_USDC_ADDRESS = BASE_USDC.toLowerCase();
 const SYSTEM_PROGRAM = "11111111111111111111111111111111";
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+const TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
 const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-const base = machineChain("base")!;
 const solana = machineChain("solana")!;
-const validBaseAddress = (value?: string) => Boolean(value && validAddress(base, value));
 const validSolanaAddress = (value?: string) => Boolean(value && validAddress(solana, value));
-const checkBaseRpc = async (url: string) => {
-  if (Number(BigInt(await jsonRpc(url, "eth_chainId", []))) !== 8453) throw new Error("Base RPC network mismatch");
+const checkEvmRpc = async (url: string, expectedChainId: number) => {
+  if (Number(BigInt(await jsonRpc(url, "eth_chainId", []))) !== expectedChainId) throw new Error("EVM RPC network mismatch");
 };
 const checkSolanaRpc = async (url: string) => {
   if (await jsonRpc(url, "getGenesisHash", []) !== "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d") throw new Error("Solana RPC network mismatch");
@@ -136,21 +134,47 @@ function legacyTransaction(accountKeys: string[], readonlyUnsigned: number, bloc
 export type PrepareIntent = {
   from?: string;
   to?: string;
-  asset?: "native" | "usdc";
+  asset?: "native" | "usdc" | "erc20" | "spl";
   amountAtomic?: string;
   data?: string;
   sourceTokenAccount?: string;
   destinationTokenAccount?: string;
+  tokenMint?: string;
+  tokenAddress?: string;
+  tokenDecimals?: number;
+  tokenProgramId?: string;
 };
 
-export async function prepareBaseTransaction(url: string, intent: PrepareIntent) {
-  if (!validBaseAddress(intent.from) || !validBaseAddress(intent.to)) throw new Error("Valid Base from and to addresses required");
-  const asset = intent.asset === "usdc" ? "usdc" : "native";
+export async function prepareBaseTransaction(url: string, intent: PrepareIntent, chainId = "base") {
+  const selectedChain = machineChain(chainId);
+  if (!selectedChain || selectedChain.family !== "evm" || !selectedChain.chainId) throw new Error("Unsupported EVM transaction chain");
+  if (!intent.from || !intent.to || !validAddress(selectedChain, intent.from) || !validAddress(selectedChain, intent.to)) throw new Error("Valid EVM from and to addresses required");
+  if (intent.asset === "spl") throw new Error("SPL assets are only supported on Solana.");
+  const asset = intent.asset === "erc20" ? "erc20" : intent.asset === "usdc" ? "usdc" : "native";
   const amount = quantity(intent.amountAtomic ?? "", "amountAtomic");
-  await checkBaseRpc(url);
+  if (asset === "usdc" && !selectedChain.stablecoin) throw new Error("No stablecoin configured for this chain");
+  await checkEvmRpc(url, selectedChain.chainId);
   const from = intent.from;
   const to = intent.to;
-  if (!from || !to) throw new Error("Valid Base from and to addresses required");
+  if (!from || !to) throw new Error("Valid EVM from and to addresses required");
+  let tokenAddress: string | undefined;
+  let tokenDecimals: number | undefined;
+  if (asset === "erc20") {
+    tokenAddress = intent.tokenAddress;
+    tokenDecimals = Number(intent.tokenDecimals);
+    if (!tokenAddress || !validAddress(selectedChain, tokenAddress)) throw new Error("A valid tokenAddress is required for a custom ERC-20 transfer");
+    if (!Number.isInteger(tokenDecimals) || tokenDecimals < 0 || tokenDecimals > 36) throw new Error("tokenDecimals must be an integer from 0 through 36");
+    const [decimalsHex, balanceHex] = await Promise.all([
+      jsonRpc(url, "eth_call", [{ to: tokenAddress, data: "0x313ce567" }, "latest"]),
+      jsonRpc(url, "eth_call", [{ to: tokenAddress, data: "0x70a08231" + from.slice(2).toLowerCase().padStart(64, "0") }, "latest"]),
+    ]);
+    if (typeof decimalsHex !== "string" || !/^0x[0-9a-fA-F]+$/.test(decimalsHex) ||
+        typeof balanceHex !== "string" || !/^0x[0-9a-fA-F]+$/.test(balanceHex)) {
+      throw new Error("Token contract returned invalid decimals or balance data");
+    }
+    if (Number(BigInt(decimalsHex)) !== tokenDecimals) throw new Error("tokenDecimals do not match the contract's on-chain decimals");
+    if (BigInt(balanceHex) < amount) throw new Error("Insufficient ERC-20 token balance");
+  }
   const tx: Record<string, string> = { from };
   if (asset === "native") {
     tx["to"] = to;
@@ -160,7 +184,7 @@ export async function prepareBaseTransaction(url: string, intent: PrepareIntent)
       tx["data"] = intent.data;
     }
   } else {
-    tx["to"] = BASE_USDC_ADDRESS;
+    tx["to"] = asset === "usdc" ? selectedChain.stablecoin!.address : tokenAddress!;
     tx["value"] = "0x0";
     tx["data"] = erc20Transfer(to, amount);
   }
@@ -177,14 +201,15 @@ export async function prepareBaseTransaction(url: string, intent: PrepareIntent)
   const priorityFee = BigInt(priority);
   const maxFee = BigInt(block.baseFeePerGas) * 2n + priorityFee;
   return {
-    chain: "base",
+    chain: selectedChain.id,
     network: "mainnet",
     asset,
-    token: asset === "usdc" ? BASE_USDC : undefined,
+    token: asset === "usdc" ? selectedChain.stablecoin!.address : asset === "erc20" ? tokenAddress : undefined,
+    tokenDecimals: asset === "usdc" ? 6 : tokenDecimals,
     amountAtomic: amount.toString(),
     unsignedTransaction: {
       ...tx,
-      chainId: "0x2105",
+      chainId: hexQuantity(BigInt(selectedChain.chainId)),
       nonce,
       gas,
       maxPriorityFeePerGas: hexQuantity(priorityFee),
@@ -195,13 +220,15 @@ export async function prepareBaseTransaction(url: string, intent: PrepareIntent)
   };
 }
 
-export async function broadcastBaseTransaction(url: string, signedTransaction: string) {
+export async function broadcastBaseTransaction(url: string, signedTransaction: string, chainId = "base") {
   if (!/^0x[0-9a-fA-F]{2,262144}$/.test(signedTransaction) || signedTransaction.length % 2 !== 0)
     throw new Error("signedTransaction must be a raw signed EVM transaction hex string");
-  await checkBaseRpc(url);
+  const selectedChain = machineChain(chainId);
+  if (!selectedChain || selectedChain.family !== "evm" || !selectedChain.chainId) throw new Error("Unsupported EVM transaction chain");
+  await checkEvmRpc(url, selectedChain.chainId);
   const tx = await jsonRpc(url, "eth_sendRawTransaction", [signedTransaction]);
-  if (typeof tx !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(tx)) throw new Error("Base RPC returned invalid transaction hash");
-  return { chain: "base", submitted: true, tx, explorer: `https://basescan.org/tx/${tx}` };
+  if (typeof tx !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(tx)) throw new Error("EVM RPC returned invalid transaction hash");
+  return { chain: selectedChain.id, submitted: true, tx, explorer: selectedChain.explorer + "/tx/" + tx };
 }
 
 export async function prepareSolanaTransaction(url: string, intent: PrepareIntent) {
@@ -209,37 +236,75 @@ export async function prepareSolanaTransaction(url: string, intent: PrepareInten
   const from = intent.from;
   const to = intent.to;
   if (!from || !to) throw new Error("Valid Solana from and to addresses required");
-  const asset = intent.asset === "usdc" ? "usdc" : "native";
+  const asset = intent.asset === "spl" ? "spl" : intent.asset === "usdc" ? "usdc" : "native";
   const amount = quantity(intent.amountAtomic ?? "", "amountAtomic");
   await checkSolanaRpc(url);
   const latest = await jsonRpc(url, "getLatestBlockhash", [{ commitment: "confirmed" }]);
   const blockhash = latest?.value?.blockhash;
   if (typeof blockhash !== "string" || base58Decode(blockhash).length !== 32) throw new Error("Solana RPC returned invalid blockhash");
   let prepared;
+  let tokenMint: string | undefined;
+  let tokenProgram: string | undefined;
+  let decimals = 6;
   if (asset === "native") {
     const data = concat(u32le(2), u64le(amount));
     prepared = legacyTransaction([from, to, SYSTEM_PROGRAM], 1, blockhash, 2, [0, 1], data);
   } else {
+    const mint = asset === "usdc" ? SOLANA_USDC : intent.tokenMint;
+    decimals = asset === "usdc" ? 6 : Number(intent.tokenDecimals);
+    tokenProgram = asset === "usdc" ? TOKEN_PROGRAM : intent.tokenProgramId;
+    if (!mint || !validSolanaAddress(mint)) throw new Error("A valid tokenMint is required for SPL transfers");
+    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) throw new Error("SPL tokenDecimals must be an integer from 0 through 255");
+    if (tokenProgram !== TOKEN_PROGRAM && tokenProgram !== TOKEN_2022_PROGRAM) throw new Error("Unsupported SPL token program");
     if (!validSolanaAddress(intent.sourceTokenAccount) || !validSolanaAddress(intent.destinationTokenAccount)) {
-      throw new Error("sourceTokenAccount and destinationTokenAccount are required for Solana USDC");
+      throw new Error("sourceTokenAccount and destinationTokenAccount must be valid token-account addresses");
     }
-    const data = concat(Uint8Array.from([12]), u64le(amount), Uint8Array.from([6]));
-    const sourceTokenAccount = intent.sourceTokenAccount;
-    const destinationTokenAccount = intent.destinationTokenAccount;
-    if (!sourceTokenAccount || !destinationTokenAccount) throw new Error("Valid Solana token accounts required");
+    const sourceTokenAccount = intent.sourceTokenAccount!;
+    const destinationTokenAccount = intent.destinationTokenAccount!;
+    const mintAccount = await jsonRpc(url, "getAccountInfo", [mint, { encoding: "jsonParsed", commitment: "confirmed" }]);
+    const mintValue = mintAccount?.value;
+    const mintInfo = mintValue?.data?.parsed?.info;
+    if (!mintValue || mintValue.owner !== tokenProgram || mintValue.data?.parsed?.type !== "mint" ||
+        mintInfo?.isInitialized !== true || mintInfo?.decimals !== decimals) {
+      throw new Error("Token mint owner, initialization, or decimals do not match the requested transfer");
+    }
+    const unsupportedExtensions = (mintInfo.extensions ?? [])
+      .map((extension: any) => String(extension?.extension ?? "unknown"))
+      .filter((extension: string) => !["metadataPointer", "tokenMetadata"].includes(extension));
+    if (unsupportedExtensions.length) throw new Error("Unsupported Token-2022 mint extensions: " + unsupportedExtensions.join(", "));
+    const [sourceResponse, destinationResponse] = await Promise.all([
+      jsonRpc(url, "getAccountInfo", [sourceTokenAccount, { encoding: "jsonParsed", commitment: "confirmed" }]),
+      jsonRpc(url, "getAccountInfo", [destinationTokenAccount, { encoding: "jsonParsed", commitment: "confirmed" }]),
+    ]);
+    const sourceValue = sourceResponse?.value;
+    const destinationValue = destinationResponse?.value;
+    const sourceInfo = sourceValue?.data?.parsed?.info;
+    const destinationInfo = destinationValue?.data?.parsed?.info;
+    if (!sourceValue || sourceValue.owner !== tokenProgram || sourceInfo?.mint !== mint || sourceInfo?.owner !== from) {
+      throw new Error("Source token account does not belong to the sender and requested mint");
+    }
+    if (!destinationValue || destinationValue.owner !== tokenProgram || destinationInfo?.mint !== mint || destinationInfo?.owner !== to) {
+      throw new Error("Destination token account must already exist and belong to the recipient for this mint");
+    }
+    const available = sourceInfo?.tokenAmount?.amount;
+    if (typeof available !== "string" || BigInt(available) < amount) throw new Error("Insufficient SPL token balance");
+    const data = concat(Uint8Array.from([12]), u64le(amount), Uint8Array.from([decimals]));
     prepared = legacyTransaction([
       from,
       sourceTokenAccount,
+      mint,
       destinationTokenAccount,
-      SOLANA_USDC,
-      TOKEN_PROGRAM,
-    ], 2, blockhash, 4, [1, 3, 2, 0], data);
+      tokenProgram,
+    ], 1, blockhash, 4, [1, 2, 3, 0], data);
+    tokenMint = mint;
   }
   return {
     chain: "solana",
     network: "mainnet",
     asset,
-    token: asset === "usdc" ? SOLANA_USDC : undefined,
+    token: tokenMint,
+    tokenProgram,
+    tokenDecimals: asset === "native" ? undefined : decimals,
     amountAtomic: amount.toString(),
     recentBlockhash: blockhash,
     ...prepared,

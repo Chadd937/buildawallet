@@ -6,10 +6,13 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.app.KeyguardManager;
 import android.net.Uri;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -26,12 +29,20 @@ import android.widget.TextView;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebSettings;
-import android.webkit.JavascriptInterface;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+import androidx.webkit.WebMessageCompat;
+import androidx.webkit.JavaScriptReplyProxy;
 import android.widget.Toast;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Collections;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -43,6 +54,11 @@ public final class MainActivity extends Activity {
     private static final int WARNING = 0xffffd38a;
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private static final int REQUEST_DEVICE_UNLOCK = 7101;
+    private volatile boolean walletLocked;
+    private boolean unlockInProgress;
+    private final Runnable autoLockRunnable = () -> lockWallet(true);
 
     private SecureSeedStore seedStore;
     private WalletProfile profile;
@@ -56,6 +72,12 @@ public final class MainActivity extends Activity {
     private List<EvmNetwork> enabledNetworks;
     private EvmNetwork selectedNetwork;
     private WebView dappWebView;
+    private AlertDialog dappDialog;
+    private boolean secureDappBridgeReady;
+    private final Map<String, JavaScriptReplyProxy> dappReplies = new ConcurrentHashMap<>();
+    private final Map<String, String> dappRequestOrigins = new ConcurrentHashMap<>();
+    private boolean solanaDappConnected;
+    private String solanaDappConnectedOrigin;
 
     private int setupStep = 0;
     private String pendingName = "My Wallet";
@@ -70,6 +92,7 @@ public final class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
 
         seedStore = new SecureSeedStore(this);
+        walletLocked = seedStore.exists();
         profile = WalletProfile.load(this);
         resetPendingFromProfile();
 
@@ -85,15 +108,116 @@ public final class MainActivity extends Activity {
         render();
     }
 
+    @Override public void onUserInteraction() {
+        super.onUserInteraction();
+        scheduleAutoLock();
+    }
+
+    @Override protected void onStop() {
+        super.onStop();
+        if (!unlockInProgress && seedStore != null && seedStore.exists()) lockWallet(false);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (seedStore != null && seedStore.exists() && walletLocked && content != null) render();
+        else scheduleAutoLock();
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_DEVICE_UNLOCK) return;
+        unlockInProgress = false;
+        if (resultCode == Activity.RESULT_OK) {
+            walletLocked = false;
+            render();
+            scheduleAutoLock();
+        } else {
+            walletLocked = true;
+            engine = null;
+            nonEvm = null;
+            render();
+        }
+    }
+
     @Override protected void onDestroy() {
+        mainHandler.removeCallbacks(autoLockRunnable);
         io.shutdownNow();
         super.onDestroy();
     }
 
     private void render() {
         content.removeAllViews();
-        if (seedStore.exists()) renderWallet();
-        else renderOnboarding();
+        if (seedStore.exists()) {
+            if (walletLocked) renderLocked();
+            else renderWallet();
+        } else renderOnboarding();
+    }
+
+    private void scheduleAutoLock() {
+        mainHandler.removeCallbacks(autoLockRunnable);
+        if (walletLocked || seedStore == null || !seedStore.exists() || profile == null) return;
+        long timeout = Math.max(1, profile.autoLockMin) * 60_000L;
+        mainHandler.postDelayed(autoLockRunnable, timeout);
+    }
+
+    private void lockWallet(boolean redraw) {
+        mainHandler.removeCallbacks(autoLockRunnable);
+        if (seedStore == null || !seedStore.exists()) return;
+        walletLocked = true;
+        engine = null;
+        nonEvm = null;
+        if (dappDialog != null) dappDialog.dismiss();
+        if (redraw && content != null) render();
+    }
+
+    private void renderLocked() {
+        content.addView(label("BUILDAWALLET  /  LOCKED", 11, activeAccent(), true));
+        add(label("Your wallet is locked.", 32, TEXT, true), 12);
+        add(label("The in-memory signing engines have been cleared. Authenticate with your Android device credential, or verify your recovery phrase if this device has no secure screen lock.", 14, MUTED, false), 16);
+        Button unlock = button("Unlock wallet", true);
+        unlock.setOnClickListener(v -> requestWalletUnlock());
+        add(unlock, 14);
+        add(notice("Never share your recovery phrase. The app will only compare it locally with the encrypted wallet to unlock this device."), 12);
+    }
+
+    private void requestWalletUnlock() {
+        KeyguardManager keyguard = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+        if (keyguard != null && keyguard.isDeviceSecure()) {
+            Intent intent = keyguard.createConfirmDeviceCredentialIntent("Unlock BuildAWallet", "Authenticate to access your wallet");
+            if (intent != null) {
+                unlockInProgress = true;
+                startActivityForResult(intent, REQUEST_DEVICE_UNLOCK);
+                return;
+            }
+        }
+        LinearLayout box = dialogBox();
+        EditText phrase = input("Enter your recovery phrase");
+        phrase.setSingleLine(false);
+        phrase.setMinLines(3);
+        phrase.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        box.addView(phrase);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Unlock with recovery phrase")
+            .setMessage("Use this fallback only if your Android device has no secure screen lock. The phrase is verified locally and is not sent anywhere.")
+            .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Unlock", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String candidatePhrase = phrase.getText().toString();
+            io.execute(() -> {
+            try {
+                boolean matches = seedStore.matchesMnemonic(candidatePhrase);
+                runOnUiThread(() -> {
+                    if (matches) {
+                        dialog.dismiss();
+                        walletLocked = false;
+                        render();
+                        scheduleAutoLock();
+                    } else showError("Unlock failed", new IllegalArgumentException("Recovery phrase does not match this wallet."));
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> showError("Unlock failed", error));
+            }
+        }); }));
+        dialog.show();
     }
 
     private void renderOnboarding() {
@@ -439,7 +563,7 @@ public final class MainActivity extends Activity {
         assetRow.setOrientation(LinearLayout.HORIZONTAL);
         assetRow.setGravity(Gravity.CENTER_VERTICAL);
 
-        TextView tokenIcon = label(selectedNetwork.symbol.substring(0, 1), 16, 0xff080a0d, true);
+        TextView tokenIcon = label("U", 16, 0xff080a0d, true);
         tokenIcon.setGravity(Gravity.CENTER);
         tokenIcon.setBackground(pill(accent, accent));
         LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(42), dp(42));
@@ -448,20 +572,21 @@ public final class MainActivity extends Activity {
         LinearLayout assetMeta = new LinearLayout(this);
         assetMeta.setOrientation(LinearLayout.VERTICAL);
         assetMeta.setPadding(dp(12), 0, 0, 0);
-        TextView nativeLink = label(selectedNetwork.symbol + " · " + selectedNetwork.name + " ↗", 16, TEXT, true);
-        nativeLink.setOnClickListener(v -> openExternal(tokenInfoUrl(selectedNetwork.symbol, selectedNetwork.name, selectedNetwork.chainId)));
+        TextView nativeLink = label("USDC · USD Coin ↗", 16, TEXT, true);
+        nativeLink.setOnClickListener(v -> openExternal(usdcInfoUrl(selectedNetwork)));
         assetMeta.addView(nativeLink);
-        TextView nativeInfo = label("Detailed market / coin information", 11, MUTED, false);
-        nativeInfo.setOnClickListener(v -> openExternal(tokenInfoUrl(selectedNetwork.symbol, selectedNetwork.name, selectedNetwork.chainId)));
+        TextView nativeInfo = label("Stablecoin balance · token contract details", 11, MUTED, false);
+        nativeInfo.setOnClickListener(v -> openExternal(usdcInfoUrl(selectedNetwork)));
         assetMeta.addView(nativeInfo);
         assetRow.addView(assetMeta, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         assetBalanceView = label("—", 15, TEXT, true);
         assetBalanceView.setGravity(Gravity.END);
-        assetBalanceView.setOnClickListener(v -> openExternal(tokenInfoUrl(selectedNetwork.symbol, selectedNetwork.name, selectedNetwork.chainId)));
+        assetBalanceView.setOnClickListener(v -> openExternal(usdcInfoUrl(selectedNetwork)));
         assetRow.addView(assetBalanceView);
         assetCard.addView(assetRow);
         add(assetCard, 10);
+        addCustomTokensSection();
 
         add(sectionTitle("Solana & Bitcoin", "Native accounts derived from the same recovery phrase"), 28);
         LinearLayout nonEvmCard = card();
@@ -476,6 +601,7 @@ public final class MainActivity extends Activity {
         Button solSend = button("Send SOL", false);
         solSend.setOnClickListener(v -> sendSolanaDialog());
         addTo(nonEvmCard, solSend, 10);
+        addSolanaTokensSection(nonEvmCard);
         addTo(nonEvmCard, label("BITCOIN", 10, MUTED, true), 12);
         TextView btcAddress = label(nonEvm == null ? "Unavailable" : nonEvm.bitcoinAddress(), 12, TEXT, true);
         btcAddress.setTextIsSelectable(true);
@@ -537,6 +663,21 @@ public final class MainActivity extends Activity {
         refreshBalance();
     }
 
+    private String usdcInfoUrl(EvmNetwork network) {
+        String address;
+        switch ((int) network.chainId) {
+            case 1: address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"; break;
+            case 8453: address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; break;
+            case 42161: address = "0xaf88d065e77c8C2239327C5EDb3A432268e5831"; break;
+            case 10: address = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"; break;
+            case 137: address = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"; break;
+            case 56: address = "0x8AC76a51cc950982D68b83f1D09cd849c35F18"; break;
+            case 43114: address = "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"; break;
+            default: return tokenInfoUrl("USDC", "USD Coin", network.chainId);
+        }
+        return tokenExplorerBase(network.chainId) + "/token/" + Uri.encode(address);
+    }
+
     private String tokenInfoUrl(String symbol, String name, long chainId) {
         String s = symbol == null ? "" : symbol.toLowerCase();
         if ("eth".equals(s)) return "https://www.coingecko.com/en/coins/ethereum";
@@ -546,6 +687,125 @@ public final class MainActivity extends Activity {
         return "https://www.coingecko.com/en/search?query=" + Uri.encode(name == null ? symbol : name);
     }
 
+    private void addCustomTokensSection() {
+        add(sectionTitle("Custom tokens", "Import ERC-20 tokens that are not shown by default"), 20);
+        Button addToken = button("+ Import token", true);
+        add(addToken, 8);
+        addToken.setOnClickListener(v -> importCustomTokenDialog());
+
+        List<CustomToken> tokens = CustomToken.load(this, selectedNetwork.chainId);
+        if (tokens.isEmpty()) {
+            add(label("No custom tokens imported on " + selectedNetwork.name + ".", 12, MUTED, false), 8);
+            return;
+        }
+        for (CustomToken token : tokens) {
+            LinearLayout row = card();
+            row.setBackground(pill(0xff0f1115, 0xff24272e));
+            LinearLayout top = new LinearLayout(this);
+            top.setOrientation(LinearLayout.HORIZONTAL);
+            top.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout meta = new LinearLayout(this);
+            meta.setOrientation(LinearLayout.VERTICAL);
+            TextView tokenName = label(token.name + " · " + token.symbol, 15, TEXT, true);
+            tokenName.setOnClickListener(v -> customTokenInfo(token));
+            meta.addView(tokenName);
+            TextView address = label(shortAddress(token.address) + " · " + token.decimals + " decimals", 10, MUTED, false);
+            address.setOnClickListener(v -> customTokenInfo(token));
+            meta.addView(address);
+            top.addView(meta, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            TextView balance = label("Loading…", 14, TEXT, true);
+            balance.setGravity(Gravity.END);
+            top.addView(balance);
+            row.addView(top);
+            TextView info = label("Token details ↗", 11, activeAccent(), true);
+            info.setPadding(0, dp(10), 0, 0);
+            info.setOnClickListener(v -> customTokenInfo(token));
+            row.addView(info);
+            add(row, 8);
+            EvmNetwork network = selectedNetwork;
+            io.execute(() -> {
+                try {
+                    String value = engine.tokenBalance(network, token.address, token.decimals) + " " + token.symbol;
+                    runOnUiThread(() -> { if (network == selectedNetwork) balance.setText(value); });
+                } catch (Exception error) {
+                    runOnUiThread(() -> { if (network == selectedNetwork) balance.setText("Unavailable"); });
+                }
+            });
+        }
+    }
+
+    private void importCustomTokenDialog() {
+        LinearLayout box = dialogBox();
+        EditText name = input("Token name, e.g. My Token");
+        EditText symbol = input("Symbol, e.g. MTK");
+        EditText address = input("ERC-20 contract address (0x...)");
+        EditText decimals = input("Decimals (usually 18 or 6)");
+        name.setSingleLine(true);
+        symbol.setSingleLine(true);
+        address.setSingleLine(true);
+        decimals.setSingleLine(true);
+        decimals.setInputType(InputType.TYPE_CLASS_NUMBER);
+        box.addView(label("Network: " + selectedNetwork.name + " (chain " + selectedNetwork.chainId + ")", 12, MUTED, true));
+        addTo(box, name, 8); addTo(box, symbol, 8); addTo(box, address, 8); addTo(box, decimals, 8);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Import custom ERC-20")
+            .setMessage("Imports display metadata only. Verify the contract address from a trusted source. Anyone can create tokens with misleading names or symbols.")
+            .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Import", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            try {
+                String cleanName = name.getText().toString().trim();
+                String cleanSymbol = symbol.getText().toString().trim();
+                String cleanAddress = address.getText().toString().trim();
+                if (cleanName.isEmpty() || cleanName.length() > 60) throw new IllegalArgumentException("Enter a token name up to 60 characters.");
+                if (!cleanSymbol.matches("[A-Za-z0-9._-]{1,16}")) throw new IllegalArgumentException("Enter a valid token symbol (1 to 16 letters, numbers, or . _ -).");
+                if (!org.web3j.crypto.WalletUtils.isValidAddress(cleanAddress)) throw new IllegalArgumentException("Enter a valid EVM contract address.");
+                int decimalsValue = Integer.parseInt(decimals.getText().toString().trim());
+                if (decimalsValue < 0 || decimalsValue > 36) throw new IllegalArgumentException("Decimals must be between 0 and 36.");
+                CustomToken token = new CustomToken(selectedNetwork.chainId, cleanName, cleanSymbol, cleanAddress, decimalsValue);
+                CustomToken.save(this, token);
+                dialog.dismiss();
+                render();
+                Toast.makeText(this, "Custom token imported", Toast.LENGTH_SHORT).show();
+            } catch (Exception error) {
+                showError("Could not import token", error);
+            }
+        }));
+        dialog.show();
+    }
+
+    private String tokenExplorerBase(long chainId) {
+        switch ((int) chainId) {
+            case 1: return "https://etherscan.io";
+            case 8453: return "https://basescan.org";
+            case 137: return "https://polygonscan.com";
+            case 42161: return "https://arbiscan.io";
+            case 10: return "https://optimistic.etherscan.io";
+            case 43114: return "https://snowtrace.io";
+            case 56: return "https://bscscan.com";
+            default: return "https://etherscan.io";
+        }
+    }
+
+    private void customTokenInfo(CustomToken token) {
+        String explorer = tokenExplorerBase(token.chainId) + "/token/" + Uri.encode(token.address);
+        String message = "Name: " + token.name
+            + "\nSymbol: " + token.symbol
+            + "\nNetwork: " + selectedNetwork.name + " (chain " + token.chainId + ")"
+            + "\nContract: " + token.address
+            + "\nDecimals: " + token.decimals
+            + "\n\nThis token was imported by you. The app reads its ERC-20 balance but does not independently certify the token, its issuer, value, liquidity, or safety. Verify the contract on the official project site and explorer before relying on it.";
+        new AlertDialog.Builder(this).setTitle(token.name + " · Token information")
+            .setMessage(message)
+            .setNeutralButton("Remove token", (d, w) -> new AlertDialog.Builder(this)
+                .setTitle("Remove " + token.symbol + "?")
+                .setMessage("This removes its saved display entry from this device. It does not affect tokens on-chain.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Remove", (dd, ww) -> { CustomToken.remove(this, token); render(); })
+                .show())
+            .setPositiveButton("Open explorer", (d, w) -> openExternal(explorer))
+            .setNegativeButton("Close", null).show();
+    }
+
     private void openExternal(String url) {
         try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
         catch (Exception error) { showError("Could not open link", error); }
@@ -553,6 +813,7 @@ public final class MainActivity extends Activity {
 
     private void showDapps() {
         final AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Dapps · Web3 browser").create();
+        dappDialog = dialog;
         LinearLayout root = dialogBox();
         LinearLayout controls = new LinearLayout(this); controls.setOrientation(LinearLayout.HORIZONTAL);
         EditText url = input("Search or enter https://…"); url.setSingleLine(true);
@@ -561,80 +822,382 @@ public final class MainActivity extends Activity {
         root.addView(controls);
         Button connect = button("Connect wallet to this dapp", false); root.addView(connect, new LinearLayout.LayoutParams(-1, dp(48)));
         dappWebView = new WebView(this); WebSettings ws = dappWebView.getSettings(); ws.setJavaScriptEnabled(true); ws.setDomStorageEnabled(true); ws.setJavaScriptCanOpenWindowsAutomatically(false); ws.setAllowFileAccess(false); ws.setAllowContentAccess(false);
+        secureDappBridgeReady = WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER);
+        if (secureDappBridgeReady) {
+            WebViewCompat.addWebMessageListener(dappWebView, "BuildAWallet", Collections.singleton("*"),
+                (view, message, sourceOrigin, isMainFrame, replyProxy) -> {
+                    String requestId = "";
+                    try {
+                        org.json.JSONObject request = new org.json.JSONObject(message.getData());
+                        requestId = request.optString("id", "");
+                        if (requestId.isEmpty()) return;
+                        if (!isMainFrame || sourceOrigin == null || !"https".equalsIgnoreCase(sourceOrigin.getScheme())
+                                || sourceOrigin.getHost() == null || sourceOrigin.getUserInfo() != null) {
+                            org.json.JSONObject error = new org.json.JSONObject().put("code", 4100)
+                                .put("message", "Wallet requests are accepted only from the top-level HTTPS page.");
+                            replyProxy.postMessage(new org.json.JSONObject().put("id", requestId)
+                                .put("value", org.json.JSONObject.NULL).put("error", error).toString());
+                            return;
+                        }
+                        final String finalId = requestId;
+                        final String method = request.optString("method", "");
+                        org.json.JSONArray params = request.optJSONArray("params");
+                        final String paramsText = params == null ? "[]" : params.toString();
+                        dappReplies.put(finalId, replyProxy);
+                        dappRequestOrigins.put(finalId, sourceOrigin.getHost());
+                        runOnUiThread(() -> handleDappRequest(finalId, method, paramsText));
+                    } catch (Exception error) {
+                        if (!requestId.isEmpty()) {
+                            try {
+                                org.json.JSONObject responseError = new org.json.JSONObject().put("code", 4000)
+                                    .put("message", safeMessage(error));
+                                replyProxy.postMessage(new org.json.JSONObject().put("id", requestId)
+                                    .put("value", org.json.JSONObject.NULL).put("error", responseError).toString());
+                            } catch (Exception ignored) { }
+                        }
+                    }
+                });
+        }
         dappWebView.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView v, String u) {
                 if (u.startsWith("https://") || u.startsWith("http://")) { loadDappUrl(u, v); return true; }
                 openExternal(u); return true;
             }
-            @Override public void onPageFinished(WebView v, String u) { if (isTrustedDappOrigin(u)) injectEip1193(v); }
+            @Override public void onPageFinished(WebView v, String u) {
+                if (secureDappBridgeReady && isWalletProviderEligibleUrl(u)) injectEip1193(v);
+            }
         });
         root.addView(dappWebView, new LinearLayout.LayoutParams(-1, dp(420)));
-        root.addView(label("Built-in EVM dapp connection uses the wallet's local signing provider. Dapps never receive the recovery phrase.", 11, MUTED, false));
+        root.addView(label(secureDappBridgeReady
+            ? "Dapp browser supports EIP-1193 and Solana Wallet Standard on HTTPS pages. Each site must request access; transaction requests are reviewed before local signing."
+            : "Wallet connection is unavailable because this Android System WebView lacks secure origin-aware messaging. Update Android System WebView to use dapps.", 11, MUTED, false));
         String[] apps = {"Uniswap|https://app.uniswap.org","Aave|https://app.aave.com","OpenSea|https://opensea.io","Jupiter|https://jup.ag","Raydium|https://raydium.io","BTCme.click|https://btcme.click","LTCme.click|https://ltcme.click","BnbBlockchain.com|https://bnbblockchain.com","MonadBlockchain.com|https://monadblockchain.com","ClickSolana.xyz|https://clicksolana.xyz"};
         for (String item : apps) { String[] parts = item.split("\\|",2); Button b = button("↗ " + parts[0], false); b.setOnClickListener(v -> { url.setText(parts[1]); dappWebView.loadUrl(parts[1]); }); root.addView(b, new LinearLayout.LayoutParams(-1, dp(42))); }
         go.setOnClickListener(v -> loadDappUrl(url.getText().toString(), dappWebView));
-        connect.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("Connect wallet").setMessage("This browser exposes an EIP-1193 wallet provider to the current dapp. The dapp must request accounts before it can see your address. Every transaction still requires an explicit confirmation.").setPositiveButton("Continue", null).setNegativeButton("Cancel", null).show());
-        dialog.setView(root); dialog.setOnDismissListener(v -> { if (dappWebView != null) { dappWebView.removeJavascriptInterface("BuildAWallet"); dappWebView.destroy(); dappWebView = null; } }); dialog.setOnShowListener(v -> loadDappUrl("https://app.uniswap.org", dappWebView)); dialog.show();
+        connect.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("Connect wallet").setMessage("This browser exposes EIP-1193 for EVM and Solana Wallet Standard plus window.solana for Solana mainnet. Each HTTPS site must request account access, and every message signature or transaction requires an explicit native confirmation.").setPositiveButton("Continue", null).setNegativeButton("Cancel", null).show());
+        dialog.setView(root); dialog.setOnDismissListener(v -> { dappDialog = null; solanaDappConnected = false; solanaDappConnectedOrigin = null; dappReplies.clear(); dappRequestOrigins.clear(); if (dappWebView != null) { dappWebView.destroy(); dappWebView = null; } }); dialog.setOnShowListener(v -> loadDappUrl("https://app.uniswap.org", dappWebView)); dialog.show();
     }
 
-    private boolean isTrustedDappOrigin(String rawUrl) {
+    private boolean isWalletProviderEligibleUrl(String rawUrl) {
         try {
             Uri u = Uri.parse(rawUrl);
-            if (!"https".equalsIgnoreCase(u.getScheme())) return false;
-            String h = u.getHost() == null ? "" : u.getHost().toLowerCase(java.util.Locale.ROOT);
-            return h.equals("app.uniswap.org") || h.endsWith(".uniswap.org")
-                || h.equals("app.aave.com") || h.endsWith(".aave.com")
-                || h.equals("opensea.io") || h.endsWith(".opensea.io")
-                || h.equals("jup.ag") || h.endsWith(".jup.ag")
-                || h.equals("raydium.io") || h.endsWith(".raydium.io")
-                || h.equals("btcme.click") || h.endsWith(".btcme.click")
-                || h.equals("ltcme.click") || h.endsWith(".ltcme.click")
-                || h.equals("bnbblockchain.com") || h.endsWith(".bnbblockchain.com")
-                || h.equals("monadblockchain.com") || h.endsWith(".monadblockchain.com")
-                || h.equals("clicksolana.xyz") || h.endsWith(".clicksolana.xyz");
+            return "https".equalsIgnoreCase(u.getScheme())
+                && u.getHost() != null && !u.getHost().isEmpty()
+                && u.getUserInfo() == null;
         } catch (Exception ignored) { return false; }
     }
 
     private void loadDappUrl(String raw, WebView view) {
         String u = raw == null ? "" : raw.trim();
         if (!u.startsWith("http://") && !u.startsWith("https://")) u = "https://www.google.com/search?q=" + Uri.encode(u);
-        boolean trusted = isTrustedDappOrigin(u);
-        if (trusted) view.addJavascriptInterface(new DappBridge(), "BuildAWallet");
-        else view.removeJavascriptInterface("BuildAWallet");
         view.loadUrl(u);
     }
 
     private void injectEip1193(WebView view) {
-        String js = "(function(){if(window.__bawProvider)return;const listeners={};function emit(e,d){(listeners[e]||[]).forEach(f=>{try{f(d)}catch(_){}})}const p={isBuildAWallet:true,request:function(a){return new Promise((resolve,reject)=>{const id=Date.now()+Math.floor(Math.random()*100000);window.__bawCallbacks=window.__bawCallbacks||{};window.__bawCallbacks[id]={resolve:resolve,reject:reject};BuildAWallet.request(String(id),String(a&&a.method||''),JSON.stringify(a&&a.params||[]));})},on:function(e,f){(listeners[e]||(listeners[e]=[])).push(f);return this},removeListener:function(e,f){listeners[e]=(listeners[e]||[]).filter(x=>x!==f);return this}};window.ethereum=p;window.__bawProvider=true;const announce=()=>window.dispatchEvent(new CustomEvent('eip6963:announceProvider',{detail:Object.freeze({info:{uuid:'350670db-19fa-4704-a166-e52e178b59d2',name:'BuildAWallet',icon:'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2296%22 height=%2296%22 viewBox=%220 0 96 96%22%3E%3Crect width=%2296%22 height=%2296%22 rx=%2220%22 fill=%22%2317223a%22/%3E%3Ctext x=%2248%22 y=%2262%22 text-anchor=%22middle%22 font-size=%2248%22 fill=%22white%22%3EB%3C/text%3E%3C/svg%3E',rdns:'xyz.buildawallet'},provider:p})}));window.addEventListener('eip6963:requestProvider',announce);announce();emit('connect',{chainId:'0x" + Long.toHexString(selectedNetwork.chainId) + "'});})();";
+        String js = "(function(){if(window.__bawProvider)return;window.__bawResolve=window.__bawResolve||function(id,value,error){const c=window.__bawCallbacks&&window.__bawCallbacks[id];if(!c)return;delete window.__bawCallbacks[id];if(error){const e=new Error(error.message||'Wallet request failed');e.code=error.code||4000;c.reject(e);}else c.resolve(value);};BuildAWallet.addEventListener('message',function(e){try{const r=JSON.parse(e.data);window.__bawResolve(r.id,r.value,r.error)}catch(_){}});const listeners={};function emit(e,d){(listeners[e]||[]).forEach(f=>{try{f(d)}catch(_){}})}const p={isBuildAWallet:true,request:function(a){return new Promise((resolve,reject)=>{const id=Date.now()+Math.floor(Math.random()*100000);window.__bawCallbacks=window.__bawCallbacks||{};window.__bawCallbacks[id]={resolve:resolve,reject:reject};BuildAWallet.postMessage(JSON.stringify({id:String(id),method:String(a&&a.method||''),params:a&&a.params||[]}));})},on:function(e,f){(listeners[e]||(listeners[e]=[])).push(f);return this},removeListener:function(e,f){listeners[e]=(listeners[e]||[]).filter(x=>x!==f);return this}};window.ethereum=p;window.__bawProvider=true;const announce=()=>window.dispatchEvent(new CustomEvent('eip6963:announceProvider',{detail:Object.freeze({info:{uuid:'350670db-19fa-4704-a166-e52e178b59d2',name:'BuildAWallet',icon:'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2296%22 height=%2296%22 viewBox=%220 0 96 96%22%3E%3Crect width=%2296%22 height=%2296%22 rx=%2220%22 fill=%22%2317223a%22/%3E%3Ctext x=%2248%22 y=%2262%22 text-anchor=%22middle%22 font-size=%2248%22 fill=%22white%22%3EB%3C/text%3E%3C/svg%3E',rdns:'xyz.buildawallet'},provider:p})}));window.addEventListener('eip6963:requestProvider',announce);announce();emit('connect',{chainId:'0x" + Long.toHexString(selectedNetwork.chainId) + "'});})();";
         view.evaluateJavascript(js, null);
+        injectSolanaProvider(view);
     }
 
-    private final class DappBridge {
-        @JavascriptInterface public void request(String id, String method, String params) { runOnUiThread(() -> handleDappRequest(id, method, params)); }
+    private void injectSolanaProvider(WebView view) {
+        String js = "(function(){if(window.__bawSolanaProvider)return;"
+            + "window.__bawResolve=window.__bawResolve||function(id,value,error){const c=window.__bawCallbacks&&window.__bawCallbacks[id];if(!c)return;delete window.__bawCallbacks[id];if(error){const e=new Error(error.message||'Wallet request failed');e.code=error.code||4000;c.reject(e);}else c.resolve(value);};"
+            + "const listeners={};function emit(e,d){(listeners[e]||[]).forEach(f=>{try{f(d)}catch(_){}})}"
+            + "function call(method,params){return new Promise((resolve,reject)=>{const id='solana_'+Date.now()+'_'+Math.floor(Math.random()*1000000);window.__bawCallbacks=window.__bawCallbacks||{};window.__bawCallbacks[id]={resolve,reject};BuildAWallet.postMessage(JSON.stringify({id:id,method:method,params:params||[]}));});}"
+            + "function bytes58(s){const a='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';let n=0n;for(const ch of s){const i=a.indexOf(ch);if(i<0)throw new Error('Invalid Solana public key');n=n*58n+BigInt(i);}const b=[];while(n>0n){b.push(Number(n&255n));n>>=8n;}b.reverse();let z=0;while(z<s.length&&s[z]==='1')z++;return new Uint8Array([...new Array(z).fill(0),...b]);}"
+            + "function pubkey(s){return {toBase58:()=>s,toString:()=>s,toJSON:()=>s,toBytes:()=>bytes58(s),toBuffer:()=>bytes58(s),equals:(x)=>!!x&&(typeof x.toBase58==='function'?x.toBase58():String(x))===s};}"
+            + "function b64(bytes){let s='';for(let i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s);}"
+            + "function bytes(s){const x=atob(s);const a=new Uint8Array(x.length);for(let i=0;i<x.length;i++)a[i]=x.charCodeAt(i);return a;}"
+            + "function serialize(tx){try{return tx.serialize({requireAllSignatures:false,verifySignatures:false});}catch(e){return tx.serialize();}}"
+            + "function deserialize(tx,s){const a=bytes(s);if(tx&&tx.constructor&&typeof tx.constructor.deserialize==='function')return tx.constructor.deserialize(a);if(tx&&tx.constructor&&typeof tx.constructor.from==='function')return tx.constructor.from(a);throw new Error('Unsupported Solana transaction object; use a compatible web3.js transaction.');}"
+            + "const p={isBuildAWallet:true,isPhantom:false,isConnected:false,publicKey:null,connect:async function(){const a=await call('solana_connect',[]);this.publicKey=pubkey(a);this.isConnected=true;emit('connect',this.publicKey);return {publicKey:this.publicKey};},disconnect:async function(){await call('solana_disconnect',[]);this.isConnected=false;this.publicKey=null;emit('disconnect');},signMessage:async function(message){const a=message instanceof Uint8Array?message:new Uint8Array(message);const sig=await call('solana_signMessage',[b64(a)]);return {signature:bytes(sig),publicKey:this.publicKey};},signTransaction:async function(tx){if(!this.isConnected)throw new Error('Connect BuildAWallet first');const signed=await call('solana_signTransaction',[b64(serialize(tx))]);return deserialize(tx,signed);},signAllTransactions:async function(txs){const out=[];for(const tx of txs)out.push(await this.signTransaction(tx));return out;},sendTransaction:async function(tx,connection,options){if(!this.isConnected)throw new Error('Connect BuildAWallet first');return await call('solana_sendTransaction',[b64(serialize(tx))]);},signAndSendTransaction:async function(tx){return {signature:await this.sendTransaction(tx)};},on:function(e,f){(listeners[e]||(listeners[e]=[])).push(f);return this;},off:function(e,f){listeners[e]=(listeners[e]||[]).filter(x=>x!==f);return this;},removeListener:function(e,f){return this.off(e,f);}};"
+            + "const account=()=>({address:p.publicKey.toBase58(),publicKey:p.publicKey.toBytes(),chains:['solana:mainnet'],features:['solana:signMessage','solana:signTransaction','solana:signAndSendTransaction']});"
+            + "const wallet={version:'1.0.0',name:'BuildAWallet',icon:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiByeD0iMjAiIGZpbGw9IiMxNzIyM2EiLz48dGV4dCB4PSI0OCIgeT0iNjIiIGZvbnQtc2l6ZT0iNDgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IndoaXRlIj5CPC90ZXh0Pjwvc3ZnPg==',chains:['solana:mainnet'],get accounts(){return p.isConnected&&p.publicKey?[account()]:[];},features:{"
+            + "'standard:connect':{version:'1.0.0',connect:async function(){if(!p.isConnected)await p.connect();return {accounts:[account()]};}},"
+            + "'standard:disconnect':{version:'1.0.0',disconnect:async function(){await p.disconnect();}},"
+            + "'standard:events':{version:'1.0.0',on:function(event,listener){if(event!=='change')return ()=>{};const onConnect=()=>listener({accounts:[account()]});const onDisconnect=()=>listener({accounts:[]});p.on('connect',onConnect);p.on('disconnect',onDisconnect);return ()=>{p.off('connect',onConnect);p.off('disconnect',onDisconnect);};}},"
+            + "'solana:signMessage':{version:'1.0.0',signMessage:async function(...inputs){const out=[];for(const input of inputs){const signed=await p.signMessage(input.message);out.push({signedMessage:input.message,signature:signed.signature});}return out;}},"
+            + "'solana:signTransaction':{version:'1.0.0',supportedTransactionVersions:['legacy',0],signTransaction:async function(...inputs){const out=[];for(const input of inputs){if(input.chain&&input.chain!=='solana:mainnet')throw new Error('BuildAWallet supports Solana mainnet only');const signed=await call('solana_signTransaction',[b64(input.transaction)]);out.push({signedTransaction:bytes(signed)});}return out;}},"
+            + "'solana:signAndSendTransaction':{version:'1.0.0',supportedTransactionVersions:['legacy',0],signAndSendTransaction:async function(...inputs){const out=[];for(const input of inputs){if(input.chain&&input.chain!=='solana:mainnet')throw new Error('BuildAWallet supports Solana mainnet only');const sig=await call('solana_sendTransaction',[b64(input.transaction)]);out.push({signature:bytes58(sig)});}return out;}}"
+            + "}};"
+            + "const announceWallet=()=>window.dispatchEvent(new CustomEvent('wallet-standard:register-wallet',{detail:(register)=>register(wallet)}));window.addEventListener('wallet-standard:app-ready',announceWallet);announceWallet();"
+            + "Object.defineProperty(window,'solana',{configurable:true,value:p});window.__bawSolanaProvider=true;"
+            + "})();";
+        view.evaluateJavascript(js, null);
     }
 
     private void handleDappRequest(String id, String method, String rawParams) {
         try {
             org.json.JSONArray params = new org.json.JSONArray(rawParams == null ? "[]" : rawParams);
+            if (method != null && method.startsWith("solana_")) {
+                handleSolanaDappRequest(id, method, params);
+                return;
+            }
             if ("eth_requestAccounts".equals(method)) {
-                new AlertDialog.Builder(this).setTitle("Dapp account access").setMessage("Allow this dapp to view and use your EVM address for this session?").setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Connect", (d,w) -> resolveDapp(id, new org.json.JSONArray().put(engine.address()).toString(), 0, null)).show(); return;
+                if (walletLocked || engine == null) { resolveDapp(id, null, 4001, "Wallet is locked."); return; }
+                new AlertDialog.Builder(this).setTitle("Dapp account access").setMessage("Site: " + dappOriginForRequest(id) + "\n\nAllow this HTTPS site to view and use your EVM address for this session? Solana-enabled sites can request separate Solana account access.").setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Connect", (d,w) -> resolveDapp(id, new org.json.JSONArray().put(engine.address()).toString(), 0, null)).show(); return;
             }
             if ("personal_sign".equals(method)) {
                 String message = params.length() > 0 ? params.getString(0) : "";
-                new AlertDialog.Builder(this).setTitle("Dapp signature request").setMessage("Sign this message?\\n\\n" + message).setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Sign", (d,w) -> io.execute(() -> { try { resolveDapp(id, engine.signPersonalMessage(message), 0, null); } catch (Exception e) { resolveDapp(id, null, 4000, safeMessage(e)); } })).show(); return;
+                new AlertDialog.Builder(this).setTitle("Dapp signature request").setMessage("Site: " + dappOriginForRequest(id) + "\n\nSign this message?\n\n" + message).setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Sign", (d,w) -> io.execute(() -> {
+                    WalletEngine activeEngine = engine;
+                    try {
+                        if (walletLocked || activeEngine == null) throw new IllegalStateException("Wallet is locked.");
+                        String signature = activeEngine.signPersonalMessage(message);
+                        runOnUiThread(() -> resolveDapp(id, signature, 0, null));
+                    } catch (Exception e) { runOnUiThread(() -> resolveDapp(id, null, 4000, safeMessage(e))); }
+                })).show(); return;
             }
             if ("eth_sendTransaction".equals(method)) {
                 org.json.JSONObject tx = params.getJSONObject(0);
-                new AlertDialog.Builder(this).setTitle("Dapp transaction").setMessage("Destination: " + tx.optString("to") + "\\nValue: " + tx.optString("value","0x0") + "\\nGas: " + tx.optString("gas","estimated") + "\\n\\nReview carefully before signing.").setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected transaction")).setPositiveButton("Sign & send", (d,w) -> io.execute(() -> { try { resolveDapp(id, engine.dappSendTransaction(selectedNetwork, tx), 0, null); } catch(Exception e){ resolveDapp(id,null,4000,safeMessage(e)); } })).show(); return;
+                EvmNetwork network = selectedNetwork;
+                WalletEngine activeEngine = engine;
+                if (walletLocked || activeEngine == null) {
+                    resolveDapp(id, null, 4001, "Wallet is locked.");
+                    return;
+                }
+                io.execute(() -> {
+                    try {
+                        String data = tx.optString("data", tx.optString("input", "0x"));
+                        String decoded = activeEngine.decodeContractCall(network, tx.optString("to", ""), data);
+                        WalletEngine.DappSpendEstimate estimate = null;
+                        if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) {
+                            estimate = activeEngine.estimateDappSpend(network, tx);
+                            if (profile.sessionLimitUsd > 0 && !estimate.fullyValued) {
+                                throw new IllegalStateException("This contract method is not fully decoded, so the wallet cannot reliably apply the active USD spending cap. Transaction cancelled. Review the contract independently or explicitly disable the 24-hour spending cap in Security settings before using this method.");
+                            }
+                        }
+                        WalletEngine.DappSpendEstimate finalEstimate = estimate;
+                        runOnUiThread(() -> showDappTransactionConfirmation(id, tx, network, decoded, finalEstimate));
+                    } catch (Exception error) {
+                        runOnUiThread(() -> resolveDapp(id, null, 4000, safeMessage(error)));
+                    }
+                });
+                return;
             }
-            io.execute(() -> { try { resolveDapp(id, engine.dappRead(selectedNetwork, method, params), 0, null); } catch(Exception e) { resolveDapp(id,null,4200,safeMessage(e)); } });
+            EvmNetwork readNetwork = selectedNetwork;
+            WalletEngine readEngine = engine;
+            if (walletLocked || readEngine == null) { resolveDapp(id, null, 4001, "Wallet is locked."); return; }
+            io.execute(() -> {
+                try {
+                    String result = readEngine.dappRead(readNetwork, method, params);
+                    runOnUiThread(() -> resolveDapp(id, result, 0, null));
+                } catch(Exception e) { runOnUiThread(() -> resolveDapp(id, null, 4200, safeMessage(e))); }
+            });
         } catch (Exception e) { resolveDapp(id,null,4000,safeMessage(e)); }
     }
 
+    private void showDappTransactionConfirmation(String id, org.json.JSONObject tx, EvmNetwork network,
+                                                 String decoded, WalletEngine.DappSpendEstimate estimate) {
+        boolean highRisk = decoded.contains("HIGH RISK") || decoded.contains("UNLIMITED")
+            || decoded.contains("APPROVAL") || decoded.contains("ALLOWANCE")
+            || decoded.contains("UNKNOWN CONTRACT METHOD") || decoded.contains("MULTICALL")
+            || decoded.contains("not fully decoded");
+        boolean large = estimate != null && profile.bigSendUsd > 0
+            && estimate.usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0;
+        String message = dappTransactionPreview(tx, network, decoded, estimate, dappOriginForRequest(id));
+        new AlertDialog.Builder(this)
+            .setTitle(highRisk || large ? "High-risk dapp request · review" : "Dapp transaction · review carefully")
+            .setMessage(message)
+            .setNegativeButton("Reject", (d, w) -> resolveDapp(id, null, 4001, "User rejected transaction"))
+            .setPositiveButton(highRisk || large ? "Continue to final review" : "Sign & send",
+                (d, w) -> {
+                    if (highRisk || large) {
+                        new AlertDialog.Builder(this)
+                            .setTitle("Final transaction confirmation")
+                            .setMessage("Network: " + network.name + "\nContract / destination: " + tx.optString("to", "(missing)")
+                                + "\n\n" + decoded
+                                + "\n\nContract effects may be irreversible. Only proceed if you independently trust this contract and understand the decoded action.")
+                            .setNegativeButton("Reject", (dd, ww) -> resolveDapp(id, null, 4001, "User rejected transaction"))
+                            .setPositiveButton("I understand · Sign & send",
+                                (dd, ww) -> sendDappTransaction(id, tx, network, estimate))
+                            .show();
+                    } else sendDappTransaction(id, tx, network, estimate);
+                }).show();
+    }
+
+    private String dappTransactionPreview(org.json.JSONObject tx, EvmNetwork network, String decoded,
+                                          WalletEngine.DappSpendEstimate estimate, String dappOrigin) {
+        String to = tx.optString("to", "(missing)");
+        String value = tx.optString("value", "0x0");
+        String gas = tx.optString("gas", "estimated by network");
+        String gasPrice = tx.optString("maxFeePerGas", tx.optString("gasPrice", "estimated by network"));
+        String data = tx.optString("data", tx.optString("input", "0x"));
+        String shownData = data.length() > 600 ? data.substring(0, 600) + "… (truncated)" : data;
+        String usd = estimate == null ? "USD value not calculated (USD guardrails disabled)"
+            : "Estimated native value + fee + decoded token spend: $" + estimate.usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString();
+        return "Dapp origin: " + dappOrigin
+            + "\nNetwork: " + network.name + " (chain " + network.chainId + ")"
+            + "\nDestination / contract: " + to
+            + "\nNative value (hex wei): " + value
+            + "\nGas limit: " + gas
+            + "\nGas price / max fee (hex): " + gasPrice
+            + "\n" + usd
+            + "\n\nDECODED ACTION\n" + decoded
+            + "\n\nRaw calldata: " + shownData
+            + "\n\nMarket prices are estimates, not guaranteed execution values. Contract calls may have effects that cannot be fully inferred from calldata.";
+    }
+
+    private void sendDappTransaction(String id, org.json.JSONObject tx, EvmNetwork network,
+                                     WalletEngine.DappSpendEstimate estimate) {
+        if (walletLocked || engine == null) {
+            resolveDapp(id, null, 4001, "Wallet is locked; transaction cancelled.");
+            return;
+        }
+        String walletAddress = engine.address();
+        io.execute(() -> {
+            WalletSecurity.Reservation reservation = null;
+            boolean dispatchStarted = false;
+            try {
+                if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                reservation = WalletSecurity.reserve(this, walletAddress,
+                    estimate == null ? null : estimate.usdValue, profile.sessionLimitUsd);
+                if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                dispatchStarted = true;
+                String hash = engine.dappSendTransaction(network, tx);
+                runOnUiThread(() -> resolveDapp(id, hash, 0, null));
+            } catch (Exception error) {
+                if (reservation != null && !dispatchStarted) WalletSecurity.release(this, reservation);
+                String message = safeMessage(error);
+                if (dispatchStarted) message += " The network outcome may be uncertain; spending capacity remains reserved for safety.";
+                String responseMessage = message;
+                runOnUiThread(() -> resolveDapp(id, null, 4000, responseMessage));
+            }
+        });
+    }
+
+    private String dappOriginForRequest(String id) {
+        String origin = dappRequestOrigins.get(id);
+        if (origin != null && !origin.isEmpty()) return origin;
+        return dappWebView == null || dappWebView.getUrl() == null ? "Unknown site" : String.valueOf(Uri.parse(dappWebView.getUrl()).getHost());
+    }
+
     private void resolveDapp(String id, String result, int code, String message) {
+        JavaScriptReplyProxy reply = dappReplies.remove(id);
+        dappRequestOrigins.remove(id);
+        if (reply != null) {
+            try {
+                org.json.JSONObject response = new org.json.JSONObject()
+                    .put("id", id)
+                    .put("value", result == null ? org.json.JSONObject.NULL : result)
+                    .put("error", message == null ? org.json.JSONObject.NULL
+                        : new org.json.JSONObject().put("code", code).put("message", message));
+                reply.postMessage(response.toString());
+            } catch (Exception ignored) { }
+            return;
+        }
         if (dappWebView == null) return;
         String rid = org.json.JSONObject.quote(id), rr = result == null ? "null" : org.json.JSONObject.quote(result), err = message == null ? "null" : "{code:" + code + ",message:" + org.json.JSONObject.quote(message) + "}";
         dappWebView.evaluateJavascript("window.__bawResolve(" + rid + "," + rr + "," + err + ")", null);
+    }
+
+    private void handleSolanaDappRequest(String id, String method, org.json.JSONArray params) {
+        if (walletLocked || nonEvm == null) {
+            resolveDapp(id, null, 4001, "Wallet is locked.");
+            return;
+        }
+        String origin = dappOriginForRequest(id);
+        if ("solana_connect".equals(method)) {
+            if (solanaDappConnected && origin != null && origin.equals(solanaDappConnectedOrigin)) { resolveDapp(id, nonEvm.solanaAddress(), 0, null); return; }
+            new AlertDialog.Builder(this).setTitle("Solana dapp connection")
+                .setMessage("Allow " + (origin == null ? "this dapp" : origin) + " to view your Solana public address for this browser session? Your recovery phrase and private key will never be shared.")
+                .setNegativeButton("Reject", (d, w) -> resolveDapp(id, null, 4001, "User rejected Solana connection"))
+                .setPositiveButton("Connect", (d, w) -> {
+                    if (walletLocked || nonEvm == null) { resolveDapp(id, null, 4001, "Wallet is locked."); return; }
+                    solanaDappConnected = true;
+                    solanaDappConnectedOrigin = origin;
+                    resolveDapp(id, nonEvm.solanaAddress(), 0, null);
+                }).show();
+            return;
+        }
+        if ("solana_disconnect".equals(method)) {
+            solanaDappConnected = false;
+            solanaDappConnectedOrigin = null;
+            resolveDapp(id, "ok", 0, null);
+            return;
+        }
+        if (origin == null || !origin.equals(solanaDappConnectedOrigin)) {
+            solanaDappConnected = false;
+            solanaDappConnectedOrigin = null;
+        }
+        if (!solanaDappConnected) { resolveDapp(id, null, 4100, "Connect this dapp to the Solana account first."); return; }
+        if ("solana_signMessage".equals(method)) {
+            String encoded = params.optString(0, "");
+            final String message;
+            try {
+                byte[] bytes = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT);
+                message = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                if (bytes.length == 0 || bytes.length > 16384) throw new IllegalArgumentException("Message must contain 1 to 16,384 bytes.");
+            } catch (Exception e) { resolveDapp(id, null, 4000, safeMessage(e)); return; }
+            new AlertDialog.Builder(this).setTitle("Solana message signature")
+                .setMessage("Dapp: " + origin + "\nAccount: " + nonEvm.solanaAddress()
+                    + "\n\nMessage to sign:\n" + (message.length() > 2400 ? message.substring(0, 2400) + "… (truncated)" : message)
+                    + "\n\nSigning proves control of your account to this dapp. Never sign a message you do not understand.")
+                .setNegativeButton("Reject", (d, w) -> resolveDapp(id, null, 4001, "User rejected message signature"))
+                .setPositiveButton("Sign message", (d, w) -> io.execute(() -> {
+                    try {
+                        if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet is locked.");
+                        String signature = nonEvm.signSolanaDappMessage(encoded);
+                        runOnUiThread(() -> resolveDapp(id, signature, 0, null));
+                    } catch (Exception e) { runOnUiThread(() -> resolveDapp(id, null, 4000, safeMessage(e))); }
+                })).show();
+            return;
+        }
+        if ("solana_signTransaction".equals(method) || "solana_sendTransaction".equals(method)) {
+            String encoded = params.optString(0, "");
+            boolean send = "solana_sendTransaction".equals(method);
+            io.execute(() -> {
+                try {
+                    if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet is locked.");
+                    String preview = nonEvm.previewSolanaDappTransaction(encoded);
+                    runOnUiThread(() -> showSolanaDappTransactionReview(id, encoded, send, origin, preview));
+                } catch (Exception e) { runOnUiThread(() -> resolveDapp(id, null, 4000, safeMessage(e))); }
+            });
+            return;
+        }
+        resolveDapp(id, null, 4200, "Unsupported Solana wallet method: " + method);
+    }
+
+    private void showSolanaDappTransactionReview(String id, String encoded, boolean send, String origin, String preview) {
+        if (walletLocked || nonEvm == null) { resolveDapp(id, null, 4001, "Wallet is locked."); return; }
+        String capNote = profile.sessionLimitUsd > 0
+            ? "\n\nThe active 24-hour USD cap cannot reliably price every arbitrary Solana dapp instruction. To preserve the guardrail, this transaction reserves the remaining cap capacity."
+            : "";
+        String title = send ? "Solana dapp transaction · review" : "Solana transaction signing · review";
+        new AlertDialog.Builder(this).setTitle(title)
+            .setMessage("Dapp: " + origin + "\n\n" + preview + capNote)
+            .setNegativeButton("Reject", (d, w) -> resolveDapp(id, null, 4001, "User rejected Solana transaction"))
+            .setPositiveButton("Continue to final review", (d, w) ->
+                new AlertDialog.Builder(this).setTitle("Final Solana confirmation")
+                    .setMessage("Mainnet transaction. Review the programs, accounts, amounts, and simulation above. Unknown program instructions may have effects this wallet cannot infer. This action may be irreversible.")
+                    .setNegativeButton("Cancel", (dd, ww) -> resolveDapp(id, null, 4001, "User rejected Solana transaction"))
+                    .setPositiveButton(send ? "Sign & broadcast" : "Sign transaction", (dd, ww) ->
+                        executeSolanaDappTransaction(id, encoded, send))
+                    .show())
+            .show();
+    }
+
+    private void executeSolanaDappTransaction(String id, String encoded, boolean send) {
+        if (walletLocked || nonEvm == null) { resolveDapp(id, null, 4001, "Wallet is locked."); return; }
+        String walletAddress = nonEvm.solanaAddress();
+        io.execute(() -> {
+            WalletSecurity.Reservation reservation = null;
+            boolean signingOrBroadcastMayHaveOccurred = false;
+            try {
+                if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet locked before Solana signing; transaction cancelled.");
+                reservation = WalletSecurity.reserve(this, walletAddress, null, profile.sessionLimitUsd);
+                if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet locked before Solana signing; transaction cancelled.");
+                signingOrBroadcastMayHaveOccurred = true;
+                String result = send ? nonEvm.sendSolanaDappTransaction(encoded) : nonEvm.signSolanaDappTransaction(encoded);
+                runOnUiThread(() -> resolveDapp(id, result, 0, null));
+            } catch (Exception e) {
+                if (reservation != null && !signingOrBroadcastMayHaveOccurred) WalletSecurity.release(this, reservation);
+                String message = safeMessage(e);
+                if (signingOrBroadcastMayHaveOccurred) message += " Signing or broadcast may have occurred; spending capacity remains reserved for safety.";
+                String finalMessage = message;
+                runOnUiThread(() -> resolveDapp(id, null, 4000, finalMessage));
+            }
+        });
     }
 
     private void showByteChat() {
@@ -770,6 +1333,192 @@ public final class MainActivity extends Activity {
         });
     }
 
+
+    private void addSolanaTokensSection(LinearLayout card) {
+        addTo(card, label("SPL TOKENS", 10, MUTED, true), 4);
+        Button importToken = button("+ Import SPL token", false);
+        addTo(card, importToken, 8);
+        importToken.setOnClickListener(v -> importSolanaTokenDialog());
+        List<SolanaToken> tokens = SolanaToken.load(this);
+        if (tokens.isEmpty()) {
+            addTo(card, label("No SPL tokens imported. Import a mint address to view its balance and send supported tokens.", 11, MUTED, false), 8);
+            return;
+        }
+        for (SolanaToken token : tokens) {
+            LinearLayout item = new LinearLayout(this);
+            item.setOrientation(LinearLayout.VERTICAL);
+            item.setPadding(dp(12), dp(10), dp(12), dp(10));
+            item.setBackground(pill(0xff14171c, 0xff292d35));
+            TextView name = label(token.name + " · " + token.symbol, 14, TEXT, true);
+            TextView mint = label(shortAddress(token.mint) + " · " + token.decimals + " decimals", 10, MUTED, false);
+            TextView balance = label("Loading balance…", 12, MUTED, true);
+            addTo(item, name, 2);
+            addTo(item, mint, 4);
+            addTo(item, balance, 7);
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            Button send = button("Send " + token.symbol, true);
+            Button details = button("Details", false);
+            actions.addView(send, new LinearLayout.LayoutParams(0, dp(42), 1f));
+            actions.addView(details, new LinearLayout.LayoutParams(0, dp(42), 1f));
+            item.addView(actions);
+            addTo(card, item, 8);
+            send.setOnClickListener(v -> sendSolanaTokenDialog(token));
+            details.setOnClickListener(v -> solanaTokenInfo(token));
+            io.execute(() -> {
+                try {
+                    String value = nonEvm.solanaTokenBalance(token.mint);
+                    runOnUiThread(() -> balance.setText(value + " " + token.symbol));
+                } catch (Exception error) {
+                    runOnUiThread(() -> balance.setText("Balance unavailable · tap Details to verify mint"));
+                }
+            });
+        }
+    }
+
+    private void importSolanaTokenDialog() {
+        EditText mintInput = input("SPL mint address");
+        EditText nameInput = input("Token name (optional if on-chain metadata exists)");
+        EditText symbolInput = input("Token symbol (optional if on-chain metadata exists)");
+        LinearLayout box = dialogBox();
+        box.addView(label("Mint address", 12, MUTED, true));
+        box.addView(mintInput);
+        addTo(box, label("Display name", 12, MUTED, true), 10);
+        box.addView(nameInput);
+        addTo(box, label("Display symbol", 12, MUTED, true), 10);
+        box.addView(symbolInput);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Import SPL token")
+            .setMessage("The mint and decimals are verified on-chain. Names and symbols are display labels, not proof of token legitimacy.")
+            .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Validate mint", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            if (walletLocked || nonEvm == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before importing tokens.")); return; }
+            String mint = mintInput.getText().toString().trim();
+            String name = nameInput.getText().toString().trim();
+            String symbol = symbolInput.getText().toString().trim();
+            if (mint.isEmpty()) { showError("Invalid mint", new IllegalArgumentException("Enter the SPL mint address.")); return; }
+            dialog.dismiss();
+            io.execute(() -> {
+                try {
+                    NonEvmEngine active = nonEvm;
+                    if (walletLocked || active == null) throw new IllegalStateException("Wallet locked before mint validation.");
+                    NonEvmEngine.SolanaMintInfo info = active.inspectSolanaMint(mint);
+                    String finalName = name.isEmpty() ? info.onChainName : name;
+                    String finalSymbol = symbol.isEmpty() ? info.onChainSymbol : symbol;
+                    if (finalName == null || finalName.trim().isEmpty()) throw new IllegalArgumentException("Enter a token name because this mint does not expose readable on-chain metadata.");
+                    if (finalSymbol == null || !finalSymbol.matches("[A-Za-z0-9._-]{1,16}")) throw new IllegalArgumentException("Enter a token symbol (1–16 letters, numbers, or . _ -).");
+                    SolanaToken token = new SolanaToken(finalName.trim(), finalSymbol, info.mint, info.decimals, info.programId);
+                    SolanaToken.save(this, token);
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "SPL token imported", Toast.LENGTH_SHORT).show();
+                        render();
+                        if (!info.extensionsSupported) new AlertDialog.Builder(this).setTitle("Token imported · sending restricted")
+                            .setMessage(info.extensionWarning).setPositiveButton("OK", null).show();
+                    });
+                } catch (Exception error) { runOnUiThread(() -> showError("Could not import SPL token", error)); }
+            });
+        }));
+        dialog.show();
+    }
+
+    private void solanaTokenInfo(SolanaToken token) {
+        String message = "Name: " + token.name + "\nSymbol: " + token.symbol
+            + "\nMint: " + token.mint + "\nDecimals: " + token.decimals
+            + "\nToken program: " + (NonEvmEngine.TOKEN_2022_PROGRAM_ID.equals(token.programId) ? "Token-2022" : "Original SPL Token")
+            + "\nNetwork: Solana mainnet\n\nDisplay metadata can be misleading. Verify the mint with a trusted issuer.";
+        new AlertDialog.Builder(this).setTitle("SPL token details").setMessage(message)
+            .setNeutralButton("Explorer", (d,w) -> openExternal("https://explorer.solana.com/address/" + Uri.encode(token.mint)))
+            .setNegativeButton("Remove", (d,w) -> {
+                SolanaToken.remove(this, token);
+                render();
+            }).setPositiveButton("Close", null).show();
+    }
+
+    private void sendSolanaTokenDialog(SolanaToken token) {
+        EditText to = input("Recipient Solana wallet address");
+        EditText amount = input("0.01");
+        amount.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        LinearLayout box = dialogBox();
+        box.addView(label("Token: " + token.name + " · " + token.symbol, 12, MUTED, true));
+        addTo(box, label("Mint: " + shortAddress(token.mint), 10, MUTED, false), 4);
+        addTo(box, label("Recipient wallet", 12, MUTED, true), 10);
+        box.addView(to);
+        addTo(box, label("Amount (" + token.symbol + ")", 12, MUTED, true), 10);
+        box.addView(amount);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Send SPL token")
+            .setMessage("The wallet will verify the mint, balance, recipient token account, and fee/rent requirements before signing.")
+            .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Review", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String destination = to.getText().toString().trim();
+            String amountText = amount.getText().toString().trim();
+            if (walletLocked || nonEvm == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before sending.")); return; }
+            if (destination.isEmpty() || amountText.isEmpty()) { showError("Invalid SPL transfer", new IllegalArgumentException("Enter recipient and amount.")); return; }
+            dialog.dismiss();
+            io.execute(() -> {
+                try {
+                    NonEvmEngine active = nonEvm;
+                    if (walletLocked || active == null) throw new IllegalStateException("Wallet locked before transfer review.");
+                    String estimate = active.previewSolanaTokenTransfer(token, destination, amountText);
+                    BigDecimal value = new BigDecimal(amountText);
+                    BigDecimal usd = null;
+                    try {
+                        usd = WalletSecurity.solanaTokenUsdValue(token.mint, value)
+                            .add(WalletSecurity.coinUsdValue("solana", new BigDecimal("0.0022")));
+                    } catch (Exception ignoredPrice) { usd = null; }
+                    BigDecimal finalUsd = usd;
+                    runOnUiThread(() -> confirmSolanaTokenTransfer(token, destination, value, finalUsd, estimate));
+                } catch (Exception error) { runOnUiThread(() -> showError("Cannot prepare SPL transfer", error)); }
+            });
+        }));
+        dialog.show();
+    }
+
+    private void confirmSolanaTokenTransfer(SolanaToken token, String destination, BigDecimal amount,
+                                             BigDecimal usdValue, String feeEstimate) {
+        boolean unpriced = usdValue == null;
+        boolean large = usdValue != null && profile.bigSendUsd > 0 && usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0;
+        String message = "Network: Solana mainnet\nRecipient wallet: " + destination
+            + "\nToken: " + token.name + " (" + token.symbol + ")\nAmount: " + amount.toPlainString() + " " + token.symbol
+            + "\nMint: " + token.mint + "\nDecimals: " + token.decimals
+            + (usdValue == null ? "" : "\nIndicative token + conservative fee/rent value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString())
+            + "\n" + feeEstimate + "\n\nThe transaction is signed locally on this device."
+            + (unpriced ? "\n\nWARNING: No reliable USD quote is available. This requires an additional confirmation; with the spend cap active, it reserves all remaining cap capacity." : "")
+            + (large ? "\n\nThis meets or exceeds the large-send threshold ($" + profile.bigSendUsd + ")." : "");
+        boolean extra = unpriced || large;
+        new AlertDialog.Builder(this).setTitle(extra ? "SPL transfer · extra review" : "Confirm SPL transfer")
+            .setMessage(message).setNegativeButton("Cancel", null)
+            .setPositiveButton(extra ? "Continue to final review" : "Sign & send", (d,w) -> {
+                if (extra) new AlertDialog.Builder(this).setTitle("Final SPL transfer confirmation")
+                    .setMessage("Send " + amount.toPlainString() + " " + token.symbol + " to " + destination
+                        + "?\nMint: " + token.mint + "\nThis transfer is irreversible.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("I verified · Sign & send", (dd,ww) -> broadcastSolanaToken(token, destination, amount, usdValue)).show();
+                else broadcastSolanaToken(token, destination, amount, usdValue);
+            }).show();
+    }
+
+    private void broadcastSolanaToken(SolanaToken token, String destination, BigDecimal amount, BigDecimal usdValue) {
+        if (walletLocked || nonEvm == null || engine == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before sending.")); return; }
+        String walletAddress = nonEvm.solanaAddress();
+        io.execute(() -> {
+            WalletSecurity.Reservation reservation = null;
+            boolean dispatchStarted = false;
+            try {
+                NonEvmEngine active = nonEvm;
+                if (walletLocked || active == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
+                if (walletLocked || active != nonEvm || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                dispatchStarted = true;
+                String signature = active.sendSolanaToken(token.mint, destination, amount.toPlainString(), token.decimals, token.programId);
+                runOnUiThread(() -> Toast.makeText(this, "SPL token sent: " + signature, Toast.LENGTH_LONG).show());
+            } catch (Exception error) {
+                if (reservation != null && !dispatchStarted) WalletSecurity.release(this, reservation);
+                Exception shown = dispatchStarted ? new IllegalStateException(safeMessage(error)
+                    + " The network outcome may be uncertain; spending capacity remains reserved for safety.", error) : error;
+                runOnUiThread(() -> showError("SPL transfer failed", shown));
+            }
+        });
+    }
+
     private void refreshNonEvm(TextView solBalance, TextView btcBalance) {
         if (nonEvm == null) return;
         io.execute(() -> {
@@ -800,33 +1549,63 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
             .setTitle("Send SOL")
             .setMessage("Review the Solana recipient and amount before local signing.")
-            .setView(box)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Review", null)
-            .create();
+            .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Review", null).create();
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             try {
-                java.math.BigDecimal value = new java.math.BigDecimal(amount.getText().toString().trim());
+                BigDecimal value = new BigDecimal(amount.getText().toString().trim());
                 String destination = to.getText().toString().trim();
                 if (destination.isEmpty() || value.signum() <= 0) throw new IllegalArgumentException("Enter a valid recipient and amount.");
-                new AlertDialog.Builder(this)
-                    .setTitle("Confirm SOL transfer")
-                    .setMessage("Network: Solana mainnet\nRecipient: " + destination + "\nAmount: " + value.toPlainString() + " SOL\n\nThe transaction will be signed on this device.")
-                    .setNegativeButton("Cancel", null)
-                    .setPositiveButton("Sign & send", (d, w) -> io.execute(() -> {
-                        try {
-                            String signature = nonEvm.sendSolana(destination, value);
-                            runOnUiThread(() -> Toast.makeText(this, "SOL sent: " + signature, Toast.LENGTH_LONG).show());
-                        } catch (Exception error) {
-                            runOnUiThread(() -> showError("SOL transfer failed", error));
-                        }
-                    })).show();
                 dialog.dismiss();
-            } catch (Exception error) {
-                showError("Invalid SOL transfer", error);
-            }
+                io.execute(() -> {
+                    try {
+                        BigDecimal usd = null;
+                        if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) usd = WalletSecurity.coinUsdValue("solana", value.add(new BigDecimal("0.00001")));
+                        BigDecimal finalUsd = usd;
+                        runOnUiThread(() -> confirmSolanaTransfer(destination, value, finalUsd));
+                    } catch (Exception error) { runOnUiThread(() -> showError("Cannot value SOL transfer", error)); }
+                });
+            } catch (Exception error) { showError("Invalid SOL transfer", error); }
         }));
         dialog.show();
+    }
+
+    private void confirmSolanaTransfer(String destination, BigDecimal amount, BigDecimal usdValue) {
+        boolean large = usdValue != null && profile.bigSendUsd > 0 && usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0;
+        String msg = "Network: Solana mainnet\nRecipient: " + destination + "\nAmount: " + amount.toPlainString()
+            + " SOL" + (usdValue == null ? "" : "\nIndicative USD value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString())
+            + "\n\nThe transaction will be signed on this device."
+            + (large ? "\n\nThis meets or exceeds your large-send confirmation threshold ($" + profile.bigSendUsd + ")." : "");
+        new AlertDialog.Builder(this).setTitle(large ? "Large SOL transfer · review" : "Confirm SOL transfer")
+            .setMessage(msg).setNegativeButton("Cancel", null)
+            .setPositiveButton(large ? "Continue to final review" : "Sign & send", (d,w) -> {
+                if (large) new AlertDialog.Builder(this).setTitle("Final SOL confirmation")
+                    .setMessage("Send " + amount.toPlainString() + " SOL to " + destination + "?\nEstimated value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()
+                        + "\nThis is irreversible.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("I verified · Sign & send", (dd,ww) -> broadcastSolana(destination, amount, usdValue)).show();
+                else broadcastSolana(destination, amount, usdValue);
+            }).show();
+    }
+
+    private void broadcastSolana(String destination, BigDecimal amount, BigDecimal usdValue) {
+        if (walletLocked || nonEvm == null || engine == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before sending.")); return; }
+        String walletAddress = engine == null ? "" : engine.address();
+        io.execute(() -> {
+            WalletSecurity.Reservation reservation = null;
+            boolean dispatchStarted = false;
+            try {
+                if (walletLocked || nonEvm == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
+                if (walletLocked || nonEvm == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                dispatchStarted = true;
+                String signature = nonEvm.sendSolana(destination, amount);
+                runOnUiThread(() -> Toast.makeText(this, "SOL sent: " + signature, Toast.LENGTH_LONG).show());
+            } catch (Exception error) {
+                if (reservation != null && !dispatchStarted) WalletSecurity.release(this, reservation);
+                Exception shown = dispatchStarted ? new IllegalStateException(safeMessage(error) + " The network outcome may be uncertain; spending capacity remains reserved for safety.", error) : error;
+                runOnUiThread(() -> showError("SOL transfer failed", shown));
+            }
+        });
     }
 
     private void sendBitcoinDialog() {
@@ -847,54 +1626,110 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
             .setTitle("Send Bitcoin")
             .setMessage("Native SegWit mainnet transaction. The transaction is constructed and signed locally; only the signed transaction is broadcast.")
-            .setView(box)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Review", null)
-            .create();
+            .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Review", null).create();
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             try {
-                java.math.BigDecimal value = new java.math.BigDecimal(amount.getText().toString().trim());
-                long feeRate = new java.math.BigDecimal(fee.getText().toString().trim()).longValueExact();
+                BigDecimal value = new BigDecimal(amount.getText().toString().trim());
+                long feeRate = new BigDecimal(fee.getText().toString().trim()).longValueExact();
                 String destination = to.getText().toString().trim();
                 if (!destination.startsWith("bc1") || value.signum() <= 0 || feeRate <= 0) {
                     throw new IllegalArgumentException("Enter a valid bc1 mainnet destination, amount and fee rate.");
                 }
-                new AlertDialog.Builder(this)
-                    .setTitle("Confirm BTC transfer")
-                    .setMessage("Network: Bitcoin mainnet\nRecipient: " + destination + "\nAmount: " + value.toPlainString() + " BTC\nFee rate: " + feeRate + " sat/vB\n\nThis is irreversible.")
-                    .setNegativeButton("Cancel", null)
-                    .setPositiveButton("Sign & broadcast", (d, w) -> io.execute(() -> {
-                        try {
-                            String txid = nonEvm.sendBitcoin(destination, value, feeRate);
-                            runOnUiThread(() -> Toast.makeText(this, "BTC sent: " + txid, Toast.LENGTH_LONG).show());
-                        } catch (Exception error) {
-                            runOnUiThread(() -> showError("BTC transfer failed", error));
-                        }
-                    })).show();
                 dialog.dismiss();
-            } catch (Exception error) {
-                showError("Invalid BTC transfer", error);
-            }
+                io.execute(() -> {
+                    try {
+                        BigDecimal usd = null;
+                        if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) {
+                            BigDecimal conservativeFeeBtc = BigDecimal.valueOf(feeRate).multiply(BigDecimal.valueOf(250)).movePointLeft(8);
+                            usd = WalletSecurity.coinUsdValue("bitcoin", value.add(conservativeFeeBtc));
+                        }
+                        BigDecimal finalUsd = usd;
+                        runOnUiThread(() -> confirmBitcoinTransfer(destination, value, feeRate, finalUsd));
+                    } catch (Exception error) { runOnUiThread(() -> showError("Cannot value BTC transfer", error)); }
+                });
+            } catch (Exception error) { showError("Invalid BTC transfer", error); }
         }));
         dialog.show();
     }
 
+    private void confirmBitcoinTransfer(String destination, BigDecimal amount, long feeRate, BigDecimal usdValue) {
+        boolean large = usdValue != null && profile.bigSendUsd > 0 && usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0;
+        String msg = "Network: Bitcoin mainnet\nRecipient: " + destination + "\nAmount: " + amount.toPlainString()
+            + " BTC\nFee rate: " + feeRate + " sat/vB"
+            + (usdValue == null ? "" : "\nIndicative amount + conservative fee estimate: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString())
+            + "\n\nThis is irreversible."
+            + (large ? "\n\nThis meets or exceeds your large-send confirmation threshold ($" + profile.bigSendUsd + ")." : "");
+        new AlertDialog.Builder(this).setTitle(large ? "Large BTC transfer · review" : "Confirm BTC transfer")
+            .setMessage(msg).setNegativeButton("Cancel", null)
+            .setPositiveButton(large ? "Continue to final review" : "Sign & broadcast", (d,w) -> {
+                if (large) new AlertDialog.Builder(this).setTitle("Final BTC confirmation")
+                    .setMessage("Send " + amount.toPlainString() + " BTC to " + destination + "?\nEstimated value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()
+                        + "\nFee rate: " + feeRate + " sat/vB. This is irreversible.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("I verified · Sign & broadcast", (dd,ww) -> broadcastBitcoin(destination, amount, feeRate, usdValue)).show();
+                else broadcastBitcoin(destination, amount, feeRate, usdValue);
+            }).show();
+    }
+
+    private void broadcastBitcoin(String destination, BigDecimal amount, long feeRate, BigDecimal usdValue) {
+        if (walletLocked || nonEvm == null || engine == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before sending.")); return; }
+        String walletAddress = engine.address();
+        io.execute(() -> {
+            WalletSecurity.Reservation reservation = null;
+            boolean dispatchStarted = false;
+            try {
+                if (walletLocked || nonEvm == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
+                if (walletLocked || nonEvm == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                dispatchStarted = true;
+                String txid = nonEvm.sendBitcoin(destination, amount, feeRate);
+                runOnUiThread(() -> Toast.makeText(this, "BTC sent: " + txid, Toast.LENGTH_LONG).show());
+            } catch (Exception error) {
+                if (reservation != null && !dispatchStarted) WalletSecurity.release(this, reservation);
+                Exception shown = dispatchStarted ? new IllegalStateException(safeMessage(error) + " The network outcome may be uncertain; spending capacity remains reserved for safety.", error) : error;
+                runOnUiThread(() -> showError("BTC transfer failed", shown));
+            }
+        });
+    }
+
     private void sendDialog() {
         EditText to = input("0x destination");
-        Spinner asset = new Spinner(this);
-        asset.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
-            new String[] { selectedNetwork.symbol, "USDC" }));
         EditText amount = input("0.01");
         amount.setSingleLine(true);
         amount.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
 
+        List<CustomToken> tokenChoices = new ArrayList<>();
+        try {
+            tokenChoices.add(new CustomToken(selectedNetwork.chainId, "USD Coin", "USDC",
+                WalletEngine.configuredUsdcAddress(selectedNetwork), 6));
+        } catch (Exception ignored) { }
+        for (CustomToken token : CustomToken.load(this, selectedNetwork.chainId)) {
+            boolean duplicate = false;
+            for (CustomToken existing : tokenChoices) if (existing.address.equalsIgnoreCase(token.address)) duplicate = true;
+            if (!duplicate) tokenChoices.add(token);
+        }
+        List<String> assetLabels = new ArrayList<>();
+        assetLabels.add(selectedNetwork.symbol + " (native)");
+        for (CustomToken token : tokenChoices) assetLabels.add(token.symbol + " · " + shortAddress(token.address));
+
+        Spinner asset = new Spinner(this);
+        asset.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, assetLabels));
         LinearLayout box = dialogBox();
         box.addView(label("Asset", 12, MUTED, true));
         box.addView(asset);
         addTo(box, label("Destination", 12, MUTED, true), 12);
         box.addView(to);
-        addTo(box, label("Amount (" + selectedNetwork.symbol + ")", 12, MUTED, true), 12);
+        TextView amountLabel = label("Amount (" + selectedNetwork.symbol + ")", 12, MUTED, true);
+        addTo(box, amountLabel, 12);
         box.addView(amount);
+        asset.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String symbol = position == 0 ? selectedNetwork.symbol : tokenChoices.get(position - 1).symbol;
+                amountLabel.setText("Amount (" + symbol + ")");
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) { }
+        });
+        if (tokenChoices.isEmpty()) addTo(box, notice("No configured stablecoin is available on this network. Import an ERC-20 token to send it."), 8);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
             .setTitle("Prepare transaction")
@@ -906,24 +1741,41 @@ public final class MainActivity extends Activity {
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String destination = to.getText().toString().trim();
             String value = amount.getText().toString().trim();
+            int selected = asset.getSelectedItemPosition();
+            CustomToken token = selected <= 0 ? null : tokenChoices.get(selected - 1);
             dialog.dismiss();
-            boolean usdc = "USDC".equals(String.valueOf(asset.getSelectedItem()));
-            prepareTransfer(destination, value, usdc);
+            prepareTransfer(destination, value, token);
         }));
         dialog.show();
     }
 
-    private void prepareTransfer(String to, String amount) { prepareTransfer(to, amount, false); }
-
-    private void prepareTransfer(String to, String amount, boolean usdc) {
-        status("Fetching nonce and network fee…");
+    private void prepareTransfer(String to, String amount, CustomToken token) {
+        status("Fetching balance, nonce and network fee…");
         EvmNetwork network = selectedNetwork;
         io.execute(() -> {
             try {
-                WalletEngine.PreparedTransfer prepared = usdc
-                    ? engine.prepareUsdc(network, to, amount)
-                    : engine.prepare(network, to, amount);
-                runOnUiThread(() -> reviewTransfer(prepared));
+                WalletEngine activeEngine = engine;
+                if (walletLocked || activeEngine == null) throw new IllegalStateException("Wallet is locked. Unlock it before preparing a transaction.");
+                WalletEngine.PreparedTransfer prepared;
+                if (token == null) {
+                    prepared = activeEngine.prepare(network, to, amount);
+                } else {
+                    if (token.chainId != network.chainId) throw new IllegalArgumentException("Token network does not match the selected network.");
+                    prepared = activeEngine.prepareTokenTransfer(network, to, amount, token.address, token.decimals, token.symbol);
+                }
+                BigDecimal usdValue = null;
+                if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) {
+                    try {
+                        usdValue = WalletSecurity.usdValue(prepared);
+                    } catch (Exception priceError) {
+                        if (prepared.assetToken == null) throw priceError;
+                        // User-imported tokens may have no reliable market quote. The cap reserves
+                        // all remaining capacity and the review forces an additional confirmation.
+                        usdValue = null;
+                    }
+                }
+                BigDecimal finalUsdValue = usdValue;
+                runOnUiThread(() -> reviewTransfer(prepared, finalUsdValue));
             } catch (Exception error) {
                 runOnUiThread(() -> {
                     status("Transaction not prepared");
@@ -933,39 +1785,83 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void reviewTransfer(WalletEngine.PreparedTransfer transfer) {
+    private void reviewTransfer(WalletEngine.PreparedTransfer transfer, BigDecimal usdValue) {
+        String valueLine = usdValue == null
+            ? "\nUSD estimate: unavailable for this imported token."
+                + (profile.sessionLimitUsd > 0 ? "\nIf you proceed, the rolling 24-hour cap will conservatively reserve all remaining capacity." : "")
+            : "\nEstimated USD value (including estimated fee): $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()
+                + "\nPrice estimate is indicative and may differ from execution value.";
         String message = "Network: " + transfer.network.name
             + "\nTo: " + transfer.to
+            + "\nAsset: " + transfer.assetText()
+            + (transfer.assetToken == null ? "" : "\nToken contract: " + transfer.assetToken)
             + "\nAmount: " + transfer.amountText()
             + "\nEstimated network fee: " + transfer.feeText()
-            + "\n\nSigning happens on this device after you press Sign & broadcast.";
-
+            + valueLine
+            + "\n\nSigning happens on this device after you confirm.";
+        boolean large = profile.bigSendUsd > 0 && (usdValue == null
+            ? transfer.assetToken != null
+            : usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0);
         new AlertDialog.Builder(this)
-            .setTitle("Review transaction")
-            .setMessage(message)
+            .setTitle(large ? "Large transfer · first review" : "Review transaction")
+            .setMessage(message + (large ? "\n\nThis meets or exceeds your large-send confirmation threshold of $" + profile.bigSendUsd + "." : ""))
             .setNegativeButton("Cancel", null)
-            .setPositiveButton("Sign & broadcast", (dialog, which) -> broadcast(transfer))
+            .setPositiveButton(large ? "Continue to final review" : "Sign & broadcast",
+                (dialog, which) -> {
+                    if (large) showLargeSendConfirmation(transfer, usdValue);
+                    else broadcast(transfer, usdValue);
+                })
             .show();
     }
 
-    private void broadcast(WalletEngine.PreparedTransfer transfer) {
-        status("Signing locally and broadcasting…");
+    private void showLargeSendConfirmation(WalletEngine.PreparedTransfer transfer, BigDecimal usdValue) {
+        new AlertDialog.Builder(this)
+            .setTitle("Confirm large transfer")
+            .setMessage("You are about to send " + transfer.amountText() + " on " + transfer.network.name
+                + "\nRecipient: " + transfer.to
+                + (transfer.assetToken == null ? "" : "\nToken contract: " + transfer.assetToken)
+                + (usdValue == null ? "\nUSD value unavailable; the remaining 24-hour cap will be reserved conservatively if enabled."
+                    : "\nIndicative value including estimated fee: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString())
+                + "\nEstimated fee: " + transfer.feeText()
+                + "\n\nThis transfer meets your large-send threshold ($" + profile.bigSendUsd + ") or has no reliable price. Transactions cannot be reversed. Verify the network, recipient, token contract and amount.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("I verified · Sign & broadcast", (dialog, which) -> broadcast(transfer, usdValue))
+            .show();
+    }
+
+    private void broadcast(WalletEngine.PreparedTransfer transfer, BigDecimal usdValue) {
+        if (walletLocked || engine == null) {
+            showError("Wallet is locked", new IllegalStateException("Unlock the wallet before broadcasting."));
+            return;
+        }
+        final String walletAddress = engine.address();
+        status("Checking spending limit, signing locally and broadcasting…");
         io.execute(() -> {
+            WalletSecurity.Reservation reservation = null;
+            boolean dispatchStarted = false;
             try {
+                if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
+                if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                dispatchStarted = true;
                 String hash = engine.broadcast(transfer);
                 runOnUiThread(() -> {
                     status("Broadcast: " + hash);
                     new AlertDialog.Builder(this)
                         .setTitle("Transaction broadcast")
-                        .setMessage(hash)
+                        .setMessage(hash + (usdValue == null
+                            ? (profile.sessionLimitUsd > 0 ? "\n\nUSD value unavailable; remaining 24-hour spending capacity was conservatively reserved." : "")
+                            : "\n\nCounted toward the rolling 24-hour spending limit, including estimated fee: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()))
                         .setPositiveButton("OK", null)
                         .show();
                     refreshBalance();
                 });
             } catch (Exception error) {
+                if (reservation != null && !dispatchStarted) WalletSecurity.release(this, reservation);
+                Exception shown = dispatchStarted ? new IllegalStateException(safeMessage(error) + " The network outcome may be uncertain; spending capacity remains reserved for safety.", error) : error;
                 runOnUiThread(() -> {
-                    status("Broadcast failed");
-                    showError("Transaction failed", error);
+                    status("Broadcast failed or was cancelled");
+                    showError("Transaction failed", shown);
                 });
             }
         });
@@ -1001,10 +1897,11 @@ public final class MainActivity extends Activity {
 
     private void securitySettingsDialog() {
         LinearLayout box = dialogBox();
-        EditText lock = input("Auto-lock minutes"); lock.setInputType(InputType.TYPE_CLASS_NUMBER); lock.setText(Integer.toString(profile.autoLockMin));
-        EditText large = input("Large-send threshold USD"); large.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); large.setText(Integer.toString(profile.bigSendUsd));
-        EditText limit = input("Session spend limit USD"); limit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); limit.setText(Integer.toString(profile.sessionLimitUsd));
-        box.addView(label("Auto-lock", 12, MUTED, true)); box.addView(lock); addTo(box, label("Large-send guard", 12, MUTED, true), 10); box.addView(large); addTo(box, label("Session spend limit", 12, MUTED, true), 10); box.addView(limit);
+        addTo(box, notice("Enforced controls: the wallet locks after inactivity and whenever the app leaves the foreground. Large sends require a second confirmation. The spending limit is a persistent rolling 24-hour USD cap. Market prices are estimates. If an imported token has no reliable USD price, sending requires an extra confirmation and reserves all remaining cap capacity. Unknown dapp methods are blocked while the cap is active. Set a guard to 0 only if you intentionally want to disable it."), 8);
+        EditText lock = input("Auto-lock after inactivity (minutes)"); lock.setInputType(InputType.TYPE_CLASS_NUMBER); lock.setText(Integer.toString(profile.autoLockMin));
+        EditText large = input("Large-send extra-confirmation threshold USD (0 = off)"); large.setInputType(InputType.TYPE_CLASS_NUMBER); large.setText(Integer.toString(profile.bigSendUsd));
+        EditText limit = input("Rolling 24-hour spending cap USD (0 = off)"); limit.setInputType(InputType.TYPE_CLASS_NUMBER); limit.setText(Integer.toString(profile.sessionLimitUsd));
+        box.addView(label("Inactivity lock", 12, MUTED, true)); box.addView(lock); addTo(box, label("Large-send confirmation", 12, MUTED, true), 10); box.addView(large); addTo(box, label("24-hour spending cap", 12, MUTED, true), 10); box.addView(limit);
         AlertDialog d = new AlertDialog.Builder(this).setTitle("Security settings").setView(box).setNegativeButton("Cancel", null).setPositiveButton("Save", null).create();
         d.setOnShowListener(v -> d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(x -> { try { profile=profile.withSettings(Integer.parseInt(lock.getText().toString()), Integer.parseInt(large.getText().toString()), Integer.parseInt(limit.getText().toString()), profile.currency, profile.walletStyle, profile.navigationStyle, profile.assetStyle, profile.actionStyle); profile.save(this); d.dismiss(); render(); } catch(Exception e){ showError("Invalid security settings", e); } })); d.show();
     }

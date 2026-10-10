@@ -17,6 +17,7 @@ import { Route as OwnerRouteImport } from './routes/owner'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PrivacyChoicesRouteImport } from './routes/privacy-choices'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as SitemapRouteImport } from './routes/sitemap'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SwaggerRouteImport } from './routes/swagger'
@@ -80,6 +81,11 @@ const PrivacyChoicesRoute = PrivacyChoicesRouteImport.update({
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapRoute = SitemapRouteImport.update({
+  id: '/sitemap',
+  path: '/sitemap',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SupportRoute = SupportRouteImport.update({
@@ -213,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/privacy-choices': typeof PrivacyChoicesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/sitemap': typeof SitemapRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/api/human-ai': typeof ApiHumanAiRoute
@@ -245,6 +252,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/privacy-choices': typeof PrivacyChoicesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/sitemap': typeof SitemapRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/api/human-ai': typeof ApiHumanAiRoute
@@ -280,6 +288,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/privacy-choices': typeof PrivacyChoicesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/sitemap': typeof SitemapRoute
   '/support': typeof SupportRoute
   '/terms': typeof TermsRoute
   '/api/human-ai': typeof ApiHumanAiRoute
@@ -316,6 +325,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/privacy-choices'
     | '/sitemap.xml'
+    | '/sitemap'
     | '/support'
     | '/terms'
     | '/api/human-ai'
@@ -348,6 +358,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/privacy-choices'
     | '/sitemap.xml'
+    | '/sitemap'
     | '/support'
     | '/terms'
     | '/api/human-ai'
@@ -382,6 +393,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/privacy-choices'
     | '/sitemap.xml'
+    | '/sitemap'
     | '/support'
     | '/terms'
     | '/api/human-ai'
@@ -416,6 +428,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   PrivacyChoicesRoute: typeof PrivacyChoicesRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  SitemapRoute: typeof SitemapRoute
   SupportRoute: typeof SupportRoute
   TermsRoute: typeof TermsRoute
   SwaggerRoute: typeof SwaggerRoute
@@ -489,6 +502,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap': {
+      id: '/sitemap'
+      path: '/sitemap'
+      fullPath: '/sitemap'
+      preLoaderRoute: typeof SitemapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/support': {
@@ -721,6 +741,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   PrivacyChoicesRoute: PrivacyChoicesRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  SitemapRoute: SitemapRoute,
   SupportRoute: SupportRoute,
   TermsRoute: TermsRoute,
   SwaggerRoute: SwaggerRoute,

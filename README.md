@@ -4,13 +4,13 @@
 
 # BuildAWallet.xyz
 
-BuildAWallet has a HUMAN wallet designer and a NON-HUMAN read-only machine data API. The public website does **not** create custodial wallets or sign and broadcast transactions.
+BuildAWallet has a HUMAN wallet designer and a NON-HUMAN machine data API. The public website does **not** custody customer wallets or sign transactions; the machine API only relays transactions that the caller has already signed locally on supported chains.
 
 | Surface | Current capability | Deployment |
 | --- | --- | --- |
 | HUMAN Pages site | Email-verified account, four-step onboarding, interactive Studio blueprint, release choice, crypto subscription handoff and build-status download screen | Cloudflare Pages serves `/human/*`; Cloudflare Access can guard account and release services |
 | HUMAN API | Architect chat, saved designs, gallery and stats | `cloudflare-human/` Python Worker with D1, routes `/api/*` and `/healthz` |
-| NON-HUMAN data | ten-mainnet read API, composite snapshots, MCP tools, and $0.01 USDC native snapshots through x402 | `agent-pay/` Worker, route `/machine/*` and `/mcp` |
+| NON-HUMAN data | nine-network read API, composite snapshots, MCP tools, prepaid access, and locally signed transfers on EVM + Solana | `human-app/` machine routes; `agent-pay/` remains a separate worker |
 | Agent wallet signer | Local prototype only | Not mounted on the public container or Cloudflare |
 
 The optional Docker/see.io server in `main.py` serves the website and a read-only MCP preview. It deliberately does not mount `agent_protocol.py`. A `BAW_MASTER_KEY` environment variable does not turn the public server into a signer. Do not put signing keys or bootstrap credentials into either Cloudflare Worker.
@@ -22,13 +22,13 @@ The optional Docker/see.io server in `main.py` serves the website and a read-onl
 3. `/human/release` is mainnet only. It checks entitlement and sends an unsubscribed user to the $1.99 monthly crypto-only `/human/pay` confirmation flow.
 4. `/human/download` polls the build service and displays a QR code and APK link only after the API reports a completed signed artifact. `/human/live` remains available for free read-only Base or Solana mainnet balances.
 
-The previously shared APK is a WebView wrapper, not a functional Android wallet. The download screen therefore stays locked unless the build API returns a completed signed artifact and its URL. HUMAN design remains a browser-local preview. The current API plans are Starter $15, Pro $49 and Scale $149 for 30 days. Prepaid checkout supports Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, Avalanche, Solana, Bitcoin and. Wallet ownership, confirmed payment receipts, one-time transaction accounting and subscription expiry govern API access only. See [the Access setup](CLOUDFLARE_ACCESS.md), [deployment steps](DEPLOY_MAINNET.md), and [Android release gap](ANDROID_RELEASE.md).
+The Android wallet includes custom ERC-20 import/send on the seven configured EVM networks plus Solana SPL Token and basic Token-2022 mint import/balance/send. Token-2022 mints with unsupported extensions are blocked from sending; arbitrary Solana dapp signing is not part of the current SPL send flow. The previously shared APK is a WebView wrapper, not a functional Android wallet. The download screen therefore stays locked unless the build API returns a completed signed artifact and its URL. HUMAN design remains a browser-local preview. The current API plans are Starter $15, Pro $49 and Scale $149 for 30 days. Prepaid checkout supports Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain, Avalanche, Solana and Bitcoin. Wallet ownership, confirmed payment receipts, one-time transaction accounting and subscription expiry govern API access only. See [the Access setup](CLOUDFLARE_ACCESS.md), [deployment steps](DEPLOY_MAINNET.md), and [Android release gap](ANDROID_RELEASE.md).
 
-## NON-HUMAN payment flow
+## Legacy NON-HUMAN worker reference
 
-`GET /machine/info` is free discovery. `GET /machine/wallet?address=0x...` reads Base mainnet and `GET /machine/solana-wallet?address=...` reads Solana mainnet. A valid unpaid request gets an x402 HTTP 402 challenge for $0.01 USDC on either chain. Payments on Base go to `0xBcCA6AED433d9020C50D44560F9679F1B5eB511d`; payments on Solana go to `Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC`. The Worker needs separate mainnet RPC URLs and a production facilitator. See [the machine service README](agent-pay/README.md).
+The older `agent-pay/` Worker documentation below is retained for migration context and may not match the current `human-app/` production routes. The current app exposes nine configured mainnets, prepaid API units, native/stablecoin/transaction/snapshot reads, and locally signed EVM + Solana transaction preparation/broadcast. Bitcoin is read-only for transaction preparation/broadcast. See [the current app guide](human-app/README.md) and [integration guide](human-app/INTEGRATION.md) before deploying or relying on route behavior.
 
-The free `/machine/quote` gives supported prices and API unit costs. Subscribed reads cover native balances, USDC and transaction status (one unit each), plus composite native and USDC snapshots (two units each, independent RPC reads). MCP exposes those reads, quota and quote tools, and x402 paid native wallet tools. The Worker returns a payment challenge to a compatible client; the payer signs locally.
+The legacy worker previously exposed `/machine/info`, `/machine/wallet`, `/machine/solana-wallet` and x402 challenges. Per-call x402 billing is retired in the current app. Do not use old route examples as current production instructions.
 
 ## Deploy
 

@@ -15,7 +15,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     auth: "none",
     units: 0,
     tag: "Discovery",
-    summary: "List all ten networks with symbols, decimals and stablecoins.",
+    summary: "List all nine configured networks with symbols, decimals and stablecoins.",
   },
   {
     method: "GET",
@@ -56,7 +56,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     units: 0,
     tag: "Agent wallets",
     summary:
-      "Opt-in server-made wallet covering all ten networks. Returns the phrase once; nothing stored. 5 per hour.",
+      "Opt-in server-made wallet covering all nine configured networks. Returns the phrase once; nothing stored. 5 per hour.",
   },
   {
     method: "GET",
@@ -72,7 +72,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     auth: "api-key",
     units: 1,
     tag: "Subscribed API",
-    summary: "Live native balance on any of the ten networks.",
+    summary: "Live native balance on any of the nine configured networks.",
   },
   {
     method: "GET",
@@ -112,7 +112,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     auth: "api-key",
     units: 1,
     tag: "Transactions",
-    summary: "Build an unsigned transfer for a supported transaction network.",
+    summary: "Build unsigned native or token transfers for configured EVM mainnets and native SOL, USDC, or validated SPL transfers on Solana. SPL transfers require existing source and destination token accounts; Bitcoin transaction preparation is not implemented.",
   },
   {
     method: "POST",
@@ -121,7 +121,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     units: 1,
     tag: "Transactions",
     summary:
-      "Broadcast locally signed bytes for supported transaction networks. One unit is reserved per attempt before dispatch, including upstream rejection.",
+      "Broadcast locally signed EVM or Solana bytes on configured transaction networks. Bitcoin broadcast is not implemented. One unit is reserved per attempt before dispatch, including upstream rejection.",
   },
   {
     method: "POST",

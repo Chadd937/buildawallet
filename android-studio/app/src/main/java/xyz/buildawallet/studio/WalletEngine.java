@@ -164,6 +164,10 @@ final class WalletEngine {
         if (!WalletUtils.isValidAddress(tokenAddress)) throw new IllegalArgumentException("Invalid token contract address.");
         if (decimals < 0 || decimals > 36) throw new IllegalArgumentException("Token decimals must be between 0 and 36.");
         if (symbol == null || !symbol.matches("[A-Za-z0-9._-]{1,16}")) throw new IllegalArgumentException("Invalid token symbol.");
+        TokenMetadata onChain = readTokenMetadata(network, tokenAddress);
+        if (!onChain.decimalsKnown) throw new IllegalArgumentException("This token does not expose readable ERC-20 decimals. Sending is blocked because the amount cannot be safely converted to raw units.");
+        if (onChain.decimals != decimals) throw new IllegalArgumentException("Imported decimals (" + decimals + ") do not match the contract's on-chain decimals (" + onChain.decimals + "). Re-import the token with the correct decimals before sending.");
+        String verifiedSymbol = onChain.symbol;
 
         BigDecimal amount;
         try { amount = new BigDecimal(amountText.trim()); }
@@ -211,7 +215,7 @@ final class WalletEngine {
                 throw new IllegalArgumentException("Insufficient " + network.symbol + " to pay the token transfer network fee.");
             }
             return PreparedTransfer.token(network, tokenAddress, to, raw, nonceResponse.getTransactionCount(),
-                gasPrice, gasLimit, data, symbol, decimals);
+                gasPrice, gasLimit, data, verifiedSymbol, decimals);
         } finally { web3j.shutdown(); }
     }
 

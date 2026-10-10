@@ -56,6 +56,21 @@ final class WalletSecurity {
         return amount.multiply(new BigDecimal(item.get("usd").toString())).setScale(8, RoundingMode.HALF_UP);
     }
 
+    static BigDecimal solanaTokenUsdValue(String mintAddress, BigDecimal amount) throws Exception {
+        if (mintAddress == null || !mintAddress.matches("[1-9A-HJ-NP-Za-km-z]{32,44}")) {
+            throw new IllegalArgumentException("Invalid Solana mint address for price lookup.");
+        }
+        JSONObject root = getJson("https://api.coingecko.com/api/v3/simple/token_price/solana?contract_addresses="
+            + enc(mintAddress) + "&vs_currencies=usd");
+        JSONObject item = root.optJSONObject(mintAddress);
+        if (item == null || !item.has("usd") || item.isNull("usd")) {
+            throw new IllegalStateException("No reliable USD quote is available for this SPL token.");
+        }
+        BigDecimal price = new BigDecimal(item.get("usd").toString());
+        if (price.signum() <= 0) throw new IllegalStateException("SPL token price quote is not positive.");
+        return amount.multiply(price).setScale(8, RoundingMode.HALF_UP);
+    }
+
     private static BigDecimal nativePrice(EvmNetwork network) throws Exception {
         String id;
         switch ((int) network.chainId) {

@@ -1350,7 +1350,16 @@ public final class MainActivity extends Activity {
                     prepared = activeEngine.prepareTokenTransfer(network, to, amount, token.address, token.decimals, token.symbol);
                 }
                 BigDecimal usdValue = null;
-                if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) usdValue = WalletSecurity.usdValue(prepared);
+                if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) {
+                    try {
+                        usdValue = WalletSecurity.usdValue(prepared);
+                    } catch (Exception priceError) {
+                        if (prepared.assetToken == null) throw priceError;
+                        // User-imported tokens may have no reliable market quote. The cap reserves
+                        // all remaining capacity and the review forces an additional confirmation.
+                        usdValue = null;
+                    }
+                }
                 BigDecimal finalUsdValue = usdValue;
                 runOnUiThread(() -> reviewTransfer(prepared, finalUsdValue));
             } catch (Exception error) {
@@ -1363,8 +1372,10 @@ public final class MainActivity extends Activity {
     }
 
     private void reviewTransfer(WalletEngine.PreparedTransfer transfer, BigDecimal usdValue) {
-        String valueLine = usdValue == null ? "\nUSD estimate: unavailable (USD guardrails disabled)"
-            : "\nEstimated USD value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()
+        String valueLine = usdValue == null
+            ? "\nUSD estimate: unavailable for this imported token."
+                + (profile.sessionLimitUsd > 0 ? "\nIf you proceed, the rolling 24-hour cap will conservatively reserve all remaining capacity." : "")
+            : "\nEstimated USD value (including estimated fee): $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()
                 + "\nPrice estimate is indicative and may differ from execution value.";
         String message = "Network: " + transfer.network.name
             + "\nTo: " + transfer.to
@@ -1374,8 +1385,9 @@ public final class MainActivity extends Activity {
             + "\nEstimated network fee: " + transfer.feeText()
             + valueLine
             + "\n\nSigning happens on this device after you confirm.";
-        boolean large = usdValue != null && profile.bigSendUsd > 0
-            && usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0;
+        boolean large = profile.bigSendUsd > 0 && (usdValue == null
+            ? transfer.assetToken != null
+            : usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0);
         new AlertDialog.Builder(this)
             .setTitle(large ? "Large transfer · first review" : "Review transaction")
             .setMessage(message + (large ? "\n\nThis meets or exceeds your large-send confirmation threshold of $" + profile.bigSendUsd + "." : ""))
@@ -1420,7 +1432,9 @@ public final class MainActivity extends Activity {
                     status("Broadcast: " + hash);
                     new AlertDialog.Builder(this)
                         .setTitle("Transaction broadcast")
-                        .setMessage(hash + (usdValue == null ? "" : "\n\nCounted toward the rolling 24-hour spending limit: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()))
+                        .setMessage(hash + (usdValue == null
+                            ? (profile.sessionLimitUsd > 0 ? "\n\nUSD value unavailable; remaining 24-hour spending capacity was conservatively reserved." : "")
+                            : "\n\nCounted toward the rolling 24-hour spending limit, including estimated fee: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()))
                         .setPositiveButton("OK", null)
                         .show();
                     refreshBalance();

@@ -821,7 +821,7 @@ public final class MainActivity extends Activity {
             @Override public void onPageFinished(WebView v, String u) { if (isWalletProviderEligibleUrl(u)) injectEip1193(v); }
         });
         root.addView(dappWebView, new LinearLayout.LayoutParams(-1, dp(420)));
-        root.addView(label("Built-in dapp browser exposes the local EIP-1193 EVM provider and a Solana wallet provider on approved HTTPS origins. Solana mainnet transactions are simulated and reviewed before local signing. Dapps never receive the recovery phrase.", 11, MUTED, false));
+        root.addView(label("Built-in dapp browser exposes the local EIP-1193 EVM provider and a Solana wallet provider on HTTPS sites after explicit connection consent. Solana mainnet transactions are simulated and reviewed before local signing. Dapps never receive the recovery phrase.", 11, MUTED, false));
         String[] apps = {"Uniswap|https://app.uniswap.org","Aave|https://app.aave.com","OpenSea|https://opensea.io","Jupiter|https://jup.ag","Raydium|https://raydium.io","BTCme.click|https://btcme.click","LTCme.click|https://ltcme.click","BnbBlockchain.com|https://bnbblockchain.com","MonadBlockchain.com|https://monadblockchain.com","ClickSolana.xyz|https://clicksolana.xyz"};
         for (String item : apps) { String[] parts = item.split("\\|",2); Button b = button("↗ " + parts[0], false); b.setOnClickListener(v -> { url.setText(parts[1]); dappWebView.loadUrl(parts[1]); }); root.addView(b, new LinearLayout.LayoutParams(-1, dp(42))); }
         go.setOnClickListener(v -> loadDappUrl(url.getText().toString(), dappWebView));
@@ -892,6 +892,7 @@ public final class MainActivity extends Activity {
                 return;
             }
             if ("eth_requestAccounts".equals(method)) {
+                if (walletLocked || engine == null) { resolveDapp(id, null, 4001, "Wallet is locked."); return; }
                 new AlertDialog.Builder(this).setTitle("Dapp account access").setMessage("Site: " + (dappWebView == null ? "Unknown site" : Uri.parse(dappWebView.getUrl()).getHost()) + "\n\nAllow this HTTPS site to view and use your EVM address for this session? Solana-enabled sites can request separate Solana account access.").setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Connect", (d,w) -> resolveDapp(id, new org.json.JSONArray().put(engine.address()).toString(), 0, null)).show(); return;
             }
             if ("personal_sign".equals(method)) {

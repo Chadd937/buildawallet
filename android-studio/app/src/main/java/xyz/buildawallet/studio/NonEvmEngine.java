@@ -305,11 +305,52 @@ final class NonEvmEngine {
                     && data.length >= 9 && ((data[0] & 0xff) == 3 || ((data[0] & 0xff) == 12 && data.length >= 10))) {
                 boolean checked = (data[0] & 0xff) == 12;
                 BigInteger raw = littleU64Big(data, 1);
-                label = (checked ? "SPL Token · checked transfer" : "SPL Token · transfer");
-                detail = "Raw token amount: " + raw.toString();
-                if (checked) detail += "\nDecimals: " + (data[9] & 0xff);
+                label = checked ? "SPL Token · checked transfer" : "SPL Token · transfer (raw units)";
+                detail = checked
+                    ? "Amount: " + new BigDecimal(raw).movePointLeft(data[9] & 0xff).stripTrailingZeros().toPlainString()
+                        + " (raw units: " + raw + "; decimals: " + (data[9] & 0xff) + ")"
+                    : "Raw token amount: " + raw;
                 if (accounts.size() >= 3) detail += "\nSource: " + accountKey(view, accounts.get(0))
                     + "\nDestination: " + accountKey(view, accounts.get(checked ? 2 : 1));
+                unknown = false;
+            } else if ((TokenProgram.PROGRAM_ID.toBase58().equals(program) || TOKEN_2022_PROGRAM_ID.equals(program))
+                    && data.length >= 19 && (data[0] & 0xff) == 26 && (data[1] & 0xff) == 1) {
+                BigInteger raw = littleU64Big(data, 2);
+                int decimals = data[10] & 0xff;
+                BigInteger fee = littleU64Big(data, 11);
+                label = "Token-2022 · transfer with fee";
+                detail = "Amount: " + new BigDecimal(raw).movePointLeft(decimals).stripTrailingZeros().toPlainString()
+                    + "\nExpected fee: " + new BigDecimal(fee).movePointLeft(decimals).stripTrailingZeros().toPlainString()
+                    + "\nRaw amount: " + raw + "; raw fee: " + fee + "; decimals: " + decimals;
+                if (accounts.size() >= 3) detail += "\nSource: " + accountKey(view, accounts.get(0))
+                    + "\nMint: " + accountKey(view, accounts.get(1))
+                    + "\nDestination: " + accountKey(view, accounts.get(2));
+                unknown = false;
+            } else if ((TokenProgram.PROGRAM_ID.toBase58().equals(program) || TOKEN_2022_PROGRAM_ID.equals(program))
+                    && data.length >= 9 && ((data[0] & 0xff) == 4 || (data[0] & 0xff) == 7 || (data[0] & 0xff) == 8)) {
+                int opcode = data[0] & 0xff;
+                BigInteger raw = littleU64Big(data, 1);
+                label = opcode == 4 ? "SPL Token · APPROVAL (HIGH RISK)"
+                    : opcode == 7 ? "SPL Token · MINT TOKENS (HIGH RISK)" : "SPL Token · BURN TOKENS (HIGH RISK)";
+                detail = "Raw amount: " + raw;
+                if (accounts.size() >= 2) detail += "\nAccount: " + accountKey(view, accounts.get(0))
+                    + "\nOther account: " + accountKey(view, accounts.get(1));
+                unknown = false;
+            } else if ((TokenProgram.PROGRAM_ID.toBase58().equals(program) || TOKEN_2022_PROGRAM_ID.equals(program))
+                    && data.length > 0 && ((data[0] & 0xff) == 5 || (data[0] & 0xff) == 6
+                        || (data[0] & 0xff) == 9 || (data[0] & 0xff) == 10 || (data[0] & 0xff) == 11)) {
+                int opcode = data[0] & 0xff;
+                label = opcode == 5 ? "SPL Token · REVOKE APPROVAL (HIGH RISK)"
+                    : opcode == 6 ? "SPL Token · CHANGE AUTHORITY (HIGH RISK)"
+                    : opcode == 9 ? "SPL Token · CLOSE ACCOUNT (HIGH RISK)"
+                    : opcode == 10 ? "SPL Token · FREEZE ACCOUNT (HIGH RISK)"
+                    : "SPL Token · THAW ACCOUNT (HIGH RISK)";
+                detail = "Instruction data: " + bytesToHex(Arrays.copyOf(data, Math.min(32, data.length)));
+                if (!accounts.isEmpty()) detail += "\nAccount: " + accountKey(view, accounts.get(0));
+                unknown = false;
+            } else if ((TokenProgram.PROGRAM_ID.toBase58().equals(program) || TOKEN_2022_PROGRAM_ID.equals(program))
+                    && data.length > 0 && (data[0] & 0xff) == 17) {
+                label = "SPL Token · sync wrapped SOL balance";
                 unknown = false;
             } else if ("ComputeBudget111111111111111111111111111111".equals(program)) {
                 label = "Compute Budget";

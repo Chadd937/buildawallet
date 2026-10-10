@@ -19,6 +19,13 @@ import org.bitcoinj.base.Address;
 import org.bitcoinj.base.AddressParser;
 
 import org.p2p.solanaj.programs.SystemProgram;
+import org.p2p.solanaj.programs.TokenProgram;
+import org.p2p.solanaj.programs.AssociatedTokenProgram;
+import org.p2p.solanaj.core.AccountMeta;
+import org.p2p.solanaj.core.TransactionInstruction;
+import org.p2p.solanaj.rpc.types.SplTokenAccountInfo;
+import org.p2p.solanaj.rpc.types.TokenAccountInfo;
+import org.p2p.solanaj.rpc.types.TokenResultObjects;
 import org.p2p.solanaj.rpc.Cluster;
 import org.p2p.solanaj.rpc.RpcClient;
 
@@ -29,8 +36,13 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.math.BigInteger;
+import java.nio.ByteOrder;
 import java.util.stream.Collectors;
 
 final class NonEvmEngine {
@@ -69,6 +81,58 @@ final class NonEvmEngine {
         org.p2p.solanaj.core.Transaction tx = new org.p2p.solanaj.core.Transaction();
         tx.addInstruction(SystemProgram.transfer(solana.getPublicKey(), to, lamports));
         return solanaRpc.getApi().sendTransaction(tx, solana);
+    }
+
+
+
+    static final String TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+
+    static final class SolanaMintInfo {
+        final String mint, programId, onChainName, onChainSymbol;
+        final int decimals;
+        final boolean extensionsSupported;
+        final String extensionWarning;
+        SolanaMintInfo(String mint, String programId, int decimals, String name, String symbol, boolean supported, String warning) {
+            this.mint=mint; this.programId=programId; this.decimals=decimals; this.onChainName=name; this.onChainSymbol=symbol; this.extensionsSupported=supported; this.extensionWarning=warning;
+        }
+    }
+
+    SolanaMintInfo inspectSolanaMint(String mintText) throws Exception {
+        PublicKey mint = new PublicKey(mintText.trim());
+        SplTokenAccountInfo response = solanaRpc.getApi().getSplTokenAccountInfo(mint);
+        if (response == null || response.getValue() == null) throw new IllegalArgumentException("Mint account does not exist on Solana mainnet.");
+        String programId = response.getValue().getOwner();
+        if (!TokenProgram.PROGRAM_ID.toBase58().equals(programId) && !TOKEN_2022_PROGRAM_ID.equals(programId)) throw new IllegalArgumentException("Address is not owned by the original SPL Token program or Token-2022.");
+        TokenResultObjects.Data data = response.getValue().getData();
+        TokenResultObjects.ParsedData parsed = data == null ? null : data.getParsed();
+        TokenResultObjects.TokenInfo info = parsed == null ? null : parsed.getInfo();
+        if (info == null || !"mint".equalsIgnoreCase(parsed.getType()) || !info.isInitialized()) throw new IllegalArgumentException("Address is not an initialized SPL mint.");
+        int decimals = info.getDecimals();
+        if (decimals < 0 || decimals > 18) throw new IllegalArgumentException("Mint decimals are outside the wallet's supported safe range (0–18).");
+        ArrayList<String> unsupported = new ArrayList<>();
+        List<TokenResultObjects.Extension> extensions = info.getExtensions();
+        if (extensions != null) for (TokenResultObjects.Extension extension : extensions) {
+            String type = extension == null ? "unknown" : extension.getExtensionType();
+            if (type == null || (!"metadataPointer".equalsIgnoreCase(type) && !"tokenMetadata".equalsIgnoreCase(type))) unsupported.add(type == null ? "unknown" : type);
+        }
+        boolean supported = unsupported.isEmpty();
+        String warning = supported ? "" : "Unsupported Token-2022 extension(s): " + String.join(", ", unsupported) + ". Sending is blocked until these semantics are implemented and reviewed.";
+        return new SolanaMintInfo(mint.toBase58(), programId, decimals, response.getTokenName().orElse(""), response.getTokenSymbol().orElse(""), supported, warning);
+    }
+
+    String solanaTokenBalance(String mintText) throws Exception {
+        SolanaMintInfo info = inspectSolanaMint(mintText);
+        TokenAccountInfo accounts = solanaRpc.getApi().getTokenAccountsByOwner(solana.getPublicKey(), Map.of("mint", info.mint), Map.of("encoding", "jsonParsed"));
+        BigInteger total = BigInteger.ZERO;
+        if (accounts != null && accounts.getValue() != null) for (TokenAccountInfo.Value account : accounts.getValue()) {
+            TokenResultObjects.Value raw = account.getAccount();
+            TokenResultObjects.Data data = raw == null ? null : raw.getData();
+            TokenResultObjects.ParsedData parsed = data == null ? null : data.getParsed();
+            TokenResultObjects.TokenInfo token = parsed == null ? null : parsed.getInfo();
+            TokenResultObjects.TokenAmountInfo amount = token == null ? null : token.getTokenAmount();
+            if (amount != null && amount.getAmount() != null) total = total.add(new BigInteger(amount.getAmount()));
+        }
+        return WalletEngine.formatToken(total, info.decimals);
     }
 
     String bitcoinAddress() {

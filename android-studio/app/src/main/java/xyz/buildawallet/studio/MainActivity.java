@@ -822,20 +822,60 @@ public final class MainActivity extends Activity {
         root.addView(controls);
         Button connect = button("Connect wallet to this dapp", false); root.addView(connect, new LinearLayout.LayoutParams(-1, dp(48)));
         dappWebView = new WebView(this); WebSettings ws = dappWebView.getSettings(); ws.setJavaScriptEnabled(true); ws.setDomStorageEnabled(true); ws.setJavaScriptCanOpenWindowsAutomatically(false); ws.setAllowFileAccess(false); ws.setAllowContentAccess(false);
+        secureDappBridgeReady = WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER);
+        if (secureDappBridgeReady) {
+            WebViewCompat.addWebMessageListener(dappWebView, "BuildAWallet", Collections.singleton("*"),
+                (view, message, sourceOrigin, isMainFrame, replyProxy) -> {
+                    String requestId = "";
+                    try {
+                        org.json.JSONObject request = new org.json.JSONObject(message.getData());
+                        requestId = request.optString("id", "");
+                        if (requestId.isEmpty()) return;
+                        if (!isMainFrame || sourceOrigin == null || !"https".equalsIgnoreCase(sourceOrigin.getScheme())
+                                || sourceOrigin.getHost() == null || sourceOrigin.getUserInfo() != null) {
+                            org.json.JSONObject error = new org.json.JSONObject().put("code", 4100)
+                                .put("message", "Wallet requests are accepted only from the top-level HTTPS page.");
+                            replyProxy.postMessage(new org.json.JSONObject().put("id", requestId)
+                                .put("value", org.json.JSONObject.NULL).put("error", error).toString());
+                            return;
+                        }
+                        final String finalId = requestId;
+                        final String method = request.optString("method", "");
+                        org.json.JSONArray params = request.optJSONArray("params");
+                        final String paramsText = params == null ? "[]" : params.toString();
+                        dappReplies.put(finalId, replyProxy);
+                        dappRequestOrigins.put(finalId, sourceOrigin.getHost());
+                        runOnUiThread(() -> handleDappRequest(finalId, method, paramsText));
+                    } catch (Exception error) {
+                        if (!requestId.isEmpty()) {
+                            try {
+                                org.json.JSONObject responseError = new org.json.JSONObject().put("code", 4000)
+                                    .put("message", safeMessage(error));
+                                replyProxy.postMessage(new org.json.JSONObject().put("id", requestId)
+                                    .put("value", org.json.JSONObject.NULL).put("error", responseError).toString());
+                            } catch (Exception ignored) { }
+                        }
+                    }
+                });
+        }
         dappWebView.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView v, String u) {
                 if (u.startsWith("https://") || u.startsWith("http://")) { loadDappUrl(u, v); return true; }
                 openExternal(u); return true;
             }
-            @Override public void onPageFinished(WebView v, String u) { if (isWalletProviderEligibleUrl(u)) injectEip1193(v); }
+            @Override public void onPageFinished(WebView v, String u) {
+                if (secureDappBridgeReady && isWalletProviderEligibleUrl(u)) injectEip1193(v);
+            }
         });
         root.addView(dappWebView, new LinearLayout.LayoutParams(-1, dp(420)));
-        root.addView(label("Built-in dapp browser exposes the local EIP-1193 EVM provider and a Solana wallet provider on HTTPS sites after explicit connection consent. Solana mainnet transactions are simulated and reviewed before local signing. Dapps never receive the recovery phrase.", 11, MUTED, false));
+        root.addView(label(secureDappBridgeReady
+            ? "Dapp browser supports EIP-1193 and Solana Wallet Standard on HTTPS pages. Each site must request access; transaction requests are reviewed before local signing."
+            : "Wallet connection is unavailable because this Android System WebView lacks secure origin-aware messaging. Update Android System WebView to use dapps.", 11, MUTED, false));
         String[] apps = {"Uniswap|https://app.uniswap.org","Aave|https://app.aave.com","OpenSea|https://opensea.io","Jupiter|https://jup.ag","Raydium|https://raydium.io","BTCme.click|https://btcme.click","LTCme.click|https://ltcme.click","BnbBlockchain.com|https://bnbblockchain.com","MonadBlockchain.com|https://monadblockchain.com","ClickSolana.xyz|https://clicksolana.xyz"};
         for (String item : apps) { String[] parts = item.split("\\|",2); Button b = button("↗ " + parts[0], false); b.setOnClickListener(v -> { url.setText(parts[1]); dappWebView.loadUrl(parts[1]); }); root.addView(b, new LinearLayout.LayoutParams(-1, dp(42))); }
         go.setOnClickListener(v -> loadDappUrl(url.getText().toString(), dappWebView));
         connect.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("Connect wallet").setMessage("This browser exposes an EIP-1193 wallet provider to the current dapp. The dapp must request accounts before it can see your address. Every transaction still requires an explicit confirmation.").setPositiveButton("Continue", null).setNegativeButton("Cancel", null).show());
-        dialog.setView(root); dialog.setOnDismissListener(v -> { dappDialog = null; solanaDappConnected = false; solanaDappConnectedOrigin = null; if (dappWebView != null) { dappWebView.removeJavascriptInterface("BuildAWallet"); dappWebView.destroy(); dappWebView = null; } }); dialog.setOnShowListener(v -> loadDappUrl("https://app.uniswap.org", dappWebView)); dialog.show();
+        dialog.setView(root); dialog.setOnDismissListener(v -> { dappDialog = null; solanaDappConnected = false; solanaDappConnectedOrigin = null; dappReplies.clear(); dappRequestOrigins.clear(); if (dappWebView != null) { dappWebView.destroy(); dappWebView = null; } }); dialog.setOnShowListener(v -> loadDappUrl("https://app.uniswap.org", dappWebView)); dialog.show();
     }
 
     private boolean isWalletProviderEligibleUrl(String rawUrl) {
@@ -850,14 +890,11 @@ public final class MainActivity extends Activity {
     private void loadDappUrl(String raw, WebView view) {
         String u = raw == null ? "" : raw.trim();
         if (!u.startsWith("http://") && !u.startsWith("https://")) u = "https://www.google.com/search?q=" + Uri.encode(u);
-        boolean trusted = isWalletProviderEligibleUrl(u);
-        if (trusted) view.addJavascriptInterface(new DappBridge(), "BuildAWallet");
-        else view.removeJavascriptInterface("BuildAWallet");
         view.loadUrl(u);
     }
 
     private void injectEip1193(WebView view) {
-        String js = "(function(){if(window.__bawProvider)return;const listeners={};function emit(e,d){(listeners[e]||[]).forEach(f=>{try{f(d)}catch(_){}})}const p={isBuildAWallet:true,request:function(a){return new Promise((resolve,reject)=>{const id=Date.now()+Math.floor(Math.random()*100000);window.__bawCallbacks=window.__bawCallbacks||{};window.__bawCallbacks[id]={resolve:resolve,reject:reject};BuildAWallet.request(String(id),String(a&&a.method||''),JSON.stringify(a&&a.params||[]));})},on:function(e,f){(listeners[e]||(listeners[e]=[])).push(f);return this},removeListener:function(e,f){listeners[e]=(listeners[e]||[]).filter(x=>x!==f);return this}};window.ethereum=p;window.__bawProvider=true;const announce=()=>window.dispatchEvent(new CustomEvent('eip6963:announceProvider',{detail:Object.freeze({info:{uuid:'350670db-19fa-4704-a166-e52e178b59d2',name:'BuildAWallet',icon:'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2296%22 height=%2296%22 viewBox=%220 0 96 96%22%3E%3Crect width=%2296%22 height=%2296%22 rx=%2220%22 fill=%22%2317223a%22/%3E%3Ctext x=%2248%22 y=%2262%22 text-anchor=%22middle%22 font-size=%2248%22 fill=%22white%22%3EB%3C/text%3E%3C/svg%3E',rdns:'xyz.buildawallet'},provider:p})}));window.addEventListener('eip6963:requestProvider',announce);announce();emit('connect',{chainId:'0x" + Long.toHexString(selectedNetwork.chainId) + "'});})();";
+        String js = "(function(){if(window.__bawProvider)return;window.__bawResolve=window.__bawResolve||function(id,value,error){const c=window.__bawCallbacks&&window.__bawCallbacks[id];if(!c)return;delete window.__bawCallbacks[id];if(error){const e=new Error(error.message||'Wallet request failed');e.code=error.code||4000;c.reject(e);}else c.resolve(value);};BuildAWallet.addEventListener('message',function(e){try{const r=JSON.parse(e.data);window.__bawResolve(r.id,r.value,r.error)}catch(_){}});const listeners={};function emit(e,d){(listeners[e]||[]).forEach(f=>{try{f(d)}catch(_){}})}const p={isBuildAWallet:true,request:function(a){return new Promise((resolve,reject)=>{const id=Date.now()+Math.floor(Math.random()*100000);window.__bawCallbacks=window.__bawCallbacks||{};window.__bawCallbacks[id]={resolve:resolve,reject:reject};BuildAWallet.postMessage(JSON.stringify({id:String(id),method:String(a&&a.method||''),params:a&&a.params||[]}));})},on:function(e,f){(listeners[e]||(listeners[e]=[])).push(f);return this},removeListener:function(e,f){listeners[e]=(listeners[e]||[]).filter(x=>x!==f);return this}};window.ethereum=p;window.__bawProvider=true;const announce=()=>window.dispatchEvent(new CustomEvent('eip6963:announceProvider',{detail:Object.freeze({info:{uuid:'350670db-19fa-4704-a166-e52e178b59d2',name:'BuildAWallet',icon:'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2296%22 height=%2296%22 viewBox=%220 0 96 96%22%3E%3Crect width=%2296%22 height=%2296%22 rx=%2220%22 fill=%22%2317223a%22/%3E%3Ctext x=%2248%22 y=%2262%22 text-anchor=%22middle%22 font-size=%2248%22 fill=%22white%22%3EB%3C/text%3E%3C/svg%3E',rdns:'xyz.buildawallet'},provider:p})}));window.addEventListener('eip6963:requestProvider',announce);announce();emit('connect',{chainId:'0x" + Long.toHexString(selectedNetwork.chainId) + "'});})();";
         view.evaluateJavascript(js, null);
         injectSolanaProvider(view);
     }
@@ -866,7 +903,7 @@ public final class MainActivity extends Activity {
         String js = "(function(){if(window.__bawSolanaProvider)return;"
             + "window.__bawResolve=window.__bawResolve||function(id,value,error){const c=window.__bawCallbacks&&window.__bawCallbacks[id];if(!c)return;delete window.__bawCallbacks[id];if(error){const e=new Error(error.message||'Wallet request failed');e.code=error.code||4000;c.reject(e);}else c.resolve(value);};"
             + "const listeners={};function emit(e,d){(listeners[e]||[]).forEach(f=>{try{f(d)}catch(_){}})}"
-            + "function call(method,params){return new Promise((resolve,reject)=>{const id='solana_'+Date.now()+'_'+Math.floor(Math.random()*1000000);window.__bawCallbacks=window.__bawCallbacks||{};window.__bawCallbacks[id]={resolve,reject};BuildAWallet.request(id,method,JSON.stringify(params||[]));});}"
+            + "function call(method,params){return new Promise((resolve,reject)=>{const id='solana_'+Date.now()+'_'+Math.floor(Math.random()*1000000);window.__bawCallbacks=window.__bawCallbacks||{};window.__bawCallbacks[id]={resolve,reject};BuildAWallet.postMessage(JSON.stringify({id:id,method:method,params:params||[]}));});}"
             + "function bytes58(s){const a='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';let n=0n;for(const ch of s){const i=a.indexOf(ch);if(i<0)throw new Error('Invalid Solana public key');n=n*58n+BigInt(i);}const b=[];while(n>0n){b.push(Number(n&255n));n>>=8n;}b.reverse();let z=0;while(z<s.length&&s[z]==='1')z++;return new Uint8Array([...new Array(z).fill(0),...b]);}"
             + "function pubkey(s){return {toBase58:()=>s,toString:()=>s,toJSON:()=>s,toBytes:()=>bytes58(s),toBuffer:()=>bytes58(s),equals:(x)=>!!x&&(typeof x.toBase58==='function'?x.toBase58():String(x))===s};}"
             + "function b64(bytes){let s='';for(let i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return btoa(s);}"
@@ -887,10 +924,6 @@ public final class MainActivity extends Activity {
             + "Object.defineProperty(window,'solana',{configurable:true,value:p});window.__bawSolanaProvider=true;"
             + "})();";
         view.evaluateJavascript(js, null);
-    }
-
-    private final class DappBridge {
-        @JavascriptInterface public void request(String id, String method, String params) { runOnUiThread(() -> handleDappRequest(id, method, params)); }
     }
 
     private void handleDappRequest(String id, String method, String rawParams) {

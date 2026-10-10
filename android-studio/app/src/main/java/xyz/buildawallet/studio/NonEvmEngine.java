@@ -157,16 +157,18 @@ final class NonEvmEngine {
 
         TokenAccountInfo accounts = solanaRpc.getApi().getTokenAccountsByOwner(
             solana.getPublicKey(), Map.of("mint", info.mint), Map.of("encoding", "jsonParsed"));
-        BigInteger available = BigInteger.ZERO;
+        boolean hasSufficientSourceAccount = false;
         if (accounts != null && accounts.getValue() != null) for (TokenAccountInfo.Value account : accounts.getValue()) {
-            TokenResultObjects.Value rawAccount = account.getAccount();
-            TokenResultObjects.Data data = rawAccount == null ? null : rawAccount.getData();
-            TokenResultObjects.ParsedData parsed = data == null ? null : data.getParsed();
-            TokenResultObjects.TokenInfo parsedInfo = parsed == null ? null : parsed.getInfo();
-            if (parsedInfo != null && parsedInfo.getTokenAmount() != null && parsedInfo.getTokenAmount().getAmount() != null)
-                available = available.add(new BigInteger(parsedInfo.getTokenAmount().getAmount()));
+            if (account == null || account.getPubkey() == null) continue;
+            TokenResultObjects.TokenInfo parsedInfo = parsedTokenAccount(new PublicKey(account.getPubkey()));
+            if (parsedInfo == null || !info.mint.equals(parsedInfo.getMint())
+                    || !solanaAddress().equals(parsedInfo.getOwner()) || parsedInfo.getTokenAmount() == null) continue;
+            if (new BigInteger(parsedInfo.getTokenAmount().getAmount()).compareTo(raw) >= 0) {
+                hasSufficientSourceAccount = true;
+                break;
+            }
         }
-        if (available.compareTo(raw) < 0) throw new IllegalArgumentException("Insufficient " + token.symbol + " balance.");
+        if (!hasSufficientSourceAccount) throw new IllegalArgumentException("No single source token account has enough " + token.symbol + " to cover this transfer.");
 
         PublicKey mint = new PublicKey(info.mint);
         PublicKey tokenProgram = new PublicKey(info.programId);
@@ -176,6 +178,12 @@ final class NonEvmEngine {
         if (existing == null || existing.getValue() == null) {
             long size = TokenProgram.PROGRAM_ID.toBase58().equals(info.programId) ? 165L : 170L;
             rent = solanaRpc.getApi().getMinimumBalanceForRentExemption(size);
+        } else {
+            TokenResultObjects.TokenInfo recipientInfo = parsedTokenAccount(destinationAta);
+            if (recipientInfo == null || !info.mint.equals(recipientInfo.getMint())
+                    || !destination.toBase58().equals(recipientInfo.getOwner())) {
+                throw new IllegalStateException("Recipient associated token account does not match the expected mint and owner.");
+            }
         }
         long feeBuffer = 100_000L;
         long required = Math.addExact(feeBuffer, rent);

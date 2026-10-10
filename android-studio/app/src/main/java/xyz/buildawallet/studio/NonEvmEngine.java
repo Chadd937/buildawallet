@@ -14,6 +14,8 @@ import org.bitcoinj.wallet.WalletTransaction;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.p2p.solanaj.core.Account;
+import org.p2p.solanaj.utils.Base58;
+import org.p2p.solanaj.utils.TweetNaclFast;
 import org.p2p.solanaj.core.PublicKey;
 import org.bitcoinj.base.Address;
 import org.bitcoinj.base.AddressParser;
@@ -83,6 +85,262 @@ final class NonEvmEngine {
         return solanaRpc.getApi().sendTransaction(tx, solana);
     }
 
+
+
+    private static final String SOLANA_MAINNET_RPC = "https://api.mainnet-beta.solana.com";
+
+    /** Parse and summarize a dapp-provided legacy or v0 transaction before any signing prompt. */
+    String previewSolanaDappTransaction(String encodedTransaction) throws Exception {
+        byte[] wire = decodeSolanaWireTransaction(encodedTransaction);
+        SolanaWireView view = inspectSolanaWireTransaction(wire);
+        StringBuilder preview = new StringBuilder();
+        preview.append("Network: Solana mainnet-beta")
+            .append("\\nFee payer: ").append(view.accountKeys.isEmpty() ? "unavailable" : view.accountKeys.get(0))
+            .append("\\nWallet signer: ").append(solanaAddress())
+            .append("\\nRequired signatures: ").append(view.requiredSignatures)
+            .append("\\nInstructions: ").append(view.instructions.size())
+            .append("\\nRecent blockhash: ").append(view.blockhash)
+            .append("\\n\\nInstruction review:");
+        int index = 0;
+        for (SolanaWireInstruction instruction : view.instructions) {
+            preview.append("\\n\\n").append(++index).append(". ").append(instruction.label)
+                .append("\\nProgram: ").append(instruction.program)
+                .append("\\nAccounts: ").append(instruction.accounts.size());
+            if (!instruction.detail.isEmpty()) preview.append("\\n").append(instruction.detail);
+            if (instruction.unknown) preview.append("\\nHIGH RISK: this program's effects are not decoded by this wallet.");
+        }
+        if (view.lookupTables) preview.append("\\n\\nAddress lookup tables are present. Some resolved accounts are not visible in the static account list.");
+        JSONObject simulation = solanaRpcCall("simulateTransaction",
+            new JSONArray().put(encodedTransaction).put(new JSONObject()
+                .put("encoding", "base64").put("commitment", "confirmed")
+                .put("sigVerify", false).put("replaceRecentBlockhash", true)));
+        JSONObject result = simulation.optJSONObject("value");
+        if (result == null) throw new IllegalStateException("Solana mainnet did not return a transaction simulation result.");
+        Object simError = result.opt("err");
+        JSONArray logs = result.optJSONArray("logs");
+        if (simError != null && simError != JSONObject.NULL) {
+            StringBuilder failure = new StringBuilder("Solana mainnet simulation failed: ").append(simError);
+            if (logs != null) {
+                int start = Math.max(0, logs.length() - 8);
+                for (int i = start; i < logs.length(); i++) failure.append("\\n").append(logs.optString(i));
+            }
+            throw new IllegalStateException(failure.toString());
+        }
+        preview.append("\\n\\nMainnet simulation: passed (not a guarantee of execution).");
+        if (logs != null && logs.length() > 0) {
+            preview.append("\\nSimulation logs:");
+            int start = Math.max(0, logs.length() - 6);
+            for (int i = start; i < logs.length(); i++) preview.append("\\n").append(logs.optString(i));
+        }
+        preview.append("\\n\\nReview every instruction and program. Unknown programs can move assets or grant permissions.");
+        return preview.toString();
+    }
+
+    /** Signs only the wallet's required signer slot; all other signatures are preserved. */
+    String signSolanaDappTransaction(String encodedTransaction) throws Exception {
+        byte[] wire = decodeSolanaWireTransaction(encodedTransaction);
+        SolanaWireView view = inspectSolanaWireTransaction(wire);
+        if (view.requiredSignatures != view.signatureCount) {
+            throw new IllegalArgumentException("Transaction signature slots do not match its required signer count.");
+        }
+        int signerIndex = -1;
+        for (int i = 0; i < view.requiredSignatures; i++) {
+            if (solanaAddress().equals(view.accountKeys.get(i))) { signerIndex = i; break; }
+        }
+        if (signerIndex < 0) throw new IllegalArgumentException("This transaction does not require the connected BuildAWallet Solana account to sign.");
+        byte[] message = Arrays.copyOfRange(wire, view.messageStart, wire.length);
+        byte[] signature = new TweetNaclFast.Signature(new byte[0], solana.getSecretKey()).detached(message);
+        if (signature == null || signature.length != 64) throw new IllegalStateException("Solana transaction signing failed.");
+        System.arraycopy(signature, 0, wire, view.signatureSlotsStart + signerIndex * 64, 64);
+        return android.util.Base64.encodeToString(wire, android.util.Base64.NO_WRAP);
+    }
+
+    /** Signs and submits a dapp transaction only after the caller has displayed the review prompt. */
+    String sendSolanaDappTransaction(String encodedTransaction) throws Exception {
+        String signed = signSolanaDappTransaction(encodedTransaction);
+        JSONObject result = solanaRpcCall("sendTransaction",
+            new JSONArray().put(signed).put(new JSONObject()
+                .put("encoding", "base64").put("preflightCommitment", "confirmed")
+                .put("skipPreflight", false).put("maxRetries", 3)));
+        String signature = result.optString("result", "");
+        if (signature.isEmpty()) throw new IllegalStateException("Solana mainnet RPC did not return a transaction signature.");
+        return signature;
+    }
+
+    String signSolanaDappMessage(String encodedMessage) throws Exception {
+        byte[] message;
+        try { message = android.util.Base64.decode(encodedMessage, android.util.Base64.DEFAULT); }
+        catch (IllegalArgumentException e) { throw new IllegalArgumentException("Invalid base64 message.", e); }
+        if (message.length == 0 || message.length > 16384) throw new IllegalArgumentException("Message must contain 1 to 16,384 bytes.");
+        byte[] signature = new TweetNaclFast.Signature(new byte[0], solana.getSecretKey()).detached(message);
+        if (signature == null || signature.length != 64) throw new IllegalStateException("Solana message signing failed.");
+        return android.util.Base64.encodeToString(signature, android.util.Base64.NO_WRAP);
+    }
+
+    private JSONObject solanaRpcCall(String method, JSONArray params) throws Exception {
+        JSONObject request = new JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", method).put("params", params);
+        HttpURLConnection connection = (HttpURLConnection) new URL(SOLANA_MAINNET_RPC).openConnection();
+        connection.setRequestMethod("POST");
+        connection.setConnectTimeout(12000);
+        connection.setReadTimeout(30000);
+        connection.setDoOutput(true);
+        connection.setRequestProperty("Content-Type", "application/json");
+        try (OutputStream output = connection.getOutputStream()) {
+            output.write(request.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        int code = connection.getResponseCode();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(
+            code >= 400 ? connection.getErrorStream() : connection.getInputStream()));
+        String body = reader.lines().collect(Collectors.joining("\\n"));
+        reader.close();
+        connection.disconnect();
+        if (code < 200 || code >= 300) throw new IllegalStateException("Solana mainnet RPC returned HTTP " + code + ".");
+        JSONObject response = new JSONObject(body);
+        JSONObject error = response.optJSONObject("error");
+        if (error != null) throw new IllegalStateException("Solana mainnet RPC " + method + " failed: " + error.optString("message", error.toString()));
+        JSONObject result = response.optJSONObject("result");
+        if (result == null) throw new IllegalStateException("Solana mainnet RPC returned an invalid " + method + " response.");
+        return result;
+    }
+
+    private static byte[] decodeSolanaWireTransaction(String encoded) {
+        if (encoded == null || encoded.length() > 200000) throw new IllegalArgumentException("Missing or oversized Solana transaction.");
+        try {
+            byte[] wire = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT);
+            if (wire.length < 1 + 64 + 3 + 32 || wire.length > 1232) {
+                throw new IllegalArgumentException("Solana transaction size is outside the supported packet range.");
+            }
+            return wire;
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid serialized Solana transaction.", e);
+        }
+    }
+
+    private static final class SolanaWireInstruction {
+        final String program, label, detail;
+        final List<Integer> accounts;
+        final boolean unknown;
+        SolanaWireInstruction(String program, String label, String detail, List<Integer> accounts, boolean unknown) {
+            this.program = program; this.label = label; this.detail = detail; this.accounts = accounts; this.unknown = unknown;
+        }
+    }
+
+    private static final class SolanaWireView {
+        int signatureCount, signatureSlotsStart, messageStart, requiredSignatures;
+        String blockhash;
+        boolean lookupTables;
+        final List<String> accountKeys = new ArrayList<>();
+        final List<SolanaWireInstruction> instructions = new ArrayList<>();
+    }
+
+    private static int readShortVec(byte[] bytes, int[] offset) {
+        int value = 0, shift = 0;
+        for (int i = 0; i < 3; i++) {
+            if (offset[0] >= bytes.length) throw new IllegalArgumentException("Truncated Solana transaction.");
+            int b = bytes[offset[0]++] & 0xff;
+            value |= (b & 0x7f) << shift;
+            if ((b & 0x80) == 0) return value;
+            shift += 7;
+        }
+        throw new IllegalArgumentException("Invalid Solana compact length.");
+    }
+
+    private static SolanaWireView inspectSolanaWireTransaction(byte[] wire) {
+        SolanaWireView view = new SolanaWireView();
+        int[] cursor = {0};
+        view.signatureCount = readShortVec(wire, cursor);
+        view.signatureSlotsStart = cursor[0];
+        if (view.signatureCount < 1 || view.signatureCount > 32 || cursor[0] + view.signatureCount * 64 >= wire.length) {
+            throw new IllegalArgumentException("Invalid Solana transaction signature section.");
+        }
+        view.messageStart = cursor[0] + view.signatureCount * 64;
+        cursor[0] = view.messageStart;
+        int first = wire[cursor[0]] & 0xff;
+        if ((first & 0x80) != 0) {
+            int version = first & 0x7f;
+            if (version != 0) throw new IllegalArgumentException("Unsupported Solana transaction message version: " + version);
+            cursor[0]++;
+            view.lookupTables = true;
+        }
+        if (cursor[0] + 3 > wire.length) throw new IllegalArgumentException("Truncated Solana message header.");
+        view.requiredSignatures = wire[cursor[0]] & 0xff;
+        cursor[0] += 3;
+        if (view.requiredSignatures < 1 || view.requiredSignatures > view.signatureCount) {
+            throw new IllegalArgumentException("Invalid Solana required signer count.");
+        }
+        int keyCount = readShortVec(wire, cursor);
+        if (keyCount < view.requiredSignatures || keyCount > 64 || cursor[0] + keyCount * 32 + 32 > wire.length) {
+            throw new IllegalArgumentException("Invalid Solana account key list.");
+        }
+        for (int i = 0; i < keyCount; i++) {
+            view.accountKeys.add(Base58.encode(Arrays.copyOfRange(wire, cursor[0], cursor[0] + 32)));
+            cursor[0] += 32;
+        }
+        view.blockhash = Base58.encode(Arrays.copyOfRange(wire, cursor[0], cursor[0] + 32));
+        cursor[0] += 32;
+        int instructionCount = readShortVec(wire, cursor);
+        if (instructionCount > 64) throw new IllegalArgumentException("Too many Solana instructions.");
+        for (int i = 0; i < instructionCount; i++) {
+            if (cursor[0] >= wire.length) throw new IllegalArgumentException("Truncated Solana instruction.");
+            int programIndex = wire[cursor[0]++] & 0xff;
+            int accountCount = readShortVec(wire, cursor);
+            if (accountCount > 128 || cursor[0] + accountCount > wire.length) throw new IllegalArgumentException("Invalid Solana instruction account list.");
+            List<Integer> accounts = new ArrayList<>();
+            for (int j = 0; j < accountCount; j++) accounts.add(wire[cursor[0]++] & 0xff);
+            int dataLength = readShortVec(wire, cursor);
+            if (dataLength > 1024 || cursor[0] + dataLength > wire.length) throw new IllegalArgumentException("Invalid Solana instruction data.");
+            byte[] data = Arrays.copyOfRange(wire, cursor[0], cursor[0] + dataLength);
+            cursor[0] += dataLength;
+            String program = programIndex < view.accountKeys.size() ? view.accountKeys.get(programIndex) : "address-lookup-index-" + programIndex;
+            String label = "Unrecognized program instruction";
+            String detail = "Instruction data bytes: " + data.length + "; prefix: " + bytesToHex(Arrays.copyOf(data, Math.min(12, data.length)));
+            boolean unknown = true;
+            if ("11111111111111111111111111111111".equals(program) && data.length >= 12 && littleU32(data, 0) == 2) {
+                long lamports = littleU64(data, 4);
+                label = "System Program · SOL transfer";
+                detail = "Amount: " + BigDecimal.valueOf(lamports).movePointLeft(9).stripTrailingZeros().toPlainString() + " SOL";
+                if (accounts.size() >= 2) detail += "\\nFrom: " + accountKey(view, accounts.get(0)) + "\\nTo: " + accountKey(view, accounts.get(1));
+                unknown = false;
+            } else if ((TokenProgram.PROGRAM_ID.toBase58().equals(program) || TOKEN_2022_PROGRAM_ID.equals(program))
+                    && data.length >= 9 && ((data[0] & 0xff) == 3 || (data[0] & 0xff) == 12)) {
+                boolean checked = (data[0] & 0xff) == 12;
+                long raw = littleU64(data, 1);
+                label = (checked ? "SPL Token · checked transfer" : "SPL Token · transfer");
+                detail = "Raw token amount: " + Long.toUnsignedString(raw);
+                if (checked) detail += "\\nDecimals: " + (data[9] & 0xff);
+                if (accounts.size() >= 3) detail += "\\nSource: " + accountKey(view, accounts.get(0))
+                    + "\\nDestination: " + accountKey(view, accounts.get(checked ? 2 : 1));
+                unknown = false;
+            } else if ("ComputeBudget111111111111111111111111111111".equals(program)) {
+                label = "Compute Budget";
+                unknown = false;
+            } else if ("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr".equals(program)) {
+                label = "Solana Memo";
+                detail = new String(data, java.nio.charset.StandardCharsets.UTF_8);
+                unknown = false;
+            } else if (AssociatedTokenProgram.PROGRAM_ID.toBase58().equals(program)) {
+                label = "Associated Token Account operation";
+                unknown = false;
+            }
+            view.instructions.add(new SolanaWireInstruction(program, label, detail, accounts, unknown));
+        }
+        return view;
+    }
+
+    private static String accountKey(SolanaWireView view, int index) {
+        return index >= 0 && index < view.accountKeys.size() ? view.accountKeys.get(index) : "lookup-table account " + index;
+    }
+
+    private static long littleU64(byte[] bytes, int offset) {
+        long value = 0;
+        for (int i = 7; i >= 0; i--) value = (value << 8) | (bytes[offset + i] & 0xffL);
+        return value;
+    }
+
+    private static long littleU32(byte[] bytes, int offset) {
+        return (bytes[offset] & 0xffL) | ((bytes[offset + 1] & 0xffL) << 8)
+            | ((bytes[offset + 2] & 0xffL) << 16) | ((bytes[offset + 3] & 0xffL) << 24);
+    }
 
 
     static final String TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";

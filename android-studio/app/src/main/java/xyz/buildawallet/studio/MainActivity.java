@@ -1139,33 +1139,59 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
             .setTitle("Send SOL")
             .setMessage("Review the Solana recipient and amount before local signing.")
-            .setView(box)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Review", null)
-            .create();
+            .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Review", null).create();
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             try {
-                java.math.BigDecimal value = new java.math.BigDecimal(amount.getText().toString().trim());
+                BigDecimal value = new BigDecimal(amount.getText().toString().trim());
                 String destination = to.getText().toString().trim();
                 if (destination.isEmpty() || value.signum() <= 0) throw new IllegalArgumentException("Enter a valid recipient and amount.");
-                new AlertDialog.Builder(this)
-                    .setTitle("Confirm SOL transfer")
-                    .setMessage("Network: Solana mainnet\nRecipient: " + destination + "\nAmount: " + value.toPlainString() + " SOL\n\nThe transaction will be signed on this device.")
-                    .setNegativeButton("Cancel", null)
-                    .setPositiveButton("Sign & send", (d, w) -> io.execute(() -> {
-                        try {
-                            String signature = nonEvm.sendSolana(destination, value);
-                            runOnUiThread(() -> Toast.makeText(this, "SOL sent: " + signature, Toast.LENGTH_LONG).show());
-                        } catch (Exception error) {
-                            runOnUiThread(() -> showError("SOL transfer failed", error));
-                        }
-                    })).show();
                 dialog.dismiss();
-            } catch (Exception error) {
-                showError("Invalid SOL transfer", error);
-            }
+                io.execute(() -> {
+                    try {
+                        BigDecimal usd = null;
+                        if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) usd = WalletSecurity.coinUsdValue("solana", value);
+                        BigDecimal finalUsd = usd;
+                        runOnUiThread(() -> confirmSolanaTransfer(destination, value, finalUsd));
+                    } catch (Exception error) { runOnUiThread(() -> showError("Cannot value SOL transfer", error)); }
+                });
+            } catch (Exception error) { showError("Invalid SOL transfer", error); }
         }));
         dialog.show();
+    }
+
+    private void confirmSolanaTransfer(String destination, BigDecimal amount, BigDecimal usdValue) {
+        boolean large = usdValue != null && profile.bigSendUsd > 0 && usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0;
+        String msg = "Network: Solana mainnet\nRecipient: " + destination + "\nAmount: " + amount.toPlainString()
+            + " SOL" + (usdValue == null ? "" : "\nIndicative USD value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString())
+            + "\n\nThe transaction will be signed on this device."
+            + (large ? "\n\nThis meets or exceeds your large-send confirmation threshold ($" + profile.bigSendUsd + ")." : "");
+        new AlertDialog.Builder(this).setTitle(large ? "Large SOL transfer · review" : "Confirm SOL transfer")
+            .setMessage(msg).setNegativeButton("Cancel", null)
+            .setPositiveButton(large ? "Continue to final review" : "Sign & send", (d,w) -> {
+                if (large) new AlertDialog.Builder(this).setTitle("Final SOL confirmation")
+                    .setMessage("Send " + amount.toPlainString() + " SOL to " + destination + "?\nEstimated value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()
+                        + "\nThis is irreversible.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("I verified · Sign & send", (dd,ww) -> broadcastSolana(destination, amount, usdValue)).show();
+                else broadcastSolana(destination, amount, usdValue);
+            }).show();
+    }
+
+    private void broadcastSolana(String destination, BigDecimal amount, BigDecimal usdValue) {
+        if (walletLocked || nonEvm == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before sending.")); return; }
+        String walletAddress = engine == null ? "" : engine.address();
+        io.execute(() -> {
+            WalletSecurity.Reservation reservation = null;
+            try {
+                if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
+                String signature = nonEvm.sendSolana(destination, amount);
+                runOnUiThread(() -> Toast.makeText(this, "SOL sent: " + signature, Toast.LENGTH_LONG).show());
+            } catch (Exception error) {
+                if (reservation != null) WalletSecurity.release(this, reservation);
+                runOnUiThread(() -> showError("SOL transfer failed", error));
+            }
+        });
     }
 
     private void sendBitcoinDialog() {
@@ -1186,36 +1212,66 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this)
             .setTitle("Send Bitcoin")
             .setMessage("Native SegWit mainnet transaction. The transaction is constructed and signed locally; only the signed transaction is broadcast.")
-            .setView(box)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Review", null)
-            .create();
+            .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Review", null).create();
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             try {
-                java.math.BigDecimal value = new java.math.BigDecimal(amount.getText().toString().trim());
-                long feeRate = new java.math.BigDecimal(fee.getText().toString().trim()).longValueExact();
+                BigDecimal value = new BigDecimal(amount.getText().toString().trim());
+                long feeRate = new BigDecimal(fee.getText().toString().trim()).longValueExact();
                 String destination = to.getText().toString().trim();
                 if (!destination.startsWith("bc1") || value.signum() <= 0 || feeRate <= 0) {
                     throw new IllegalArgumentException("Enter a valid bc1 mainnet destination, amount and fee rate.");
                 }
-                new AlertDialog.Builder(this)
-                    .setTitle("Confirm BTC transfer")
-                    .setMessage("Network: Bitcoin mainnet\nRecipient: " + destination + "\nAmount: " + value.toPlainString() + " BTC\nFee rate: " + feeRate + " sat/vB\n\nThis is irreversible.")
-                    .setNegativeButton("Cancel", null)
-                    .setPositiveButton("Sign & broadcast", (d, w) -> io.execute(() -> {
-                        try {
-                            String txid = nonEvm.sendBitcoin(destination, value, feeRate);
-                            runOnUiThread(() -> Toast.makeText(this, "BTC sent: " + txid, Toast.LENGTH_LONG).show());
-                        } catch (Exception error) {
-                            runOnUiThread(() -> showError("BTC transfer failed", error));
-                        }
-                    })).show();
                 dialog.dismiss();
-            } catch (Exception error) {
-                showError("Invalid BTC transfer", error);
-            }
+                io.execute(() -> {
+                    try {
+                        BigDecimal usd = null;
+                        if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) {
+                            BigDecimal conservativeFeeBtc = BigDecimal.valueOf(feeRate).multiply(BigDecimal.valueOf(250)).movePointLeft(8);
+                            usd = WalletSecurity.coinUsdValue("bitcoin", value.add(conservativeFeeBtc));
+                        }
+                        BigDecimal finalUsd = usd;
+                        runOnUiThread(() -> confirmBitcoinTransfer(destination, value, feeRate, finalUsd));
+                    } catch (Exception error) { runOnUiThread(() -> showError("Cannot value BTC transfer", error)); }
+                });
+            } catch (Exception error) { showError("Invalid BTC transfer", error); }
         }));
         dialog.show();
+    }
+
+    private void confirmBitcoinTransfer(String destination, BigDecimal amount, long feeRate, BigDecimal usdValue) {
+        boolean large = usdValue != null && profile.bigSendUsd > 0 && usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0;
+        String msg = "Network: Bitcoin mainnet\nRecipient: " + destination + "\nAmount: " + amount.toPlainString()
+            + " BTC\nFee rate: " + feeRate + " sat/vB"
+            + (usdValue == null ? "" : "\nIndicative amount + conservative fee estimate: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString())
+            + "\n\nThis is irreversible."
+            + (large ? "\n\nThis meets or exceeds your large-send confirmation threshold ($" + profile.bigSendUsd + ")." : "");
+        new AlertDialog.Builder(this).setTitle(large ? "Large BTC transfer · review" : "Confirm BTC transfer")
+            .setMessage(msg).setNegativeButton("Cancel", null)
+            .setPositiveButton(large ? "Continue to final review" : "Sign & broadcast", (d,w) -> {
+                if (large) new AlertDialog.Builder(this).setTitle("Final BTC confirmation")
+                    .setMessage("Send " + amount.toPlainString() + " BTC to " + destination + "?\nEstimated value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()
+                        + "\nFee rate: " + feeRate + " sat/vB. This is irreversible.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("I verified · Sign & broadcast", (dd,ww) -> broadcastBitcoin(destination, amount, feeRate, usdValue)).show();
+                else broadcastBitcoin(destination, amount, feeRate, usdValue);
+            }).show();
+    }
+
+    private void broadcastBitcoin(String destination, BigDecimal amount, long feeRate, BigDecimal usdValue) {
+        if (walletLocked || nonEvm == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before sending.")); return; }
+        String walletAddress = engine == null ? "" : engine.address();
+        io.execute(() -> {
+            WalletSecurity.Reservation reservation = null;
+            try {
+                if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
+                String txid = nonEvm.sendBitcoin(destination, amount, feeRate);
+                runOnUiThread(() -> Toast.makeText(this, "BTC sent: " + txid, Toast.LENGTH_LONG).show());
+            } catch (Exception error) {
+                if (reservation != null) WalletSecurity.release(this, reservation);
+                runOnUiThread(() -> showError("BTC transfer failed", error));
+            }
+        });
     }
 
     private void sendDialog() {

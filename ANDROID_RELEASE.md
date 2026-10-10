@@ -8,7 +8,7 @@ The `android-studio/` project is now a native, noncustodial Android wallet imple
 - Native-asset transfers and configured/custom ERC-20 token transfers on Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain and Avalanche.
 - Import, balance display, review and sending for standard SPL Token mints and basic Token-2022 mints on Solana mainnet.
 - On-chain Solana mint/program/decimals validation, checked token transfers, recipient associated-token-account creation, and SOL fee/rent sufficiency checks.
-- Token-2022 mints with unsupported extensions are blocked from sending. The Android dapp browser remains EVM-provider-only; arbitrary Solana dapp transaction signing is not implemented.
+- Token-2022 mints with unsupported extensions are blocked from sending. The in-app browser exposes `window.solana` and Wallet Standard on HTTPS pages using origin-aware main-frame messaging, with mainnet simulation and native transaction confirmations. External Mobile Wallet Adapter sessions for native/third-party mobile dapps are not implemented yet.
 - Local inactivity/foreground locking, large-transfer confirmation, and a rolling 24-hour USD spending cap. These are client-side protections, not an on-chain cryptographic policy; local market prices are indicative.
 
 See [the targeted security review](SECURITY_AUDIT_2026-10.md) for known limitations. It is a source-level review, not a penetration test or independent wallet audit.

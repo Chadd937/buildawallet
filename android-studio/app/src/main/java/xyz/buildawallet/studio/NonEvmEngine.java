@@ -95,21 +95,21 @@ final class NonEvmEngine {
         SolanaWireView view = inspectSolanaWireTransaction(wire);
         StringBuilder preview = new StringBuilder();
         preview.append("Network: Solana mainnet-beta")
-            .append("\\nFee payer: ").append(view.accountKeys.isEmpty() ? "unavailable" : view.accountKeys.get(0))
-            .append("\\nWallet signer: ").append(solanaAddress())
-            .append("\\nRequired signatures: ").append(view.requiredSignatures)
-            .append("\\nInstructions: ").append(view.instructions.size())
-            .append("\\nRecent blockhash: ").append(view.blockhash)
-            .append("\\n\\nInstruction review:");
+            .append("\nFee payer: ").append(view.accountKeys.isEmpty() ? "unavailable" : view.accountKeys.get(0))
+            .append("\nWallet signer: ").append(solanaAddress())
+            .append("\nRequired signatures: ").append(view.requiredSignatures)
+            .append("\nInstructions: ").append(view.instructions.size())
+            .append("\nRecent blockhash: ").append(view.blockhash)
+            .append("\n\nInstruction review:");
         int index = 0;
         for (SolanaWireInstruction instruction : view.instructions) {
-            preview.append("\\n\\n").append(++index).append(". ").append(instruction.label)
-                .append("\\nProgram: ").append(instruction.program)
-                .append("\\nAccounts: ").append(instruction.accounts.size());
-            if (!instruction.detail.isEmpty()) preview.append("\\n").append(instruction.detail);
-            if (instruction.unknown) preview.append("\\nHIGH RISK: this program's effects are not decoded by this wallet.");
+            preview.append("\n\n").append(++index).append(". ").append(instruction.label)
+                .append("\nProgram: ").append(instruction.program)
+                .append("\nAccounts: ").append(instruction.accounts.size());
+            if (!instruction.detail.isEmpty()) preview.append("\n").append(instruction.detail);
+            if (instruction.unknown) preview.append("\nHIGH RISK: this program's effects are not decoded by this wallet.");
         }
-        if (view.lookupTables) preview.append("\\n\\nAddress lookup tables are present. Some resolved accounts are not visible in the static account list.");
+        if (view.lookupTables) preview.append("\n\nAddress lookup tables are present. Some resolved accounts are not visible in the static account list.");
         JSONObject simulation = (JSONObject) solanaRpcCall("simulateTransaction",
             new JSONArray().put(encodedTransaction).put(new JSONObject()
                 .put("encoding", "base64").put("commitment", "confirmed")
@@ -122,17 +122,17 @@ final class NonEvmEngine {
             StringBuilder failure = new StringBuilder("Solana mainnet simulation failed: ").append(simError);
             if (logs != null) {
                 int start = Math.max(0, logs.length() - 8);
-                for (int i = start; i < logs.length(); i++) failure.append("\\n").append(logs.optString(i));
+                for (int i = start; i < logs.length(); i++) failure.append("\n").append(logs.optString(i));
             }
             throw new IllegalStateException(failure.toString());
         }
-        preview.append("\\n\\nMainnet simulation: passed (not a guarantee of execution).");
+        preview.append("\n\nMainnet simulation: passed (not a guarantee of execution).");
         if (logs != null && logs.length() > 0) {
-            preview.append("\\nSimulation logs:");
+            preview.append("\nSimulation logs:");
             int start = Math.max(0, logs.length() - 6);
-            for (int i = start; i < logs.length(); i++) preview.append("\\n").append(logs.optString(i));
+            for (int i = start; i < logs.length(); i++) preview.append("\n").append(logs.optString(i));
         }
-        preview.append("\\n\\nReview every instruction and program. Unknown programs can move assets or grant permissions.");
+        preview.append("\n\nReview every instruction and program. Unknown programs can move assets or grant permissions.");
         return preview.toString();
     }
 
@@ -191,7 +191,7 @@ final class NonEvmEngine {
         int code = connection.getResponseCode();
         BufferedReader reader = new BufferedReader(new InputStreamReader(
             code >= 400 ? connection.getErrorStream() : connection.getInputStream()));
-        String body = reader.lines().collect(Collectors.joining("\\n"));
+        String body = reader.lines().collect(Collectors.joining("\n"));
         reader.close();
         connection.disconnect();
         if (code < 200 || code >= 300) throw new IllegalStateException("Solana mainnet RPC returned HTTP " + code + ".");
@@ -299,7 +299,7 @@ final class NonEvmEngine {
                 BigInteger lamports = littleU64Big(data, 4);
                 label = "System Program · SOL transfer";
                 detail = "Amount: " + new BigDecimal(lamports).movePointLeft(9).stripTrailingZeros().toPlainString() + " SOL";
-                if (accounts.size() >= 2) detail += "\\nFrom: " + accountKey(view, accounts.get(0)) + "\\nTo: " + accountKey(view, accounts.get(1));
+                if (accounts.size() >= 2) detail += "\nFrom: " + accountKey(view, accounts.get(0)) + "\nTo: " + accountKey(view, accounts.get(1));
                 unknown = false;
             } else if ((TokenProgram.PROGRAM_ID.toBase58().equals(program) || TOKEN_2022_PROGRAM_ID.equals(program))
                     && data.length >= 9 && ((data[0] & 0xff) == 3 || ((data[0] & 0xff) == 12 && data.length >= 10))) {
@@ -307,9 +307,9 @@ final class NonEvmEngine {
                 BigInteger raw = littleU64Big(data, 1);
                 label = (checked ? "SPL Token · checked transfer" : "SPL Token · transfer");
                 detail = "Raw token amount: " + raw.toString();
-                if (checked) detail += "\\nDecimals: " + (data[9] & 0xff);
-                if (accounts.size() >= 3) detail += "\\nSource: " + accountKey(view, accounts.get(0))
-                    + "\\nDestination: " + accountKey(view, accounts.get(checked ? 2 : 1));
+                if (checked) detail += "\nDecimals: " + (data[9] & 0xff);
+                if (accounts.size() >= 3) detail += "\nSource: " + accountKey(view, accounts.get(0))
+                    + "\nDestination: " + accountKey(view, accounts.get(checked ? 2 : 1));
                 unknown = false;
             } else if ("ComputeBudget111111111111111111111111111111".equals(program)) {
                 label = "Compute Budget";
@@ -621,7 +621,7 @@ final class NonEvmEngine {
         int code = c.getResponseCode();
         BufferedReader reader = new BufferedReader(new InputStreamReader(
             code >= 400 ? c.getErrorStream() : c.getInputStream()));
-        String body = reader.lines().collect(Collectors.joining("\\n"));
+        String body = reader.lines().collect(Collectors.joining("\n"));
         reader.close();
         c.disconnect();
         if (code < 200 || code >= 300) throw new IllegalStateException("Bitcoin service returned HTTP " + code + ": " + body);
@@ -641,7 +641,7 @@ final class NonEvmEngine {
         int code = c.getResponseCode();
         BufferedReader reader = new BufferedReader(new InputStreamReader(
             code >= 400 ? c.getErrorStream() : c.getInputStream()));
-        String response = reader.lines().collect(Collectors.joining("\\n"));
+        String response = reader.lines().collect(Collectors.joining("\n"));
         reader.close();
         c.disconnect();
         if (code < 200 || code >= 300) throw new IllegalStateException("Bitcoin broadcast returned HTTP " + code + ": " + response);

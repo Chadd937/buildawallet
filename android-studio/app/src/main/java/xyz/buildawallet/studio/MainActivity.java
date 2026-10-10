@@ -1480,7 +1480,7 @@ public final class MainActivity extends Activity {
 
     private void securitySettingsDialog() {
         LinearLayout box = dialogBox();
-        addTo(box, notice("Enforced controls: the wallet locks after inactivity and whenever the app leaves the foreground. Large sends require a second confirmation. The spending limit is a persistent rolling 24-hour USD cap. Current market-price lookup is required while either USD guard is enabled; unknown-price tokens cannot be sent under an active USD cap. Set a USD limit to 0 only if you intentionally want to disable that guard."), 8);
+        addTo(box, notice("Enforced controls: the wallet locks after inactivity and whenever the app leaves the foreground. Large sends require a second confirmation. The spending limit is a persistent rolling 24-hour USD cap. Market prices are estimates. If an imported token has no reliable USD price, sending requires an extra confirmation and reserves all remaining cap capacity. Unknown dapp methods are blocked while the cap is active. Set a guard to 0 only if you intentionally want to disable it."), 8);
         EditText lock = input("Auto-lock after inactivity (minutes)"); lock.setInputType(InputType.TYPE_CLASS_NUMBER); lock.setText(Integer.toString(profile.autoLockMin));
         EditText large = input("Large-send extra-confirmation threshold USD (0 = off)"); large.setInputType(InputType.TYPE_CLASS_NUMBER); large.setText(Integer.toString(profile.bigSendUsd));
         EditText limit = input("Rolling 24-hour spending cap USD (0 = off)"); limit.setInputType(InputType.TYPE_CLASS_NUMBER); limit.setText(Integer.toString(profile.sessionLimitUsd));

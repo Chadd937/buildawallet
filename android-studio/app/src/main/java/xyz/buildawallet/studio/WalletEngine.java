@@ -316,7 +316,7 @@ final class WalletEngine {
                 + "\nApproved: " + approved + "\n\nIf enabled, this operator may transfer NFTs or other assets covered by the contract.";
         }
         if ("7ff36ab5".equals(selector) || "38ed1739".equals(selector) || "18cbafe5".equals(selector)
-                || "8803dbee".equals(selector) || "4a25d94a".equals(selector)) {
+                || "4a25d94a".equals(selector)) {
             return decodeRouterSwap(selector, words, contract);
         }
         if ("d0e30db0".equals(selector)) return "WRAPPED-NATIVE DEPOSIT\nContract: " + contract + "\nThis deposits the transaction's native value into the contract.";
@@ -488,9 +488,9 @@ final class WalletEngine {
                 BigDecimal amount = new BigDecimal(abiUint(words, 128)).movePointLeft(token.decimals);
                 totalUsd = totalUsd.add(WalletSecurity.tokenUsdValue(network, to, amount));
             } else if ("38ed1739".equals(selector) || "18cbafe5".equals(selector)
-                    || "4a25d94a".equals(selector) ) {
+                    || "4a25d94a".equals(selector)) {
                 int pathOffsetWord = 128;
-                int amountOffset = "8803dbee".equals(selector) ? 64 : 0;
+                int amountOffset = 0;
                 int pathStart = abiUint(words, pathOffsetWord).intValueExact() * 2;
                 String tokenIn = "0x" + words.substring(pathStart + 64 + 24, pathStart + 128);
                 TokenMetadata token = readTokenMetadata(network, tokenIn);

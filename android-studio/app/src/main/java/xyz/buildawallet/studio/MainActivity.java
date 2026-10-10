@@ -29,7 +29,10 @@ import android.widget.TextView;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebSettings;
-import android.webkit.JavascriptInterface;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+import androidx.webkit.WebMessageCompat;
+import androidx.webkit.JavaScriptReplyProxy;
 import android.widget.Toast;
 
 import java.math.BigDecimal;
@@ -37,6 +40,9 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Collections;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -67,6 +73,9 @@ public final class MainActivity extends Activity {
     private EvmNetwork selectedNetwork;
     private WebView dappWebView;
     private AlertDialog dappDialog;
+    private boolean secureDappBridgeReady;
+    private final Map<String, JavaScriptReplyProxy> dappReplies = new ConcurrentHashMap<>();
+    private final Map<String, String> dappRequestOrigins = new ConcurrentHashMap<>();
     private boolean solanaDappConnected;
     private String solanaDappConnectedOrigin;
 

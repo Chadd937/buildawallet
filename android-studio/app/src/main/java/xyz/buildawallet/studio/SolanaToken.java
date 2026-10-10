@@ -26,7 +26,7 @@ final class SolanaToken {
     }
 
     static java.math.BigInteger toRawAmount(String amountText, int decimals) {
-        if (decimals < 0 || decimals > 18) throw new IllegalArgumentException("Token decimals must be between 0 and 18.");
+        if (decimals < 0 || decimals > 255) throw new IllegalArgumentException("Token decimals must be between 0 and 255.");
         java.math.BigDecimal amount;
         try { amount = new java.math.BigDecimal(amountText.trim()); }
         catch (Exception error) { throw new IllegalArgumentException("Enter a valid token amount."); }

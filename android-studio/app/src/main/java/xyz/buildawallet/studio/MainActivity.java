@@ -869,29 +869,105 @@ public final class MainActivity extends Activity {
             }
             if ("eth_sendTransaction".equals(method)) {
                 org.json.JSONObject tx = params.getJSONObject(0);
-                new AlertDialog.Builder(this).setTitle("Dapp transaction · review carefully").setMessage(dappTransactionPreview(tx)).setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected transaction")).setPositiveButton("Sign & send", (d,w) -> io.execute(() -> { try { resolveDapp(id, engine.dappSendTransaction(selectedNetwork, tx), 0, null); } catch(Exception e){ resolveDapp(id,null,4000,safeMessage(e)); } })).show(); return;
+                EvmNetwork network = selectedNetwork;
+                WalletEngine activeEngine = engine;
+                if (walletLocked || activeEngine == null) {
+                    resolveDapp(id, null, 4001, "Wallet is locked.");
+                    return;
+                }
+                io.execute(() -> {
+                    try {
+                        String data = tx.optString("data", tx.optString("input", "0x"));
+                        String decoded = activeEngine.decodeContractCall(network, tx.optString("to", ""), data);
+                        WalletEngine.DappSpendEstimate estimate = null;
+                        if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) {
+                            estimate = activeEngine.estimateDappSpend(network, tx);
+                            if (profile.sessionLimitUsd > 0 && !estimate.fullyValued) {
+                                throw new IllegalStateException("This contract method is not fully decoded, so the wallet cannot reliably apply the active USD spending cap. Transaction cancelled. Review the contract independently or explicitly disable the 24-hour spending cap in Security settings before using this method.");
+                            }
+                        }
+                        WalletEngine.DappSpendEstimate finalEstimate = estimate;
+                        runOnUiThread(() -> showDappTransactionConfirmation(id, tx, network, decoded, finalEstimate));
+                    } catch (Exception error) {
+                        runOnUiThread(() -> resolveDapp(id, null, 4000, safeMessage(error)));
+                    }
+                });
+                return;
             }
             io.execute(() -> { try { resolveDapp(id, engine.dappRead(selectedNetwork, method, params), 0, null); } catch(Exception e) { resolveDapp(id,null,4200,safeMessage(e)); } });
         } catch (Exception e) { resolveDapp(id,null,4000,safeMessage(e)); }
     }
 
-    private String dappTransactionPreview(org.json.JSONObject tx) {
+    private void showDappTransactionConfirmation(String id, org.json.JSONObject tx, EvmNetwork network,
+                                                 String decoded, WalletEngine.DappSpendEstimate estimate) {
+        boolean highRisk = decoded.contains("HIGH RISK") || decoded.contains("UNLIMITED")
+            || decoded.contains("UNKNOWN CONTRACT METHOD") || decoded.contains("MULTICALL")
+            || decoded.contains("not fully decoded");
+        boolean large = estimate != null && profile.bigSendUsd > 0
+            && estimate.usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0;
+        String message = dappTransactionPreview(tx, network, decoded, estimate);
+        new AlertDialog.Builder(this)
+            .setTitle(highRisk || large ? "High-risk dapp request · review" : "Dapp transaction · review carefully")
+            .setMessage(message)
+            .setNegativeButton("Reject", (d, w) -> resolveDapp(id, null, 4001, "User rejected transaction"))
+            .setPositiveButton(highRisk || large ? "Continue to final review" : "Sign & send",
+                (d, w) -> {
+                    if (highRisk || large) {
+                        new AlertDialog.Builder(this)
+                            .setTitle("Final transaction confirmation")
+                            .setMessage("Network: " + network.name + "\nContract / destination: " + tx.optString("to", "(missing)")
+                                + "\n\n" + decoded
+                                + "\n\nContract effects may be irreversible. Only proceed if you independently trust this contract and understand the decoded action.")
+                            .setNegativeButton("Reject", (dd, ww) -> resolveDapp(id, null, 4001, "User rejected transaction"))
+                            .setPositiveButton("I understand · Sign & send",
+                                (dd, ww) -> sendDappTransaction(id, tx, network, estimate))
+                            .show();
+                    } else sendDappTransaction(id, tx, network, estimate);
+                }).show();
+    }
+
+    private String dappTransactionPreview(org.json.JSONObject tx, EvmNetwork network, String decoded,
+                                          WalletEngine.DappSpendEstimate estimate) {
         String to = tx.optString("to", "(missing)");
         String value = tx.optString("value", "0x0");
         String gas = tx.optString("gas", "estimated by network");
+        String gasPrice = tx.optString("maxFeePerGas", tx.optString("gasPrice", "estimated by network"));
         String data = tx.optString("data", tx.optString("input", "0x"));
-        String selector = data.length() >= 10 ? data.substring(0, 10).toLowerCase(java.util.Locale.ROOT) : data;
-        String action = "Contract call is not decoded by this wallet. Treat unknown calldata as high risk.";
-        if ("0xa9059cbb".equals(selector)) action = "ERC-20 transfer call detected. Verify the token contract and recipient before signing.";
-        if ("0x095ea7b3".equals(selector)) action = "ERC-20 approval call detected. Verify the token contract and spender; this may grant token-spending permission.";
         String shownData = data.length() > 600 ? data.substring(0, 600) + "… (truncated)" : data;
-        return "Network: " + selectedNetwork.name + " (chain " + selectedNetwork.chainId + ")"
+        String usd = estimate == null ? "USD value not calculated (USD guardrails disabled)"
+            : "Estimated native value + fee + decoded token spend: $" + estimate.usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString();
+        return "Network: " + network.name + " (chain " + network.chainId + ")"
             + "\nDestination / contract: " + to
-            + "\nNative value: " + value
+            + "\nNative value (hex wei): " + value
             + "\nGas limit: " + gas
-            + "\nCall data: " + shownData
-            + "\n\n" + action
-            + "\n\nOnly sign if you understand the transaction. Contract data may not be fully decoded.";
+            + "\nGas price / max fee (hex): " + gasPrice
+            + "\n" + usd
+            + "\n\nDECODED ACTION\n" + decoded
+            + "\n\nRaw calldata: " + shownData
+            + "\n\nMarket prices are estimates, not guaranteed execution values. Contract calls may have effects that cannot be fully inferred from calldata.";
+    }
+
+    private void sendDappTransaction(String id, org.json.JSONObject tx, EvmNetwork network,
+                                     WalletEngine.DappSpendEstimate estimate) {
+        if (walletLocked || engine == null) {
+            resolveDapp(id, null, 4001, "Wallet is locked; transaction cancelled.");
+            return;
+        }
+        String walletAddress = engine.address();
+        io.execute(() -> {
+            WalletSecurity.Reservation reservation = null;
+            try {
+                if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                reservation = WalletSecurity.reserve(this, walletAddress,
+                    estimate == null ? null : estimate.usdValue, profile.sessionLimitUsd);
+                if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                String hash = engine.dappSendTransaction(network, tx);
+                resolveDapp(id, hash, 0, null);
+            } catch (Exception error) {
+                if (reservation != null) WalletSecurity.release(this, reservation);
+                resolveDapp(id, null, 4000, safeMessage(error));
+            }
+        });
     }
 
     private void resolveDapp(String id, String result, int code, String message) {

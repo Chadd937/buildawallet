@@ -68,6 +68,7 @@ public final class MainActivity extends Activity {
     private WebView dappWebView;
     private AlertDialog dappDialog;
     private boolean solanaDappConnected;
+    private String solanaDappConnectedOrigin;
 
     private int setupStep = 0;
     private String pendingName = "My Wallet";
@@ -825,7 +826,7 @@ public final class MainActivity extends Activity {
         for (String item : apps) { String[] parts = item.split("\\|",2); Button b = button("↗ " + parts[0], false); b.setOnClickListener(v -> { url.setText(parts[1]); dappWebView.loadUrl(parts[1]); }); root.addView(b, new LinearLayout.LayoutParams(-1, dp(42))); }
         go.setOnClickListener(v -> loadDappUrl(url.getText().toString(), dappWebView));
         connect.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("Connect wallet").setMessage("This browser exposes an EIP-1193 wallet provider to the current dapp. The dapp must request accounts before it can see your address. Every transaction still requires an explicit confirmation.").setPositiveButton("Continue", null).setNegativeButton("Cancel", null).show());
-        dialog.setView(root); dialog.setOnDismissListener(v -> { dappDialog = null; solanaDappConnected = false; if (dappWebView != null) { dappWebView.removeJavascriptInterface("BuildAWallet"); dappWebView.destroy(); dappWebView = null; } }); dialog.setOnShowListener(v -> loadDappUrl("https://app.uniswap.org", dappWebView)); dialog.show();
+        dialog.setView(root); dialog.setOnDismissListener(v -> { dappDialog = null; solanaDappConnected = false; solanaDappConnectedOrigin = null; if (dappWebView != null) { dappWebView.removeJavascriptInterface("BuildAWallet"); dappWebView.destroy(); dappWebView = null; } }); dialog.setOnShowListener(v -> loadDappUrl("https://app.uniswap.org", dappWebView)); dialog.show();
     }
 
     private boolean isTrustedDappOrigin(String rawUrl) {
@@ -879,7 +880,7 @@ public final class MainActivity extends Activity {
             + "'standard:disconnect':{version:'1.0.0',disconnect:async function(){await p.disconnect();}},"
             + "'standard:events':{version:'1.0.0',on:function(event,listener){if(event==='change')p.on('connect',()=>listener({accounts:[account()]}));p.on('disconnect',()=>listener({accounts:[]}));return ()=>{};}},"
             + "'solana:signMessage':{version:'1.0.0',signMessage:async function(...inputs){const out=[];for(const input of inputs){const signed=await p.signMessage(input.message);out.push({signedMessage:input.message,signature:signed.signature});}return out;}},"
-            + "'solana:signTransaction':{version:'1.0.0',supportedTransactionVersions:['legacy','0'],signTransaction:async function(...inputs){const out=[];for(const input of inputs){if(input.chain&&input.chain!=='solana:mainnet')throw new Error('BuildAWallet supports Solana mainnet only');const signed=await call('solana_signTransaction',[b64(input.transaction)]);out.push({signedTransaction:bytes(signed)});}return out;}},"
+            + "'solana:signTransaction':{version:'1.0.0',supportedTransactionVersions:['legacy',0],signTransaction:async function(...inputs){const out=[];for(const input of inputs){if(input.chain&&input.chain!=='solana:mainnet')throw new Error('BuildAWallet supports Solana mainnet only');const signed=await call('solana_signTransaction',[b64(input.transaction)]);out.push({signedTransaction:bytes(signed)});}return out;}},"
             + "'solana:signAndSendTransaction':{version:'1.0.0',supportedTransactionVersions:['legacy','0'],signAndSendTransaction:async function(...inputs){const out=[];for(const input of inputs){if(input.chain&&input.chain!=='solana:mainnet')throw new Error('BuildAWallet supports Solana mainnet only');const sig=await call('solana_sendTransaction',[b64(input.transaction)]);out.push({signature:bytes58(sig)});}return out;}}"
             + "}};"
             + "const announceWallet=()=>window.dispatchEvent(new CustomEvent('wallet-standard:register-wallet',{detail:(register)=>register(wallet)}));window.addEventListener('wallet-standard:app-ready',announceWallet);announceWallet();"
@@ -1043,21 +1044,27 @@ public final class MainActivity extends Activity {
         }
         String origin = dappWebView == null ? "Unknown dapp" : Uri.parse(dappWebView.getUrl() == null ? "" : dappWebView.getUrl()).getHost();
         if ("solana_connect".equals(method)) {
-            if (solanaDappConnected) { resolveDapp(id, nonEvm.solanaAddress(), 0, null); return; }
+            if (solanaDappConnected && origin != null && origin.equals(solanaDappConnectedOrigin)) { resolveDapp(id, nonEvm.solanaAddress(), 0, null); return; }
             new AlertDialog.Builder(this).setTitle("Solana dapp connection")
                 .setMessage("Allow " + (origin == null ? "this dapp" : origin) + " to view your Solana public address for this browser session? Your recovery phrase and private key will never be shared.")
                 .setNegativeButton("Reject", (d, w) -> resolveDapp(id, null, 4001, "User rejected Solana connection"))
                 .setPositiveButton("Connect", (d, w) -> {
                     if (walletLocked || nonEvm == null) { resolveDapp(id, null, 4001, "Wallet is locked."); return; }
                     solanaDappConnected = true;
+                    solanaDappConnectedOrigin = origin;
                     resolveDapp(id, nonEvm.solanaAddress(), 0, null);
                 }).show();
             return;
         }
         if ("solana_disconnect".equals(method)) {
             solanaDappConnected = false;
+            solanaDappConnectedOrigin = null;
             resolveDapp(id, "ok", 0, null);
             return;
+        }
+        if (origin == null || !origin.equals(solanaDappConnectedOrigin)) {
+            solanaDappConnected = false;
+            solanaDappConnectedOrigin = null;
         }
         if (!solanaDappConnected) { resolveDapp(id, null, 4100, "Connect this dapp to the Solana account first."); return; }
         if ("solana_signMessage".equals(method)) {

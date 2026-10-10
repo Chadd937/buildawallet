@@ -67,6 +67,13 @@ final class SecureSeedStore {
         return new String(clear, StandardCharsets.UTF_8);
     }
 
+    boolean matchesMnemonic(String candidate) throws Exception {
+        String normalizedCandidate = normalize(candidate);
+        if (!MnemonicUtils.validateMnemonic(normalizedCandidate)) return false;
+        String stored = loadMnemonic();
+        return normalize(stored).equals(normalizedCandidate);
+    }
+
     void delete() {
         prefs.edit().clear().apply();
         try {

@@ -1406,9 +1406,10 @@ public final class MainActivity extends Activity {
             .setMessage("You are about to send " + transfer.amountText() + " on " + transfer.network.name
                 + "\nRecipient: " + transfer.to
                 + (transfer.assetToken == null ? "" : "\nToken contract: " + transfer.assetToken)
-                + "\nIndicative value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()
+                + (usdValue == null ? "\nUSD value unavailable; the remaining 24-hour cap will be reserved conservatively if enabled."
+                    : "\nIndicative value including estimated fee: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString())
                 + "\nEstimated fee: " + transfer.feeText()
-                + "\n\nThis transfer meets your large-send threshold ($" + profile.bigSendUsd + "). Transactions cannot be reversed. Verify the network, recipient, token contract and amount.")
+                + "\n\nThis transfer meets your large-send threshold ($" + profile.bigSendUsd + ") or has no reliable price. Transactions cannot be reversed. Verify the network, recipient, token contract and amount.")
             .setNegativeButton("Cancel", null)
             .setPositiveButton("I verified · Sign & broadcast", (dialog, which) -> broadcast(transfer, usdValue))
             .show();

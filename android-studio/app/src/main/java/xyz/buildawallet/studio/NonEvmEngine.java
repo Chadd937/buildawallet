@@ -208,14 +208,19 @@ final class NonEvmEngine {
         if (sourceAccounts == null || sourceAccounts.getValue() == null || sourceAccounts.getValue().isEmpty()) {
             throw new IllegalArgumentException("No source token account exists for this mint.");
         }
-        PublicKey source = new PublicKey(sourceAccounts.getValue().get(0).getPubkey());
-        TokenResultObjects.TokenInfo sourceInfo = parsedTokenAccount(source);
-        if (sourceInfo == null || !mint.toBase58().equals(sourceInfo.getMint())
-                || !solanaAddress().equals(sourceInfo.getOwner()) || sourceInfo.getTokenAmount() == null) {
-            throw new IllegalStateException("Source token account owner or mint did not match the wallet.");
+        PublicKey source = null;
+        for (TokenAccountInfo.Value candidate : sourceAccounts.getValue()) {
+            if (candidate == null || candidate.getPubkey() == null) continue;
+            PublicKey candidateKey = new PublicKey(candidate.getPubkey());
+            TokenResultObjects.TokenInfo candidateInfo = parsedTokenAccount(candidateKey);
+            if (candidateInfo == null || !mint.toBase58().equals(candidateInfo.getMint())
+                    || !solanaAddress().equals(candidateInfo.getOwner()) || candidateInfo.getTokenAmount() == null) {
+                continue;
+            }
+            BigInteger candidateBalance = new BigInteger(candidateInfo.getTokenAmount().getAmount());
+            if (candidateBalance.compareTo(raw) >= 0) { source = candidateKey; break; }
         }
-        BigInteger sourceBalance = new BigInteger(sourceInfo.getTokenAmount().getAmount());
-        if (sourceBalance.compareTo(raw) < 0) throw new IllegalArgumentException("Insufficient " + mintInfo.onChainSymbol + " balance.");
+        if (source == null) throw new IllegalArgumentException("No single source token account has enough " + mintInfo.onChainSymbol + " to cover this transfer.");
 
         PublicKey destinationAta = associatedTokenAddress(destination, mint, tokenProgram);
         org.p2p.solanaj.rpc.types.AccountInfo destinationInfo = solanaRpc.getApi().getAccountInfo(destinationAta);

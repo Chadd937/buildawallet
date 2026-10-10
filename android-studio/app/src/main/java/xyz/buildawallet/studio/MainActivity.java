@@ -1272,14 +1272,16 @@ public final class MainActivity extends Activity {
     }
 
     private void broadcastBitcoin(String destination, BigDecimal amount, long feeRate, BigDecimal usdValue) {
-        if (walletLocked || nonEvm == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before sending.")); return; }
-        String walletAddress = engine == null ? "" : engine.address();
+        if (walletLocked || nonEvm == null || engine == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before sending.")); return; }
+        String walletAddress = engine.address();
         io.execute(() -> {
             WalletSecurity.Reservation reservation = null;
+            boolean dispatchStarted = false;
             try {
-                if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                if (walletLocked || nonEvm == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
                 reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
                 if (walletLocked || nonEvm == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                dispatchStarted = true;
                 String txid = nonEvm.sendBitcoin(destination, amount, feeRate);
                 runOnUiThread(() -> Toast.makeText(this, "BTC sent: " + txid, Toast.LENGTH_LONG).show());
             } catch (Exception error) {

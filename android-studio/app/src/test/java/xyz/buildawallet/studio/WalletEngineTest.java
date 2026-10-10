@@ -25,7 +25,7 @@ public class WalletEngineTest {
             "0x2222222222222222222222222222222222222222",
             new java.math.BigInteger("123456789"),
             java.math.BigInteger.ONE,
-            java.math.BigInteger.valueOf(1000),
+            java.math.BigInteger.valueOf(1_000_000_000_000L),
             java.math.BigInteger.valueOf(65000),
             "0xa9059cbb",
             "MYT",
@@ -33,6 +33,6 @@ public class WalletEngineTest {
         );
         assertEquals("MYT", transfer.assetText());
         assertEquals("123.456789 MYT", transfer.amountText());
-        assertEquals("0.000000000000065", transfer.feeText().split(" ")[0]);
+        assertEquals("0.065", transfer.feeText().split(" ")[0]);
     }
 }

@@ -110,7 +110,7 @@ final class NonEvmEngine {
             if (instruction.unknown) preview.append("\\nHIGH RISK: this program's effects are not decoded by this wallet.");
         }
         if (view.lookupTables) preview.append("\\n\\nAddress lookup tables are present. Some resolved accounts are not visible in the static account list.");
-        JSONObject simulation = solanaRpcCall("simulateTransaction",
+        JSONObject simulation = (JSONObject) solanaRpcCall("simulateTransaction",
             new JSONArray().put(encodedTransaction).put(new JSONObject()
                 .put("encoding", "base64").put("commitment", "confirmed")
                 .put("sigVerify", false).put("replaceRecentBlockhash", true)));
@@ -158,11 +158,11 @@ final class NonEvmEngine {
     /** Signs and submits a dapp transaction only after the caller has displayed the review prompt. */
     String sendSolanaDappTransaction(String encodedTransaction) throws Exception {
         String signed = signSolanaDappTransaction(encodedTransaction);
-        JSONObject result = solanaRpcCall("sendTransaction",
+        Object result = solanaRpcCall("sendTransaction",
             new JSONArray().put(signed).put(new JSONObject()
                 .put("encoding", "base64").put("preflightCommitment", "confirmed")
                 .put("skipPreflight", false).put("maxRetries", 3)));
-        String signature = result.optString("result", "");
+        String signature = result instanceof String ? (String) result : "";
         if (signature.isEmpty()) throw new IllegalStateException("Solana mainnet RPC did not return a transaction signature.");
         return signature;
     }
@@ -177,7 +177,7 @@ final class NonEvmEngine {
         return android.util.Base64.encodeToString(signature, android.util.Base64.NO_WRAP);
     }
 
-    private JSONObject solanaRpcCall(String method, JSONArray params) throws Exception {
+    private Object solanaRpcCall(String method, JSONArray params) throws Exception {
         JSONObject request = new JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", method).put("params", params);
         HttpURLConnection connection = (HttpURLConnection) new URL(SOLANA_MAINNET_RPC).openConnection();
         connection.setRequestMethod("POST");
@@ -198,8 +198,8 @@ final class NonEvmEngine {
         JSONObject response = new JSONObject(body);
         JSONObject error = response.optJSONObject("error");
         if (error != null) throw new IllegalStateException("Solana mainnet RPC " + method + " failed: " + error.optString("message", error.toString()));
-        JSONObject result = response.optJSONObject("result");
-        if (result == null) throw new IllegalStateException("Solana mainnet RPC returned an invalid " + method + " response.");
+        Object result = response.opt("result");
+        if (result == null || result == JSONObject.NULL) throw new IllegalStateException("Solana mainnet RPC returned an invalid " + method + " response.");
         return result;
     }
 
@@ -256,11 +256,11 @@ final class NonEvmEngine {
         view.messageStart = cursor[0] + view.signatureCount * 64;
         cursor[0] = view.messageStart;
         int first = wire[cursor[0]] & 0xff;
-        if ((first & 0x80) != 0) {
+        boolean versioned = (first & 0x80) != 0;
+        if (versioned) {
             int version = first & 0x7f;
             if (version != 0) throw new IllegalArgumentException("Unsupported Solana transaction message version: " + version);
             cursor[0]++;
-            view.lookupTables = true;
         }
         if (cursor[0] + 3 > wire.length) throw new IllegalArgumentException("Truncated Solana message header.");
         view.requiredSignatures = wire[cursor[0]] & 0xff;
@@ -296,17 +296,17 @@ final class NonEvmEngine {
             String detail = "Instruction data bytes: " + data.length + "; prefix: " + bytesToHex(Arrays.copyOf(data, Math.min(12, data.length)));
             boolean unknown = true;
             if ("11111111111111111111111111111111".equals(program) && data.length >= 12 && littleU32(data, 0) == 2) {
-                long lamports = littleU64(data, 4);
+                BigInteger lamports = littleU64Big(data, 4);
                 label = "System Program · SOL transfer";
-                detail = "Amount: " + BigDecimal.valueOf(lamports).movePointLeft(9).stripTrailingZeros().toPlainString() + " SOL";
+                detail = "Amount: " + new BigDecimal(lamports).movePointLeft(9).stripTrailingZeros().toPlainString() + " SOL";
                 if (accounts.size() >= 2) detail += "\\nFrom: " + accountKey(view, accounts.get(0)) + "\\nTo: " + accountKey(view, accounts.get(1));
                 unknown = false;
             } else if ((TokenProgram.PROGRAM_ID.toBase58().equals(program) || TOKEN_2022_PROGRAM_ID.equals(program))
-                    && data.length >= 9 && ((data[0] & 0xff) == 3 || (data[0] & 0xff) == 12)) {
+                    && data.length >= 9 && ((data[0] & 0xff) == 3 || ((data[0] & 0xff) == 12 && data.length >= 10))) {
                 boolean checked = (data[0] & 0xff) == 12;
-                long raw = littleU64(data, 1);
+                BigInteger raw = littleU64Big(data, 1);
                 label = (checked ? "SPL Token · checked transfer" : "SPL Token · transfer");
-                detail = "Raw token amount: " + Long.toUnsignedString(raw);
+                detail = "Raw token amount: " + raw.toString();
                 if (checked) detail += "\\nDecimals: " + (data[9] & 0xff);
                 if (accounts.size() >= 3) detail += "\\nSource: " + accountKey(view, accounts.get(0))
                     + "\\nDestination: " + accountKey(view, accounts.get(checked ? 2 : 1));
@@ -324,6 +324,21 @@ final class NonEvmEngine {
             }
             view.instructions.add(new SolanaWireInstruction(program, label, detail, accounts, unknown));
         }
+        if (versioned) {
+            int lookupCount = readShortVec(wire, cursor);
+            view.lookupTables = lookupCount > 0;
+            for (int i = 0; i < lookupCount; i++) {
+                if (cursor[0] + 32 > wire.length) throw new IllegalArgumentException("Truncated Solana address lookup table.");
+                cursor[0] += 32;
+                int writableCount = readShortVec(wire, cursor);
+                if (cursor[0] + writableCount > wire.length) throw new IllegalArgumentException("Truncated writable lookup indices.");
+                cursor[0] += writableCount;
+                int readonlyCount = readShortVec(wire, cursor);
+                if (cursor[0] + readonlyCount > wire.length) throw new IllegalArgumentException("Truncated readonly lookup indices.");
+                cursor[0] += readonlyCount;
+            }
+        }
+        if (cursor[0] != wire.length) throw new IllegalArgumentException("Unexpected trailing data in serialized Solana transaction.");
         return view;
     }
 
@@ -331,10 +346,10 @@ final class NonEvmEngine {
         return index >= 0 && index < view.accountKeys.size() ? view.accountKeys.get(index) : "lookup-table account " + index;
     }
 
-    private static long littleU64(byte[] bytes, int offset) {
-        long value = 0;
-        for (int i = 7; i >= 0; i--) value = (value << 8) | (bytes[offset + i] & 0xffL);
-        return value;
+    private static BigInteger littleU64Big(byte[] bytes, int offset) {
+        byte[] bigEndian = new byte[8];
+        for (int i = 0; i < 8; i++) bigEndian[7 - i] = bytes[offset + i];
+        return new BigInteger(1, bigEndian);
     }
 
     private static long littleU32(byte[] bytes, int offset) {

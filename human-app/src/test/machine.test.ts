@@ -188,6 +188,35 @@ describe("multi-chain EVM transaction support", () => {
     expect((usdc.unsignedTransaction as Record<string, string>)["data"]).toMatch(/^0xa9059cbb/);
   });
 
+  it("prepares custom ERC-20 transfers only after validating on-chain decimals and balance", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      const { method, params } = JSON.parse(init.body as string);
+      let result: any;
+      if (method === "eth_chainId") result = "0xa4b1";
+      else if (method === "eth_call") result = params[0].data === "0x313ce567" ? "0x6" : "0x1e8480";
+      else if (method === "eth_getTransactionCount") result = "0x7";
+      else if (method === "eth_estimateGas") result = "0x11170";
+      else if (method === "eth_maxPriorityFeePerGas") result = "0x3b9aca00";
+      else if (method === "eth_getBlockByNumber") result = { baseFeePerGas: "0x3b9aca00" };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result }));
+    }));
+    const prepared = await prepareBaseTransaction("https://arb.example", {
+      from: "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d",
+      to: "0x2222222222222222222222222222222222222222",
+      asset: "erc20",
+      tokenAddress: "0x1111111111111111111111111111111111111111",
+      tokenDecimals: 6,
+      amountAtomic: "1000000",
+    }, "arbitrum");
+    expect(prepared).toMatchObject({
+      chain: "arbitrum",
+      token: "0x1111111111111111111111111111111111111111",
+      tokenDecimals: 6,
+    });
+    expect((prepared.unsignedTransaction as Record<string, string>).to).toBe("0x1111111111111111111111111111111111111111");
+    expect((prepared.unsignedTransaction as Record<string, string>).data).toMatch(/^0xa9059cbb/);
+  });
+
   it("rejects an RPC endpoint whose chain ID does not match the requested EVM chain", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       jsonrpc: "2.0", id: 1, result: "0x1",

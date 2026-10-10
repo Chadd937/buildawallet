@@ -154,44 +154,68 @@ final class WalletEngine {
     }
 
     PreparedTransfer prepareUsdc(EvmNetwork network, String to, String amountText) throws Exception {
+        return prepareTokenTransfer(network, to, amountText, usdcAddress(network), 6, "USDC");
+    }
+
+    /** Prepare any ERC-20 transfer, including user-imported tokens. */
+    PreparedTransfer prepareTokenTransfer(EvmNetwork network, String to, String amountText,
+                                          String tokenAddress, int decimals, String symbol) throws Exception {
         if (!WalletUtils.isValidAddress(to)) throw new IllegalArgumentException("Enter a valid EVM destination address.");
+        if (!WalletUtils.isValidAddress(tokenAddress)) throw new IllegalArgumentException("Invalid token contract address.");
+        if (decimals < 0 || decimals > 36) throw new IllegalArgumentException("Token decimals must be between 0 and 36.");
+        if (symbol == null || !symbol.matches("[A-Za-z0-9._-]{1,16}")) throw new IllegalArgumentException("Invalid token symbol.");
+
         BigDecimal amount;
         try { amount = new BigDecimal(amountText.trim()); }
-        catch (Exception error) { throw new IllegalArgumentException("Enter a valid USDC amount."); }
+        catch (Exception error) { throw new IllegalArgumentException("Enter a valid token amount."); }
         if (amount.signum() <= 0) throw new IllegalArgumentException("Amount must be greater than zero.");
         BigInteger raw;
-        try { raw = amount.movePointRight(6).toBigIntegerExact(); }
-        catch (ArithmeticException error) { throw new IllegalArgumentException("USDC supports at most 6 decimal places."); }
+        try { raw = amount.movePointRight(decimals).toBigIntegerExact(); }
+        catch (ArithmeticException error) { throw new IllegalArgumentException("Amount has too many decimal places for this token."); }
+        if (raw.signum() <= 0) throw new IllegalArgumentException("Amount is too small for this token.");
 
         Web3j web3j = client(network);
         try {
             verifyNetwork(web3j, network);
-            String token = usdcAddress(network);
             Function balanceFn = new Function("balanceOf", java.util.List.of(new Address(address())),
                 java.util.List.of(new org.web3j.abi.TypeReference<Uint256>() {}));
             var balanceResponse = web3j.ethCall(
-                org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(address(), token, FunctionEncoder.encode(balanceFn)),
+                org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(address(), tokenAddress, FunctionEncoder.encode(balanceFn)),
                 DefaultBlockParameterName.LATEST).send();
             if (balanceResponse.hasError()) throw rpcError(balanceResponse.getError().getMessage());
-            if (Numeric.toBigInt(balanceResponse.getValue()).compareTo(raw) < 0) throw new IllegalArgumentException("Insufficient USDC balance.");
+            if (balanceResponse.getValue() == null || balanceResponse.getValue().length() < 3) {
+                throw new IllegalStateException("Token contract did not return a valid balance. Confirm the contract and network.");
+            }
+            if (Numeric.toBigInt(balanceResponse.getValue()).compareTo(raw) < 0) {
+                throw new IllegalArgumentException("Insufficient " + symbol + " balance.");
+            }
 
+            Function transfer = new Function("transfer",
+                java.util.List.of(new Address(to), new Uint256(raw)), java.util.List.of());
+            String data = FunctionEncoder.encode(transfer);
+            var estimate = web3j.ethEstimateGas(
+                org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(address(), tokenAddress, data)).send();
+            if (estimate.hasError() || estimate.getAmountUsed() == null || estimate.getAmountUsed().signum() <= 0) {
+                throw rpcError(estimate.getError() == null ? "Could not estimate token transfer gas." : estimate.getError().getMessage());
+            }
+            BigInteger gasLimit = estimate.getAmountUsed().multiply(BigInteger.valueOf(120)).divide(BigInteger.valueOf(100));
             var nonceResponse = web3j.ethGetTransactionCount(address(), DefaultBlockParameterName.PENDING).send();
             if (nonceResponse.hasError()) throw rpcError(nonceResponse.getError().getMessage());
             var gasResponse = web3j.ethGasPrice().send();
-            if (gasResponse.hasError()) throw rpcError(gasResponse.getError().getMessage());
+            if (gasResponse.hasError() || gasResponse.getGasPrice() == null) throw rpcError(gasResponse.getError() == null ? "Could not fetch gas price." : gasResponse.getError().getMessage());
             BigInteger gasPrice = gasResponse.getGasPrice();
-            BigInteger feeWei = gasPrice.multiply(ERC20_TRANSFER_GAS);
+            BigInteger feeWei = gasPrice.multiply(gasLimit);
             var nativeBalance = web3j.ethGetBalance(address(), DefaultBlockParameterName.LATEST).send();
             if (nativeBalance.hasError()) throw rpcError(nativeBalance.getError().getMessage());
-            if (nativeBalance.getBalance().compareTo(feeWei) < 0) throw new IllegalArgumentException("Insufficient native token for USDC network fee.");
-
-            Function transfer = new Function("transfer",
-                java.util.List.of(new Address(to), new Uint256(raw)),
-                java.util.List.of());
-            String data = FunctionEncoder.encode(transfer);
-            return PreparedTransfer.usdc(network, token, to, raw, nonceResponse.getTransactionCount(), gasPrice, ERC20_TRANSFER_GAS, data);
+            if (nativeBalance.getBalance().compareTo(feeWei) < 0) {
+                throw new IllegalArgumentException("Insufficient " + network.symbol + " to pay the token transfer network fee.");
+            }
+            return PreparedTransfer.token(network, tokenAddress, to, raw, nonceResponse.getTransactionCount(),
+                gasPrice, gasLimit, data, symbol, decimals);
         } finally { web3j.shutdown(); }
     }
+
+    static String configuredUsdcAddress(EvmNetwork network) { return usdcAddress(network); }
 
     private static String usdcAddress(EvmNetwork network) {
         String value = USDC.get(network.chainId);
@@ -322,28 +346,32 @@ final class WalletEngine {
         final BigInteger gasLimit;
         final String assetToken;
         final String data;
+        final String tokenSymbol;
+        final int tokenDecimals;
 
         PreparedTransfer(EvmNetwork network, String to, BigInteger valueWei, BigInteger nonce,
                          BigInteger gasPrice, BigInteger gasLimit) {
-            this(network,to,valueWei,nonce,gasPrice,gasLimit,null,null);
+            this(network, to, valueWei, nonce, gasPrice, gasLimit, null, null, null, 18);
         }
 
         private PreparedTransfer(EvmNetwork network, String to, BigInteger valueWei, BigInteger nonce,
-                         BigInteger gasPrice, BigInteger gasLimit, String assetToken, String data) {
+                         BigInteger gasPrice, BigInteger gasLimit, String assetToken, String data,
+                         String tokenSymbol, int tokenDecimals) {
             this.network = network; this.to = to; this.valueWei = valueWei; this.nonce = nonce;
             this.gasPrice = gasPrice; this.gasLimit = gasLimit; this.assetToken = assetToken; this.data = data;
+            this.tokenSymbol = tokenSymbol; this.tokenDecimals = tokenDecimals;
         }
 
-        static PreparedTransfer usdc(EvmNetwork network,String token,String to,BigInteger value,BigInteger nonce,
-                                     BigInteger gasPrice,BigInteger gasLimit,String data) {
-            return new PreparedTransfer(network,to,value,nonce,gasPrice,gasLimit,token,data);
+        static PreparedTransfer token(EvmNetwork network, String token, String to, BigInteger value, BigInteger nonce,
+                                      BigInteger gasPrice, BigInteger gasLimit, String data, String symbol, int decimals) {
+            return new PreparedTransfer(network, to, value, nonce, gasPrice, gasLimit, token, data, symbol, decimals);
         }
 
-        String assetText() { return assetToken == null ? network.symbol : "USDC"; }
+        String assetText() { return assetToken == null ? network.symbol : tokenSymbol; }
 
         String amountText() {
             return assetToken == null ? formatNative(valueWei) + " " + network.symbol
-                : formatToken(valueWei, 6) + " USDC";
+                : formatToken(valueWei, tokenDecimals) + " " + tokenSymbol;
         }
         String feeText() { return formatNative(gasPrice.multiply(gasLimit)) + " " + network.symbol; }
     }

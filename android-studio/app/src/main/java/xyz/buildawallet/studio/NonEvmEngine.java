@@ -117,7 +117,16 @@ final class NonEvmEngine {
         }
         boolean supported = unsupported.isEmpty();
         String warning = supported ? "" : "Unsupported Token-2022 extension(s): " + String.join(", ", unsupported) + ". Sending is blocked until these semantics are implemented and reviewed.";
-        return new SolanaMintInfo(mint.toBase58(), programId, decimals, response.getTokenName().orElse(""), response.getTokenSymbol().orElse(""), supported, warning);
+        String name = "";
+        String symbol = "";
+        if (extensions != null) for (TokenResultObjects.Extension extension : extensions) {
+            if (extension == null || extension.getState() == null) continue;
+            if ("tokenMetadata".equalsIgnoreCase(extension.getExtensionType())) {
+                if (extension.getState().getName() != null) name = extension.getState().getName();
+                if (extension.getState().getSymbol() != null) symbol = extension.getState().getSymbol();
+            }
+        }
+        return new SolanaMintInfo(mint.toBase58(), programId, decimals, name, symbol, supported, warning);
     }
 
     String solanaTokenBalance(String mintText) throws Exception {

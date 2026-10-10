@@ -37,6 +37,12 @@ final class WalletSecurity {
         return nativeAmount.multiply(price).setScale(8, RoundingMode.HALF_UP);
     }
 
+    static BigDecimal tokenUsdValue(EvmNetwork network, String tokenAddress, BigDecimal tokenAmount) throws Exception {
+        BigDecimal price = tokenPrice(network, tokenAddress);
+        if (price.signum() <= 0) throw new IllegalStateException("No trustworthy USD price is available for this token.");
+        return tokenAmount.multiply(price).setScale(8, RoundingMode.HALF_UP);
+    }
+
     private static BigDecimal nativePrice(EvmNetwork network) throws Exception {
         String id;
         switch ((int) network.chainId) {

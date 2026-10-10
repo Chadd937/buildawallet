@@ -1138,7 +1138,7 @@ public final class MainActivity extends Activity {
 
 
     private void addSolanaTokensSection(LinearLayout card) {
-        card.addView(label("SPL TOKENS", 10, MUTED, true), layout(0, 0, 0, 4));
+        addTo(card, label("SPL TOKENS", 10, MUTED, true), 4);
         Button importToken = button("+ Import SPL token", false);
         addTo(card, importToken, 8);
         importToken.setOnClickListener(v -> importSolanaTokenDialog());
@@ -1263,12 +1263,10 @@ public final class MainActivity extends Activity {
                     String estimate = active.previewSolanaTokenTransfer(token, destination, amountText);
                     BigDecimal value = new BigDecimal(amountText);
                     BigDecimal usd = null;
-                    if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) {
-                        try {
-                            usd = WalletSecurity.solanaTokenUsdValue(token.mint, value)
-                                .add(WalletSecurity.coinUsdValue("solana", new BigDecimal("0.0022")));
-                        } catch (Exception ignoredPrice) { usd = null; }
-                    }
+                    try {
+                        usd = WalletSecurity.solanaTokenUsdValue(token.mint, value)
+                            .add(WalletSecurity.coinUsdValue("solana", new BigDecimal("0.0022")));
+                    } catch (Exception ignoredPrice) { usd = null; }
                     BigDecimal finalUsd = usd;
                     runOnUiThread(() -> confirmSolanaTokenTransfer(token, destination, value, finalUsd, estimate));
                 } catch (Exception error) { runOnUiThread(() -> showError("Cannot prepare SPL transfer", error)); }
@@ -1279,7 +1277,7 @@ public final class MainActivity extends Activity {
 
     private void confirmSolanaTokenTransfer(SolanaToken token, String destination, BigDecimal amount,
                                              BigDecimal usdValue, String feeEstimate) {
-        boolean unpriced = usdValue == null && (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0);
+        boolean unpriced = usdValue == null;
         boolean large = usdValue != null && profile.bigSendUsd > 0 && usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0;
         String message = "Network: Solana mainnet\nRecipient wallet: " + destination
             + "\nToken: " + token.name + " (" + token.symbol + ")\nAmount: " + amount.toPlainString() + " " + token.symbol

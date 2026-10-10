@@ -901,6 +901,7 @@ public final class MainActivity extends Activity {
     private void showDappTransactionConfirmation(String id, org.json.JSONObject tx, EvmNetwork network,
                                                  String decoded, WalletEngine.DappSpendEstimate estimate) {
         boolean highRisk = decoded.contains("HIGH RISK") || decoded.contains("UNLIMITED")
+            || decoded.contains("APPROVAL") || decoded.contains("ALLOWANCE")
             || decoded.contains("UNKNOWN CONTRACT METHOD") || decoded.contains("MULTICALL")
             || decoded.contains("not fully decoded");
         boolean large = estimate != null && profile.bigSendUsd > 0

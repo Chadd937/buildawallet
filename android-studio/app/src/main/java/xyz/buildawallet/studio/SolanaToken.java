@@ -34,8 +34,9 @@ final class SolanaToken {
         java.math.BigInteger raw;
         try { raw = amount.movePointRight(decimals).toBigIntegerExact(); }
         catch (ArithmeticException error) { throw new IllegalArgumentException("Amount has too many decimal places for this token."); }
-        if (raw.signum() <= 0 || raw.compareTo(java.math.BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
-            throw new IllegalArgumentException("Amount is outside the supported SPL token transfer range.");
+        java.math.BigInteger maxU64 = java.math.BigInteger.ONE.shiftLeft(64).subtract(java.math.BigInteger.ONE);
+        if (raw.signum() <= 0 || raw.compareTo(maxU64) > 0) {
+            throw new IllegalArgumentException("Amount exceeds the SPL token program's unsigned 64-bit transfer range.");
         }
         return raw;
     }

@@ -1153,7 +1153,7 @@ public final class MainActivity extends Activity {
                 io.execute(() -> {
                     try {
                         BigDecimal usd = null;
-                        if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) usd = WalletSecurity.coinUsdValue("solana", value);
+                        if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) usd = WalletSecurity.coinUsdValue("solana", value.add(new BigDecimal("0.00001")));
                         BigDecimal finalUsd = usd;
                         runOnUiThread(() -> confirmSolanaTransfer(destination, value, finalUsd));
                     } catch (Exception error) { runOnUiThread(() -> showError("Cannot value SOL transfer", error)); }
@@ -1182,12 +1182,12 @@ public final class MainActivity extends Activity {
     }
 
     private void broadcastSolana(String destination, BigDecimal amount, BigDecimal usdValue) {
-        if (walletLocked || nonEvm == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before sending.")); return; }
+        if (walletLocked || nonEvm == null || engine == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before sending.")); return; }
         String walletAddress = engine == null ? "" : engine.address();
         io.execute(() -> {
             WalletSecurity.Reservation reservation = null;
             try {
-                if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                if (walletLocked || nonEvm == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
                 reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
                 String signature = nonEvm.sendSolana(destination, amount);
                 runOnUiThread(() -> Toast.makeText(this, "SOL sent: " + signature, Toast.LENGTH_LONG).show());

@@ -65,6 +65,11 @@ public class SolanaDappTransactionTest {
             SolanaToken.toRawAmount("18446744073709.551615", 6));
     }
 
+    @Test public void supportsSPLMintsWithMoreThanEighteenDecimals() {
+        assertEquals(new java.math.BigInteger("1234567890123456789012345"),
+            SolanaToken.toRawAmount("1.234567890123456789012345", 24));
+    }
+
     @Test public void rejectsAmountsAboveUnsigned64BitTokenRange() {
         try {
             SolanaToken.toRawAmount("18446744073709.551616", 6);

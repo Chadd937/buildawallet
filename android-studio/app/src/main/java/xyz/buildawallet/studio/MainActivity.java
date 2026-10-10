@@ -870,7 +870,14 @@ public final class MainActivity extends Activity {
             }
             if ("personal_sign".equals(method)) {
                 String message = params.length() > 0 ? params.getString(0) : "";
-                new AlertDialog.Builder(this).setTitle("Dapp signature request").setMessage("Sign this message?\\n\\n" + message).setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Sign", (d,w) -> io.execute(() -> { try { resolveDapp(id, engine.signPersonalMessage(message), 0, null); } catch (Exception e) { resolveDapp(id, null, 4000, safeMessage(e)); } })).show(); return;
+                new AlertDialog.Builder(this).setTitle("Dapp signature request").setMessage("Sign this message?\\n\\n" + message).setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Sign", (d,w) -> io.execute(() -> {
+                    WalletEngine activeEngine = engine;
+                    try {
+                        if (walletLocked || activeEngine == null) throw new IllegalStateException("Wallet is locked.");
+                        String signature = activeEngine.signPersonalMessage(message);
+                        runOnUiThread(() -> resolveDapp(id, signature, 0, null));
+                    } catch (Exception e) { runOnUiThread(() -> resolveDapp(id, null, 4000, safeMessage(e))); }
+                })).show(); return;
             }
             if ("eth_sendTransaction".equals(method)) {
                 org.json.JSONObject tx = params.getJSONObject(0);
@@ -899,7 +906,15 @@ public final class MainActivity extends Activity {
                 });
                 return;
             }
-            io.execute(() -> { try { resolveDapp(id, engine.dappRead(selectedNetwork, method, params), 0, null); } catch(Exception e) { resolveDapp(id,null,4200,safeMessage(e)); } });
+            EvmNetwork readNetwork = selectedNetwork;
+            WalletEngine readEngine = engine;
+            if (walletLocked || readEngine == null) { resolveDapp(id, null, 4001, "Wallet is locked."); return; }
+            io.execute(() -> {
+                try {
+                    String result = readEngine.dappRead(readNetwork, method, params);
+                    runOnUiThread(() -> resolveDapp(id, result, 0, null));
+                } catch(Exception e) { runOnUiThread(() -> resolveDapp(id, null, 4200, safeMessage(e))); }
+            });
         } catch (Exception e) { resolveDapp(id,null,4000,safeMessage(e)); }
     }
 
@@ -970,12 +985,12 @@ public final class MainActivity extends Activity {
                 if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
                 dispatchStarted = true;
                 String hash = engine.dappSendTransaction(network, tx);
-                resolveDapp(id, hash, 0, null);
+                runOnUiThread(() -> resolveDapp(id, hash, 0, null));
             } catch (Exception error) {
                 if (reservation != null && !dispatchStarted) WalletSecurity.release(this, reservation);
                 String message = safeMessage(error);
                 if (dispatchStarted) message += " The network outcome may be uncertain; spending capacity remains reserved for safety.";
-                resolveDapp(id, null, 4000, message);
+                runOnUiThread(() -> resolveDapp(id, null, 4000, message));
             }
         });
     }

@@ -189,9 +189,11 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Unlock with recovery phrase")
             .setMessage("Use this fallback only if your Android device has no secure screen lock. The phrase is verified locally and is not sent anywhere.")
             .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Unlock", null).create();
-        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> io.execute(() -> {
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String candidatePhrase = phrase.getText().toString();
+            io.execute(() -> {
             try {
-                boolean matches = seedStore.matchesMnemonic(phrase.getText().toString());
+                boolean matches = seedStore.matchesMnemonic(candidatePhrase);
                 runOnUiThread(() -> {
                     if (matches) {
                         dialog.dismiss();
@@ -203,7 +205,7 @@ public final class MainActivity extends Activity {
             } catch (Exception error) {
                 runOnUiThread(() -> showError("Unlock failed", error));
             }
-        })));
+        }); }));
         dialog.show();
     }
 
@@ -1189,6 +1191,7 @@ public final class MainActivity extends Activity {
             try {
                 if (walletLocked || nonEvm == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
                 reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
+                if (walletLocked || nonEvm == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
                 String signature = nonEvm.sendSolana(destination, amount);
                 runOnUiThread(() -> Toast.makeText(this, "SOL sent: " + signature, Toast.LENGTH_LONG).show());
             } catch (Exception error) {
@@ -1269,6 +1272,7 @@ public final class MainActivity extends Activity {
             try {
                 if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
                 reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
+                if (walletLocked || nonEvm == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
                 String txid = nonEvm.sendBitcoin(destination, amount, feeRate);
                 runOnUiThread(() -> Toast.makeText(this, "BTC sent: " + txid, Toast.LENGTH_LONG).show());
             } catch (Exception error) {

@@ -381,7 +381,7 @@ final class NonEvmEngine {
         TokenResultObjects.TokenInfo info = parsed == null ? null : parsed.getInfo();
         if (info == null || !"mint".equalsIgnoreCase(parsed.getType()) || !info.isInitialized()) throw new IllegalArgumentException("Address is not an initialized SPL mint.");
         int decimals = info.getDecimals();
-        if (decimals < 0 || decimals > 18) throw new IllegalArgumentException("Mint decimals are outside the wallet's supported safe range (0–18).");
+        if (decimals < 0 || decimals > 255) throw new IllegalArgumentException("Mint decimals are outside the SPL token program range (0–255).");
         ArrayList<String> unsupported = new ArrayList<>();
         List<TokenResultObjects.Extension> extensions = info.getExtensions();
         if (extensions != null) for (TokenResultObjects.Extension extension : extensions) {

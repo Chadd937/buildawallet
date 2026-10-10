@@ -135,6 +135,98 @@ final class NonEvmEngine {
         return WalletEngine.formatToken(total, info.decimals);
     }
 
+
+    /** Local-sign and broadcast a checked SPL transfer; unsupported Token-2022 extensions fail closed. */
+    String sendSolanaToken(String mintText, String destinationText, String amountText, int expectedDecimals,
+                           String expectedProgramId) throws Exception {
+        PublicKey destination = new PublicKey(destinationText.trim());
+        if (destination.equals(solana.getPublicKey())) throw new IllegalArgumentException("Recipient is this wallet's own address.");
+        SolanaMintInfo mintInfo = inspectSolanaMint(mintText);
+        if (!mintInfo.extensionsSupported) throw new IllegalArgumentException(mintInfo.extensionWarning);
+        if (mintInfo.decimals != expectedDecimals || !mintInfo.programId.equals(expectedProgramId)) {
+            throw new IllegalArgumentException("Imported token metadata no longer matches the on-chain mint. Re-import it before sending.");
+        }
+        BigDecimal amount;
+        try { amount = new BigDecimal(amountText.trim()); }
+        catch (Exception error) { throw new IllegalArgumentException("Enter a valid token amount."); }
+        if (amount.signum() <= 0) throw new IllegalArgumentException("Amount must be greater than zero.");
+        BigInteger raw;
+        try { raw = amount.movePointRight(mintInfo.decimals).toBigIntegerExact(); }
+        catch (ArithmeticException error) { throw new IllegalArgumentException("Amount has too many decimal places for this token."); }
+        if (raw.signum() <= 0 || raw.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
+            throw new IllegalArgumentException("Amount is outside the supported SPL token transfer range.");
+        }
+
+        PublicKey mint = new PublicKey(mintInfo.mint);
+        PublicKey tokenProgram = new PublicKey(mintInfo.programId);
+        TokenAccountInfo sourceAccounts = solanaRpc.getApi().getTokenAccountsByOwner(
+            solana.getPublicKey(), Map.of("mint", mint.toBase58()), Map.of("encoding", "jsonParsed"));
+        if (sourceAccounts == null || sourceAccounts.getValue() == null || sourceAccounts.getValue().isEmpty()) {
+            throw new IllegalArgumentException("No source token account exists for this mint.");
+        }
+        PublicKey source = new PublicKey(sourceAccounts.getValue().get(0).getPubkey());
+        TokenResultObjects.TokenInfo sourceInfo = parsedTokenAccount(source);
+        if (sourceInfo == null || !mint.toBase58().equals(sourceInfo.getMint())
+                || !solanaAddress().equals(sourceInfo.getOwner()) || sourceInfo.getTokenAmount() == null) {
+            throw new IllegalStateException("Source token account owner or mint did not match the wallet.");
+        }
+        BigInteger sourceBalance = new BigInteger(sourceInfo.getTokenAmount().getAmount());
+        if (sourceBalance.compareTo(raw) < 0) throw new IllegalArgumentException("Insufficient " + mintInfo.onChainSymbol + " balance.");
+
+        PublicKey destinationAta = associatedTokenAddress(destination, mint, tokenProgram);
+        org.p2p.solanaj.rpc.types.AccountInfo destinationInfo = solanaRpc.getApi().getAccountInfo(destinationAta);
+        org.p2p.solanaj.core.Transaction tx = new org.p2p.solanaj.core.Transaction();
+        if (destinationInfo == null || destinationInfo.getValue() == null) {
+            tx.addInstruction(createAssociatedTokenIdempotent(solana.getPublicKey(), destination, mint, tokenProgram));
+        } else {
+            TokenResultObjects.TokenInfo parsedDestination = parsedTokenAccount(destinationAta);
+            if (parsedDestination == null || !mint.toBase58().equals(parsedDestination.getMint())
+                    || !destination.toBase58().equals(parsedDestination.getOwner())) {
+                throw new IllegalStateException("Recipient associated token account does not match the expected mint and owner.");
+            }
+        }
+
+        if (TokenProgram.PROGRAM_ID.toBase58().equals(mintInfo.programId)) {
+            tx.addInstruction(TokenProgram.transferChecked(source, destinationAta, raw.longValueExact(),
+                (byte) mintInfo.decimals, solana.getPublicKey(), mint));
+        } else {
+            byte[] data = java.nio.ByteBuffer.allocate(10).order(ByteOrder.LITTLE_ENDIAN)
+                .put((byte) 12).putLong(raw.longValueExact()).put((byte) mintInfo.decimals).array();
+            List<AccountMeta> keys = List.of(
+                new AccountMeta(source, false, true),
+                new AccountMeta(mint, false, false),
+                new AccountMeta(destinationAta, false, true),
+                new AccountMeta(solana.getPublicKey(), true, false));
+            tx.addInstruction(new TransactionInstruction(tokenProgram, keys, data));
+        }
+        return solanaRpc.getApi().sendTransaction(tx, solana);
+    }
+
+    private TokenResultObjects.TokenInfo parsedTokenAccount(PublicKey account) throws Exception {
+        SplTokenAccountInfo response = solanaRpc.getApi().getSplTokenAccountInfo(account);
+        if (response == null || response.getValue() == null || response.getValue().getData() == null
+                || response.getValue().getData().getParsed() == null) return null;
+        return response.getValue().getData().getParsed().getInfo();
+    }
+
+    private static PublicKey associatedTokenAddress(PublicKey owner, PublicKey mint, PublicKey tokenProgram) {
+        return PublicKey.findProgramAddress(List.of(owner.toByteArray(), tokenProgram.toByteArray(), mint.toByteArray()),
+            AssociatedTokenProgram.PROGRAM_ID).getAddress();
+    }
+
+    private static TransactionInstruction createAssociatedTokenIdempotent(PublicKey payer, PublicKey owner,
+                                                                           PublicKey mint, PublicKey tokenProgram) {
+        PublicKey ata = associatedTokenAddress(owner, mint, tokenProgram);
+        List<AccountMeta> keys = List.of(
+            new AccountMeta(payer, true, true),
+            new AccountMeta(ata, false, true),
+            new AccountMeta(owner, false, false),
+            new AccountMeta(mint, false, false),
+            new AccountMeta(SystemProgram.PROGRAM_ID, false, false),
+            new AccountMeta(tokenProgram, false, false));
+        return new TransactionInstruction(AssociatedTokenProgram.PROGRAM_ID, keys, new byte[] {1});
+    }
+
     String bitcoinAddress() {
         return bitcoin.currentReceiveAddress().toString();
     }

@@ -109,7 +109,7 @@ describe("Solana SPL transaction support", () => {
   const sourceTokenAccount = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
   const destinationTokenAccount = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
 
-  function mockSolanaRpc(extensions: any[] = []) {
+  function mockSolanaRpc(extensions: any[] = [], programId = tokenProgram) {
     vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
       const request = JSON.parse(init.body as string);
       const { method, params } = request;
@@ -118,13 +118,13 @@ describe("Solana SPL transaction support", () => {
       else if (method === "getLatestBlockhash") result = { value: { blockhash: "11111111111111111111111111111111" } };
       else if (method === "getAccountInfo") {
         const address = params[0];
-        if (address === mint) result = { value: { owner: tokenProgram, data: { parsed: {
+        if (address === mint) result = { value: { owner: programId, data: { parsed: {
           type: "mint", info: { isInitialized: true, decimals: 6, extensions },
         } } } };
-        else if (address === sourceTokenAccount) result = { value: { owner: tokenProgram, data: { parsed: {
+        else if (address === sourceTokenAccount) result = { value: { owner: programId, data: { parsed: {
           type: "account", info: { mint, owner: from, tokenAmount: { amount: "2500000" } },
         } } } };
-        else if (address === destinationTokenAccount) result = { value: { owner: tokenProgram, data: { parsed: {
+        else if (address === destinationTokenAccount) result = { value: { owner: programId, data: { parsed: {
           type: "account", info: { mint, owner: to, tokenAmount: { amount: "0" } },
         } } } };
         else result = { value: null };
@@ -147,10 +147,11 @@ describe("Solana SPL transaction support", () => {
   });
 
   it("blocks Token-2022 mints with unsupported transfer extensions", async () => {
-    mockSolanaRpc([{ extension: "transferHook" }]);
+    const token2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+    mockSolanaRpc([{ extension: "transferHook" }], token2022);
     await expect(prepareSolanaTransaction("https://solana.example", {
       from, to, asset: "spl", amountAtomic: "1000000",
-      tokenMint: mint, tokenDecimals: 6, tokenProgramId: tokenProgram,
+      tokenMint: mint, tokenDecimals: 6, tokenProgramId: token2022,
       sourceTokenAccount, destinationTokenAccount,
     })).rejects.toThrow("Unsupported Token-2022 mint extensions");
   });

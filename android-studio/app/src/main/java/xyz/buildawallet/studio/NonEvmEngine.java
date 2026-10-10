@@ -327,12 +327,14 @@ final class NonEvmEngine {
                     + "\nDestination: " + accountKey(view, accounts.get(2));
                 unknown = false;
             } else if ((TokenProgram.PROGRAM_ID.toBase58().equals(program) || TOKEN_2022_PROGRAM_ID.equals(program))
-                    && data.length >= 9 && ((data[0] & 0xff) == 4 || (data[0] & 0xff) == 7 || (data[0] & 0xff) == 8)) {
+                    && data.length >= 9 && ((data[0] & 0xff) == 4 || (data[0] & 0xff) == 7 || (data[0] & 0xff) == 8
+                        || ((data[0] & 0xff) >= 13 && (data[0] & 0xff) <= 15 && data.length >= 10))) {
                 int opcode = data[0] & 0xff;
+                boolean checked = opcode >= 13 && opcode <= 15;
                 BigInteger raw = littleU64Big(data, 1);
-                label = opcode == 4 ? "SPL Token · APPROVAL (HIGH RISK)"
-                    : opcode == 7 ? "SPL Token · MINT TOKENS (HIGH RISK)" : "SPL Token · BURN TOKENS (HIGH RISK)";
-                detail = "Raw amount: " + raw;
+                label = (opcode == 4 || opcode == 13) ? "SPL Token · APPROVAL (HIGH RISK)"
+                    : (opcode == 7 || opcode == 14) ? "SPL Token · MINT TOKENS (HIGH RISK)" : "SPL Token · BURN TOKENS (HIGH RISK)";
+                detail = "Raw amount: " + raw + (checked ? "\nDecimals: " + (data[9] & 0xff) : "");
                 if (accounts.size() >= 2) detail += "\nAccount: " + accountKey(view, accounts.get(0))
                     + "\nOther account: " + accountKey(view, accounts.get(1));
                 unknown = false;

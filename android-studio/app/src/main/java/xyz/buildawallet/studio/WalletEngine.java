@@ -523,18 +523,53 @@ final class WalletEngine {
             verifyNetwork(web3j, network);
             String from = tx.optString("from", "");
             if (!from.equalsIgnoreCase(address())) throw new IllegalArgumentException("Dapp transaction account does not match this wallet.");
+            if (tx.has("chainId")) {
+                BigInteger requestedChain = Numeric.toBigInt(tx.getString("chainId"));
+                if (!requestedChain.equals(BigInteger.valueOf(network.chainId))) {
+                    throw new IllegalArgumentException("Dapp transaction chain ID does not match the selected network.");
+                }
+            }
             String to = tx.optString("to", "");
             if (!WalletUtils.isValidAddress(to)) throw new IllegalArgumentException("Dapp transaction destination is invalid.");
             BigInteger nonce = tx.has("nonce") ? Numeric.toBigInt(tx.getString("nonce")) : web3j.ethGetTransactionCount(address(), DefaultBlockParameterName.PENDING).send().getTransactionCount();
+            if (nonce.signum() < 0) throw new IllegalArgumentException("Dapp transaction nonce is invalid.");
             BigInteger value = tx.has("value") ? Numeric.toBigInt(tx.getString("value")) : BigInteger.ZERO;
+            if (value.signum() < 0) throw new IllegalArgumentException("Dapp transaction value cannot be negative.");
             String data = tx.optString("data", tx.optString("input", "0x"));
-            BigInteger gas = tx.has("gas") ? Numeric.toBigInt(tx.getString("gas")) : web3j.ethEstimateGas(org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(address(), to, data)).send().getAmountUsed();
-            if (gas == null || gas.signum() <= 0) gas = BigInteger.valueOf(21000);
-            BigInteger gasPrice = tx.has("gasPrice") ? Numeric.toBigInt(tx.getString("gasPrice")) : web3j.ethGasPrice().send().getGasPrice();
-            BigInteger maxPriority = tx.has("maxPriorityFeePerGas") ? Numeric.toBigInt(tx.getString("maxPriorityFeePerGas")) : gasPrice;
-            BigInteger maxFee = tx.has("maxFeePerGas") ? Numeric.toBigInt(tx.getString("maxFeePerGas")) : gasPrice;
+            if (data.length() > 200000 || !data.matches("(?i)^0x([0-9a-f]{2})*$")) {
+                throw new IllegalArgumentException("Dapp calldata is malformed or exceeds the wallet safety limit.");
+            }
+            BigInteger gas;
+            if (tx.has("gas")) {
+                gas = Numeric.toBigInt(tx.getString("gas"));
+                if (gas.signum() <= 0) throw new IllegalArgumentException("Dapp gas limit must be positive.");
+            } else {
+                var gasEstimate = web3j.ethEstimateGas(org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(address(), to, data)).send();
+                if (gasEstimate.hasError() || gasEstimate.getAmountUsed() == null || gasEstimate.getAmountUsed().signum() <= 0) {
+                    throw rpcError(gasEstimate.getError() == null ? "Could not estimate dapp transaction gas." : gasEstimate.getError().getMessage());
+                }
+                gas = gasEstimate.getAmountUsed().multiply(BigInteger.valueOf(120)).divide(BigInteger.valueOf(100));
+            }
+            boolean dynamicFees = tx.has("maxFeePerGas") || tx.has("maxPriorityFeePerGas");
+            BigInteger gasPrice;
+            BigInteger maxPriority = BigInteger.ZERO;
+            BigInteger maxFee = BigInteger.ZERO;
+            if (dynamicFees) {
+                if (!tx.has("maxFeePerGas") || !tx.has("maxPriorityFeePerGas")) {
+                    throw new IllegalArgumentException("EIP-1559 transactions must include both maxFeePerGas and maxPriorityFeePerGas.");
+                }
+                maxPriority = Numeric.toBigInt(tx.getString("maxPriorityFeePerGas"));
+                maxFee = Numeric.toBigInt(tx.getString("maxFeePerGas"));
+                if (maxPriority.signum() < 0 || maxFee.signum() < 0 || maxFee.compareTo(maxPriority) < 0) {
+                    throw new IllegalArgumentException("Dapp EIP-1559 fee values are invalid.");
+                }
+                gasPrice = maxFee;
+            } else {
+                gasPrice = tx.has("gasPrice") ? Numeric.toBigInt(tx.getString("gasPrice")) : web3j.ethGasPrice().send().getGasPrice();
+                if (gasPrice == null || gasPrice.signum() <= 0) throw new IllegalArgumentException("Dapp gas price must be positive.");
+            }
             RawTransaction raw;
-            if (tx.has("maxFeePerGas") || tx.has("maxPriorityFeePerGas")) raw = RawTransaction.createTransaction(network.chainId, nonce, gas, to, value, data, maxPriority, maxFee);
+            if (dynamicFees) raw = RawTransaction.createTransaction(network.chainId, nonce, gas, to, value, data, maxPriority, maxFee);
             else raw = RawTransaction.createTransaction(nonce, gasPrice, gas, to, value, data);
             byte[] signed = TransactionEncoder.signMessage(raw, network.chainId, credentials);
             EthSendTransaction sent = web3j.ethSendRawTransaction(Numeric.toHexString(signed)).send();

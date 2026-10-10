@@ -66,6 +66,7 @@ public final class MainActivity extends Activity {
     private List<EvmNetwork> enabledNetworks;
     private EvmNetwork selectedNetwork;
     private WebView dappWebView;
+    private AlertDialog dappDialog;
 
     private int setupStep = 0;
     private String pendingName = "My Wallet";
@@ -155,6 +156,7 @@ public final class MainActivity extends Activity {
         walletLocked = true;
         engine = null;
         nonEvm = null;
+        if (dappDialog != null) dappDialog.dismiss();
         if (redraw && content != null) render();
     }
 
@@ -797,6 +799,7 @@ public final class MainActivity extends Activity {
 
     private void showDapps() {
         final AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Dapps · Web3 browser").create();
+        dappDialog = dialog;
         LinearLayout root = dialogBox();
         LinearLayout controls = new LinearLayout(this); controls.setOrientation(LinearLayout.HORIZONTAL);
         EditText url = input("Search or enter https://…"); url.setSingleLine(true);
@@ -818,7 +821,7 @@ public final class MainActivity extends Activity {
         for (String item : apps) { String[] parts = item.split("\\|",2); Button b = button("↗ " + parts[0], false); b.setOnClickListener(v -> { url.setText(parts[1]); dappWebView.loadUrl(parts[1]); }); root.addView(b, new LinearLayout.LayoutParams(-1, dp(42))); }
         go.setOnClickListener(v -> loadDappUrl(url.getText().toString(), dappWebView));
         connect.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("Connect wallet").setMessage("This browser exposes an EIP-1193 wallet provider to the current dapp. The dapp must request accounts before it can see your address. Every transaction still requires an explicit confirmation.").setPositiveButton("Continue", null).setNegativeButton("Cancel", null).show());
-        dialog.setView(root); dialog.setOnDismissListener(v -> { if (dappWebView != null) { dappWebView.removeJavascriptInterface("BuildAWallet"); dappWebView.destroy(); dappWebView = null; } }); dialog.setOnShowListener(v -> loadDappUrl("https://app.uniswap.org", dappWebView)); dialog.show();
+        dialog.setView(root); dialog.setOnDismissListener(v -> { dappDialog = null; if (dappWebView != null) { dappWebView.removeJavascriptInterface("BuildAWallet"); dappWebView.destroy(); dappWebView = null; } }); dialog.setOnShowListener(v -> loadDappUrl("https://app.uniswap.org", dappWebView)); dialog.show();
     }
 
     private boolean isTrustedDappOrigin(String rawUrl) {

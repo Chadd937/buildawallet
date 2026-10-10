@@ -829,21 +829,12 @@ public final class MainActivity extends Activity {
         dialog.setView(root); dialog.setOnDismissListener(v -> { dappDialog = null; solanaDappConnected = false; solanaDappConnectedOrigin = null; if (dappWebView != null) { dappWebView.removeJavascriptInterface("BuildAWallet"); dappWebView.destroy(); dappWebView = null; } }); dialog.setOnShowListener(v -> loadDappUrl("https://app.uniswap.org", dappWebView)); dialog.show();
     }
 
-    private boolean isTrustedDappOrigin(String rawUrl) {
+    private boolean isWalletProviderEligibleUrl(String rawUrl) {
         try {
             Uri u = Uri.parse(rawUrl);
-            if (!"https".equalsIgnoreCase(u.getScheme())) return false;
-            String h = u.getHost() == null ? "" : u.getHost().toLowerCase(java.util.Locale.ROOT);
-            return h.equals("app.uniswap.org") || h.endsWith(".uniswap.org")
-                || h.equals("app.aave.com") || h.endsWith(".aave.com")
-                || h.equals("opensea.io") || h.endsWith(".opensea.io")
-                || h.equals("jup.ag") || h.endsWith(".jup.ag")
-                || h.equals("raydium.io") || h.endsWith(".raydium.io")
-                || h.equals("btcme.click") || h.endsWith(".btcme.click")
-                || h.equals("ltcme.click") || h.endsWith(".ltcme.click")
-                || h.equals("bnbblockchain.com") || h.endsWith(".bnbblockchain.com")
-                || h.equals("monadblockchain.com") || h.endsWith(".monadblockchain.com")
-                || h.equals("clicksolana.xyz") || h.endsWith(".clicksolana.xyz");
+            return "https".equalsIgnoreCase(u.getScheme())
+                && u.getHost() != null && !u.getHost().isEmpty()
+                && u.getUserInfo() == null;
         } catch (Exception ignored) { return false; }
     }
 
@@ -901,11 +892,11 @@ public final class MainActivity extends Activity {
                 return;
             }
             if ("eth_requestAccounts".equals(method)) {
-                new AlertDialog.Builder(this).setTitle("Dapp account access").setMessage("Allow this dapp to view and use your EVM address for this session? Solana-enabled sites can request separate Solana account access.").setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Connect", (d,w) -> resolveDapp(id, new org.json.JSONArray().put(engine.address()).toString(), 0, null)).show(); return;
+                new AlertDialog.Builder(this).setTitle("Dapp account access").setMessage("Site: " + (dappWebView == null ? "Unknown site" : Uri.parse(dappWebView.getUrl()).getHost()) + "\n\nAllow this HTTPS site to view and use your EVM address for this session? Solana-enabled sites can request separate Solana account access.").setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Connect", (d,w) -> resolveDapp(id, new org.json.JSONArray().put(engine.address()).toString(), 0, null)).show(); return;
             }
             if ("personal_sign".equals(method)) {
                 String message = params.length() > 0 ? params.getString(0) : "";
-                new AlertDialog.Builder(this).setTitle("Dapp signature request").setMessage("Sign this message?\\n\\n" + message).setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Sign", (d,w) -> io.execute(() -> {
+                new AlertDialog.Builder(this).setTitle("Dapp signature request").setMessage("Site: " + (dappWebView == null ? "Unknown site" : Uri.parse(dappWebView.getUrl()).getHost()) + "\n\nSign this message?\n\n" + message).setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Sign", (d,w) -> io.execute(() -> {
                     WalletEngine activeEngine = engine;
                     try {
                         if (walletLocked || activeEngine == null) throw new IllegalStateException("Wallet is locked.");
@@ -992,7 +983,9 @@ public final class MainActivity extends Activity {
         String shownData = data.length() > 600 ? data.substring(0, 600) + "… (truncated)" : data;
         String usd = estimate == null ? "USD value not calculated (USD guardrails disabled)"
             : "Estimated native value + fee + decoded token spend: $" + estimate.usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString();
-        return "Network: " + network.name + " (chain " + network.chainId + ")"
+        String dappOrigin = dappWebView == null || dappWebView.getUrl() == null ? "Unknown site" : String.valueOf(Uri.parse(dappWebView.getUrl()).getHost());
+        return "Dapp origin: " + dappOrigin
+            + "\nNetwork: " + network.name + " (chain " + network.chainId + ")"
             + "\nDestination / contract: " + to
             + "\nNative value (hex wei): " + value
             + "\nGas limit: " + gas

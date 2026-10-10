@@ -153,14 +153,7 @@ final class NonEvmEngine {
         if (info.decimals != token.decimals || !info.programId.equals(token.programId)) {
             throw new IllegalArgumentException("Imported token metadata no longer matches the on-chain mint. Re-import it before sending.");
         }
-        BigDecimal amount;
-        try { amount = new BigDecimal(amountText.trim()); }
-        catch (Exception error) { throw new IllegalArgumentException("Enter a valid token amount."); }
-        if (amount.signum() <= 0) throw new IllegalArgumentException("Amount must be greater than zero.");
-        BigInteger raw;
-        try { raw = amount.movePointRight(info.decimals).toBigIntegerExact(); }
-        catch (ArithmeticException error) { throw new IllegalArgumentException("Amount has too many decimal places for this token."); }
-        if (raw.signum() <= 0 || raw.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) throw new IllegalArgumentException("Amount is outside the supported SPL token transfer range.");
+        BigInteger raw = SolanaToken.toRawAmount(amountText, info.decimals);
 
         TokenAccountInfo accounts = solanaRpc.getApi().getTokenAccountsByOwner(
             solana.getPublicKey(), Map.of("mint", info.mint), Map.of("encoding", "jsonParsed"));
@@ -206,16 +199,7 @@ final class NonEvmEngine {
         if (mintInfo.decimals != expectedDecimals || !mintInfo.programId.equals(expectedProgramId)) {
             throw new IllegalArgumentException("Imported token metadata no longer matches the on-chain mint. Re-import it before sending.");
         }
-        BigDecimal amount;
-        try { amount = new BigDecimal(amountText.trim()); }
-        catch (Exception error) { throw new IllegalArgumentException("Enter a valid token amount."); }
-        if (amount.signum() <= 0) throw new IllegalArgumentException("Amount must be greater than zero.");
-        BigInteger raw;
-        try { raw = amount.movePointRight(mintInfo.decimals).toBigIntegerExact(); }
-        catch (ArithmeticException error) { throw new IllegalArgumentException("Amount has too many decimal places for this token."); }
-        if (raw.signum() <= 0 || raw.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
-            throw new IllegalArgumentException("Amount is outside the supported SPL token transfer range.");
-        }
+        BigInteger raw = SolanaToken.toRawAmount(amountText, mintInfo.decimals);
 
         PublicKey mint = new PublicKey(mintInfo.mint);
         PublicKey tokenProgram = new PublicKey(mintInfo.programId);

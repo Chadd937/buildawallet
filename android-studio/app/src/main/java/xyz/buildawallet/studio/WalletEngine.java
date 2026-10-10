@@ -262,6 +262,182 @@ final class WalletEngine {
         return Numeric.toHexString(out);
     }
 
+    String decodeContractCall(EvmNetwork network, String contract, String data) throws Exception {
+        if (data == null || data.isEmpty() || "0x".equalsIgnoreCase(data)) {
+            return "Plain native-asset transfer; no contract calldata was supplied.";
+        }
+        if (!data.matches("(?i)^0x[0-9a-f]*$") || data.length() < 10) {
+            return "Malformed or incomplete contract calldata. Do not sign unless you understand the request.";
+        }
+        String hex = data.substring(2).toLowerCase(java.util.Locale.ROOT);
+        String selector = hex.substring(0, 8);
+        String words = hex.substring(8);
+        if ("a9059cbb".equals(selector) && words.length() >= 128) {
+            String recipient = abiAddress(words, 0);
+            BigInteger raw = abiUint(words, 64);
+            TokenMetadata token = readTokenMetadata(network, contract);
+            return "ERC-20 TRANSFER\nToken: " + token.symbol + " (" + contract + ")"
+                + "\nRecipient: " + recipient + "\nAmount: " + formatToken(raw, token.decimals) + " " + token.symbol
+                + "\n\nThis moves tokens immediately if the token contract behaves as expected. Verify the contract and recipient.";
+        }
+        if ("095ea7b3".equals(selector) && words.length() >= 128) {
+            String spender = abiAddress(words, 0);
+            BigInteger raw = abiUint(words, 64);
+            TokenMetadata token = readTokenMetadata(network, contract);
+            boolean unlimited = raw.equals(BigInteger.ONE.shiftLeft(256).subtract(BigInteger.ONE));
+            return "ERC-20 APPROVAL\nToken: " + token.symbol + " (" + contract + ")"
+                + "\nSpender: " + spender + "\nAllowance: " + (unlimited ? "UNLIMITED" : formatToken(raw, token.decimals) + " " + token.symbol)
+                + (unlimited ? "\n\nHIGH RISK: this grants the spender permission to transfer any amount of this token until the allowance is revoked." :
+                    "\n\nThe spender can transfer up to this allowance from your wallet. Verify the spender address.");
+        }
+        if ("23b872dd".equals(selector) && words.length() >= 192) {
+            String owner = abiAddress(words, 0);
+            String recipient = abiAddress(words, 64);
+            BigInteger raw = abiUint(words, 128);
+            TokenMetadata token = readTokenMetadata(network, contract);
+            return "ERC-20 TRANSFER FROM\nToken: " + token.symbol + " (" + contract + ")"
+                + "\nFrom: " + owner + "\nRecipient: " + recipient
+                + "\nAmount: " + formatToken(raw, token.decimals) + " " + token.symbol
+                + "\n\nThis contract call attempts to move tokens from the displayed owner. Confirm the allowance and both addresses.";
+        }
+        if (("39509351".equals(selector) || "a457c2d7".equals(selector)) && words.length() >= 128) {
+            String spender = abiAddress(words, 0);
+            BigInteger raw = abiUint(words, 64);
+            TokenMetadata token = readTokenMetadata(network, contract);
+            return ("39509351".equals(selector) ? "INCREASE TOKEN ALLOWANCE" : "DECREASE TOKEN ALLOWANCE")
+                + "\nToken: " + token.symbol + " (" + contract + ")\nSpender: " + spender
+                + "\nChange: " + formatToken(raw, token.decimals) + " " + token.symbol
+                + "\n\nAllowance changes can let another address move tokens from your wallet.";
+        }
+        if ("a22cb465".equals(selector) && words.length() >= 128) {
+            String operator = abiAddress(words, 0);
+            boolean approved = abiUint(words, 64).signum() != 0;
+            return "NFT / OPERATOR APPROVAL\nCollection contract: " + contract + "\nOperator: " + operator
+                + "\nApproved: " + approved + "\n\nIf enabled, this operator may transfer NFTs or other assets covered by the contract.";
+        }
+        if ("7ff36ab5".equals(selector) || "38ed1739".equals(selector) || "18cbafe5".equals(selector)
+                || "8803dbee".equals(selector) || "4a25d94a".equals(selector)) {
+            return decodeRouterSwap(selector, words, contract);
+        }
+        if ("d0e30db0".equals(selector)) return "WRAPPED-NATIVE DEPOSIT\nContract: " + contract + "\nThis deposits the transaction's native value into the contract.";
+        if ("2e1a7d4d".equals(selector) && words.length() >= 64) {
+            return "WRAPPED-NATIVE WITHDRAW\nContract: " + contract + "\nAmount (raw units): " + abiUint(words, 0);
+        }
+        if ("ac9650d8".equals(selector) || "5ae401dc".equals(selector)) {
+            return "MULTICALL\nContract: " + contract + "\nThis request batches multiple contract operations. Nested calls are not fully decoded; review the full calldata and only proceed if you trust the target contract.";
+        }
+        return "UNKNOWN CONTRACT METHOD\nContract: " + contract + "\nFunction selector: 0x" + selector
+            + "\nCalldata length: " + data.length() + " characters"
+            + "\n\nThe wallet cannot safely determine all effects of this contract call. It may transfer assets, change permissions, or execute multiple operations. Do not sign unless you independently understand it.";
+    }
+
+    private String decodeRouterSwap(String selector, String words, String router) {
+        try {
+            BigInteger amountIn = BigInteger.ZERO;
+            BigInteger amountOutMin;
+            int pathOffsetWord;
+            int recipientWord;
+            if ("7ff36ab5".equals(selector)) {
+                amountOutMin = abiUint(words, 0);
+                pathOffsetWord = 64;
+                recipientWord = 96;
+            } else {
+                amountIn = abiUint(words, 0);
+                amountOutMin = abiUint(words, 64);
+                pathOffsetWord = 128;
+                recipientWord = 192;
+            }
+            String recipient = abiAddress(words, recipientWord);
+            int pathOffsetBytes = abiUint(words, pathOffsetWord).intValueExact();
+            int pathStart = pathOffsetBytes * 2;
+            int count = new BigInteger(words.substring(pathStart, pathStart + 64), 16).intValueExact();
+            if (count < 2 || count > 8) throw new IllegalArgumentException("Invalid swap path");
+            StringBuilder path = new StringBuilder();
+            for (int i = 0; i < count; i++) {
+                if (i > 0) path.append(" → ");
+                path.append("0x").append(words, pathStart + 64 + i * 64 + 24, pathStart + 64 + (i + 1) * 64);
+            }
+            String kind = "7ff36ab5".equals(selector) ? "NATIVE → TOKEN SWAP"
+                : ("18cbafe5".equals(selector) || "4a25d94a".equals(selector) ? "TOKEN → NATIVE SWAP" : "TOKEN SWAP");
+            return kind + "\nRouter: " + router
+                + (amountIn.signum() > 0 ? "\nInput amount (raw units): " + amountIn : "")
+                + "\nMinimum output (raw units): " + amountOutMin
+                + "\nToken path: " + path + "\nRecipient: " + recipient
+                + "\n\nSwap output is variable and can be affected by slippage, liquidity, and MEV. Token decimals are not inferred for this router summary; inspect the dapp quote and transaction details.";
+        } catch (Exception ignored) {
+            return "DEX SWAP CALL DETECTED\nRouter: " + router
+                + "\nThe swap selector is recognized, but its parameters could not be safely decoded. Review the calldata and quote independently.";
+        }
+    }
+
+    private TokenMetadata readTokenMetadata(EvmNetwork network, String contract) {
+        Web3j web3j = client(network);
+        try {
+            verifyNetwork(web3j, network);
+            String symbol = callTokenString(web3j, contract, "0x95d89b41");
+            int decimals = 18;
+            try {
+                String result = callRaw(web3j, contract, "0x313ce567");
+                String hex = result.startsWith("0x") ? result.substring(2) : result;
+                if (hex.length() >= 64) decimals = new BigInteger(hex.substring(hex.length() - 64), 16).intValueExact();
+                if (decimals < 0 || decimals > 36) decimals = 18;
+            } catch (Exception ignored) { }
+            if (symbol == null || !symbol.matches("[A-Za-z0-9._-]{1,16}")) symbol = "TOKEN";
+            return new TokenMetadata(symbol, decimals);
+        } catch (Exception ignored) {
+            return new TokenMetadata("TOKEN", 18);
+        } finally { web3j.shutdown(); }
+    }
+
+    private String callTokenString(Web3j web3j, String contract, String selector) throws Exception {
+        String result = callRaw(web3j, contract, selector);
+        String hex = result.startsWith("0x") ? result.substring(2) : result;
+        if (hex.length() < 64) return null;
+        try {
+            int offset = new BigInteger(hex.substring(0, 64), 16).intValueExact() * 2;
+            if (offset >= 0 && offset + 64 <= hex.length()) {
+                int length = new BigInteger(hex.substring(offset, offset + 64), 16).intValueExact();
+                int start = offset + 64;
+                if (length >= 0 && start + length * 2 <= hex.length()) {
+                    byte[] bytes = Numeric.hexStringToByteArray(hex.substring(start, start + length * 2));
+                    String text = new String(bytes, java.nio.charset.StandardCharsets.UTF_8).trim();
+                    if (!text.isEmpty()) return text;
+                }
+            }
+        } catch (Exception ignored) { }
+        try {
+            byte[] bytes = Numeric.hexStringToByteArray(hex.substring(0, 64));
+            int length = 0;
+            while (length < bytes.length && bytes[length] != 0) length++;
+            String text = new String(bytes, 0, length, java.nio.charset.StandardCharsets.UTF_8).trim();
+            return text.isEmpty() ? null : text;
+        } catch (Exception ignored) { return null; }
+    }
+
+    private String callRaw(Web3j web3j, String contract, String data) throws Exception {
+        var response = web3j.ethCall(
+            org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(address(), contract, data),
+            DefaultBlockParameterName.LATEST).send();
+        if (response.hasError()) throw rpcError(response.getError().getMessage());
+        return response.getValue();
+    }
+
+    private static String abiAddress(String words, int offset) {
+        if (words.length() < offset + 64) throw new IllegalArgumentException("Missing ABI address");
+        return "0x" + words.substring(offset + 24, offset + 64);
+    }
+
+    private static BigInteger abiUint(String words, int offset) {
+        if (words.length() < offset + 64) throw new IllegalArgumentException("Missing ABI integer");
+        return new BigInteger(words.substring(offset, offset + 64), 16);
+    }
+
+    private static final class TokenMetadata {
+        final String symbol;
+        final int decimals;
+        TokenMetadata(String symbol, int decimals) { this.symbol = symbol; this.decimals = decimals; }
+    }
+
     String dappSendTransaction(EvmNetwork network, org.json.JSONObject tx) throws Exception {
         Web3j web3j = client(network);
         try {

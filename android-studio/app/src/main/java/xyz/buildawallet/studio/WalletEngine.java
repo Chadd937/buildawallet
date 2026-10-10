@@ -432,10 +432,80 @@ final class WalletEngine {
         return new BigInteger(words.substring(offset, offset + 64), 16);
     }
 
+    static final class DappSpendEstimate {
+        final BigDecimal usdValue;
+        final boolean fullyValued;
+        final String selector;
+        DappSpendEstimate(BigDecimal usdValue, boolean fullyValued, String selector) {
+            this.usdValue = usdValue; this.fullyValued = fullyValued; this.selector = selector;
+        }
+    }
+
     private static final class TokenMetadata {
         final String symbol;
         final int decimals;
         TokenMetadata(String symbol, int decimals) { this.symbol = symbol; this.decimals = decimals; }
+    }
+
+    DappSpendEstimate estimateDappSpend(EvmNetwork network, org.json.JSONObject tx) throws Exception {
+        Web3j web3j = client(network);
+        try {
+            verifyNetwork(web3j, network);
+            String to = tx.optString("to", "");
+            if (!WalletUtils.isValidAddress(to)) throw new IllegalArgumentException("Dapp destination is invalid.");
+            String data = tx.optString("data", tx.optString("input", "0x"));
+            String hex = data.startsWith("0x") ? data.substring(2).toLowerCase(java.util.Locale.ROOT) : data.toLowerCase(java.util.Locale.ROOT);
+            String selector = hex.length() >= 8 ? hex.substring(0, 8) : "";
+            String words = hex.length() >= 8 ? hex.substring(8) : "";
+            BigInteger valueWei = tx.has("value") ? Numeric.toBigInt(tx.getString("value")) : BigInteger.ZERO;
+            if (valueWei.signum() < 0) throw new IllegalArgumentException("Dapp transaction has a negative native value.");
+            BigInteger gas = tx.has("gas") ? Numeric.toBigInt(tx.getString("gas")) : BigInteger.ZERO;
+            if (gas.signum() <= 0) {
+                var estimate = web3j.ethEstimateGas(
+                    org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(address(), to, data)).send();
+                if (estimate.hasError() || estimate.getAmountUsed() == null || estimate.getAmountUsed().signum() <= 0) {
+                    throw rpcError(estimate.getError() == null ? "Could not estimate dapp transaction gas." : estimate.getError().getMessage());
+                }
+                gas = estimate.getAmountUsed().multiply(BigInteger.valueOf(120)).divide(BigInteger.valueOf(100));
+            }
+            BigInteger gasPrice;
+            if (tx.has("maxFeePerGas")) gasPrice = Numeric.toBigInt(tx.getString("maxFeePerGas"));
+            else if (tx.has("gasPrice")) gasPrice = Numeric.toBigInt(tx.getString("gasPrice"));
+            else {
+                var gasResponse = web3j.ethGasPrice().send();
+                if (gasResponse.hasError() || gasResponse.getGasPrice() == null) throw rpcError("Could not fetch the dapp transaction gas price.");
+                gasPrice = gasResponse.getGasPrice();
+            }
+            BigDecimal totalUsd = WalletSecurity.nativeUsdValue(network,
+                new BigDecimal(valueWei.add(gas.multiply(gasPrice))).movePointLeft(18));
+            boolean fullyValued = true;
+            if ("a9059cbb".equals(selector) && words.length() >= 128) {
+                TokenMetadata token = readTokenMetadata(network, to);
+                BigDecimal amount = new BigDecimal(abiUint(words, 64)).movePointLeft(token.decimals);
+                totalUsd = totalUsd.add(WalletSecurity.tokenUsdValue(network, to, amount));
+            } else if ("23b872dd".equals(selector) && words.length() >= 192) {
+                TokenMetadata token = readTokenMetadata(network, to);
+                BigDecimal amount = new BigDecimal(abiUint(words, 128)).movePointLeft(token.decimals);
+                totalUsd = totalUsd.add(WalletSecurity.tokenUsdValue(network, to, amount));
+            } else if ("38ed1739".equals(selector) || "18cbafe5".equals(selector)
+                    || "4a25d94a".equals(selector) ) {
+                int pathOffsetWord = 128;
+                int amountOffset = "8803dbee".equals(selector) ? 64 : 0;
+                int pathStart = abiUint(words, pathOffsetWord).intValueExact() * 2;
+                String tokenIn = "0x" + words.substring(pathStart + 64 + 24, pathStart + 128);
+                TokenMetadata token = readTokenMetadata(network, tokenIn);
+                BigDecimal amount = new BigDecimal(abiUint(words, amountOffset)).movePointLeft(token.decimals);
+                totalUsd = totalUsd.add(WalletSecurity.tokenUsdValue(network, tokenIn, amount));
+            } else if ("7ff36ab5".equals(selector) || "39509351".equals(selector)
+                    || "a457c2d7".equals(selector) || "095ea7b3".equals(selector)
+                    || "a22cb465".equals(selector) || "d0e30db0".equals(selector)
+                    || "2e1a7d4d".equals(selector)) {
+                // Recognized methods: approvals are not counted as spent funds, but are decoded and warned about separately.
+            } else if (!hex.isEmpty()) {
+                fullyValued = false;
+            }
+            return new DappSpendEstimate(totalUsd, fullyValued, selector);
+        } finally { web3j.shutdown(); }
     }
 
     String dappSendTransaction(EvmNetwork network, org.json.JSONObject tx) throws Exception {

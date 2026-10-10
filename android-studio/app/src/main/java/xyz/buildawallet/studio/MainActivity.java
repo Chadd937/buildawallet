@@ -1025,6 +1025,109 @@ public final class MainActivity extends Activity {
         dappWebView.evaluateJavascript("window.__bawResolve(" + rid + "," + rr + "," + err + ")", null);
     }
 
+    private void handleSolanaDappRequest(String id, String method, org.json.JSONArray params) {
+        if (walletLocked || nonEvm == null) {
+            resolveDapp(id, null, 4001, "Wallet is locked.");
+            return;
+        }
+        String origin = dappWebView == null ? "Unknown dapp" : Uri.parse(dappWebView.getUrl() == null ? "" : dappWebView.getUrl()).getHost();
+        if ("solana_connect".equals(method)) {
+            if (solanaDappConnected) { resolveDapp(id, nonEvm.solanaAddress(), 0, null); return; }
+            new AlertDialog.Builder(this).setTitle("Solana dapp connection")
+                .setMessage("Allow " + (origin == null ? "this dapp" : origin) + " to view your Solana public address for this browser session? Your recovery phrase and private key will never be shared.")
+                .setNegativeButton("Reject", (d, w) -> resolveDapp(id, null, 4001, "User rejected Solana connection"))
+                .setPositiveButton("Connect", (d, w) -> {
+                    if (walletLocked || nonEvm == null) { resolveDapp(id, null, 4001, "Wallet is locked."); return; }
+                    solanaDappConnected = true;
+                    resolveDapp(id, nonEvm.solanaAddress(), 0, null);
+                }).show();
+            return;
+        }
+        if ("solana_disconnect".equals(method)) {
+            solanaDappConnected = false;
+            resolveDapp(id, "ok", 0, null);
+            return;
+        }
+        if (!solanaDappConnected) { resolveDapp(id, null, 4100, "Connect this dapp to the Solana account first."); return; }
+        if ("solana_signMessage".equals(method)) {
+            String encoded = params.optString(0, "");
+            final String message;
+            try {
+                byte[] bytes = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT);
+                message = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                if (bytes.length == 0 || bytes.length > 16384) throw new IllegalArgumentException("Message must contain 1 to 16,384 bytes.");
+            } catch (Exception e) { resolveDapp(id, null, 4000, safeMessage(e)); return; }
+            new AlertDialog.Builder(this).setTitle("Solana message signature")
+                .setMessage("Dapp: " + origin + "\nAccount: " + nonEvm.solanaAddress()
+                    + "\n\nMessage to sign:\n" + (message.length() > 2400 ? message.substring(0, 2400) + "… (truncated)" : message)
+                    + "\n\nSigning proves control of your account to this dapp. Never sign a message you do not understand.")
+                .setNegativeButton("Reject", (d, w) -> resolveDapp(id, null, 4001, "User rejected message signature"))
+                .setPositiveButton("Sign message", (d, w) -> io.execute(() -> {
+                    try {
+                        if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet is locked.");
+                        String signature = nonEvm.signSolanaDappMessage(encoded);
+                        runOnUiThread(() -> resolveDapp(id, signature, 0, null));
+                    } catch (Exception e) { runOnUiThread(() -> resolveDapp(id, null, 4000, safeMessage(e))); }
+                })).show();
+            return;
+        }
+        if ("solana_signTransaction".equals(method) || "solana_sendTransaction".equals(method)) {
+            String encoded = params.optString(0, "");
+            boolean send = "solana_sendTransaction".equals(method);
+            io.execute(() -> {
+                try {
+                    if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet is locked.");
+                    String preview = nonEvm.previewSolanaDappTransaction(encoded);
+                    runOnUiThread(() -> showSolanaDappTransactionReview(id, encoded, send, origin, preview));
+                } catch (Exception e) { runOnUiThread(() -> resolveDapp(id, null, 4000, safeMessage(e))); }
+            });
+            return;
+        }
+        resolveDapp(id, null, 4200, "Unsupported Solana wallet method: " + method);
+    }
+
+    private void showSolanaDappTransactionReview(String id, String encoded, boolean send, String origin, String preview) {
+        if (walletLocked || nonEvm == null) { resolveDapp(id, null, 4001, "Wallet is locked."); return; }
+        String capNote = profile.sessionLimitUsd > 0
+            ? "\n\nThe active 24-hour USD cap cannot reliably price every arbitrary Solana dapp instruction. To preserve the guardrail, this transaction reserves the remaining cap capacity."
+            : "";
+        String title = send ? "Solana dapp transaction · review" : "Solana transaction signing · review";
+        new AlertDialog.Builder(this).setTitle(title)
+            .setMessage("Dapp: " + origin + "\n\n" + preview + capNote)
+            .setNegativeButton("Reject", (d, w) -> resolveDapp(id, null, 4001, "User rejected Solana transaction"))
+            .setPositiveButton("Continue to final review", (d, w) ->
+                new AlertDialog.Builder(this).setTitle("Final Solana confirmation")
+                    .setMessage("Mainnet transaction. Review the programs, accounts, amounts, and simulation above. Unknown program instructions may have effects this wallet cannot infer. This action may be irreversible.")
+                    .setNegativeButton("Cancel", (dd, ww) -> resolveDapp(id, null, 4001, "User rejected Solana transaction"))
+                    .setPositiveButton(send ? "Sign & broadcast" : "Sign transaction", (dd, ww) ->
+                        executeSolanaDappTransaction(id, encoded, send))
+                    .show())
+            .show();
+    }
+
+    private void executeSolanaDappTransaction(String id, String encoded, boolean send) {
+        if (walletLocked || nonEvm == null) { resolveDapp(id, null, 4001, "Wallet is locked."); return; }
+        String walletAddress = nonEvm.solanaAddress();
+        io.execute(() -> {
+            WalletSecurity.Reservation reservation = null;
+            boolean signingOrBroadcastMayHaveOccurred = false;
+            try {
+                if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet locked before Solana signing; transaction cancelled.");
+                reservation = WalletSecurity.reserve(this, walletAddress, null, profile.sessionLimitUsd);
+                if (walletLocked || nonEvm == null) throw new IllegalStateException("Wallet locked before Solana signing; transaction cancelled.");
+                signingOrBroadcastMayHaveOccurred = true;
+                String result = send ? nonEvm.sendSolanaDappTransaction(encoded) : nonEvm.signSolanaDappTransaction(encoded);
+                runOnUiThread(() -> resolveDapp(id, result, 0, null));
+            } catch (Exception e) {
+                if (reservation != null && !signingOrBroadcastMayHaveOccurred) WalletSecurity.release(this, reservation);
+                String message = safeMessage(e);
+                if (signingOrBroadcastMayHaveOccurred) message += " Signing or broadcast may have occurred; spending capacity remains reserved for safety.";
+                String finalMessage = message;
+                runOnUiThread(() -> resolveDapp(id, null, 4000, finalMessage));
+            }
+        });
+    }
+
     private void showByteChat() {
         LinearLayout box = dialogBox();
         TextView intro = label(

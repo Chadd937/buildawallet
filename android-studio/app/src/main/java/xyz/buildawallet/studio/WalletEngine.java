@@ -277,7 +277,7 @@ final class WalletEngine {
             BigInteger raw = abiUint(words, 64);
             TokenMetadata token = readTokenMetadata(network, contract);
             return "ERC-20 TRANSFER\nToken: " + token.symbol + " (" + contract + ")"
-                + "\nRecipient: " + recipient + "\nAmount: " + formatToken(raw, token.decimals) + " " + token.symbol
+                + "\nRecipient: " + recipient + "\nAmount: " + (token.decimalsKnown ? formatToken(raw, token.decimals) + " " + token.symbol : raw + " raw units (decimals unavailable)")
                 + "\n\nThis moves tokens immediately if the token contract behaves as expected. Verify the contract and recipient.";
         }
         if ("095ea7b3".equals(selector) && words.length() >= 128) {
@@ -286,7 +286,7 @@ final class WalletEngine {
             TokenMetadata token = readTokenMetadata(network, contract);
             boolean unlimited = raw.equals(BigInteger.ONE.shiftLeft(256).subtract(BigInteger.ONE));
             return "ERC-20 APPROVAL\nToken: " + token.symbol + " (" + contract + ")"
-                + "\nSpender: " + spender + "\nAllowance: " + (unlimited ? "UNLIMITED" : formatToken(raw, token.decimals) + " " + token.symbol)
+                + "\nSpender: " + spender + "\nAllowance: " + (unlimited ? "UNLIMITED" : (token.decimalsKnown ? formatToken(raw, token.decimals) + " " + token.symbol : raw + " raw units"))
                 + (unlimited ? "\n\nHIGH RISK: this grants the spender permission to transfer any amount of this token until the allowance is revoked." :
                     "\n\nThe spender can transfer up to this allowance from your wallet. Verify the spender address.");
         }
@@ -297,7 +297,7 @@ final class WalletEngine {
             TokenMetadata token = readTokenMetadata(network, contract);
             return "ERC-20 TRANSFER FROM\nToken: " + token.symbol + " (" + contract + ")"
                 + "\nFrom: " + owner + "\nRecipient: " + recipient
-                + "\nAmount: " + formatToken(raw, token.decimals) + " " + token.symbol
+                + "\nAmount: " + (token.decimalsKnown ? formatToken(raw, token.decimals) + " " + token.symbol : raw + " raw units (decimals unavailable)")
                 + "\n\nThis contract call attempts to move tokens from the displayed owner. Confirm the allowance and both addresses.";
         }
         if (("39509351".equals(selector) || "a457c2d7".equals(selector)) && words.length() >= 128) {
@@ -306,7 +306,7 @@ final class WalletEngine {
             TokenMetadata token = readTokenMetadata(network, contract);
             return ("39509351".equals(selector) ? "INCREASE TOKEN ALLOWANCE" : "DECREASE TOKEN ALLOWANCE")
                 + "\nToken: " + token.symbol + " (" + contract + ")\nSpender: " + spender
-                + "\nChange: " + formatToken(raw, token.decimals) + " " + token.symbol
+                + "\nChange: " + (token.decimalsKnown ? formatToken(raw, token.decimals) + " " + token.symbol : raw + " raw units (decimals unavailable)")
                 + "\n\nAllowance changes can let another address move tokens from your wallet.";
         }
         if ("a22cb465".equals(selector) && words.length() >= 128) {

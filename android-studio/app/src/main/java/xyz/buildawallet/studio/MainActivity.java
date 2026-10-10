@@ -818,7 +818,7 @@ public final class MainActivity extends Activity {
                 if (u.startsWith("https://") || u.startsWith("http://")) { loadDappUrl(u, v); return true; }
                 openExternal(u); return true;
             }
-            @Override public void onPageFinished(WebView v, String u) { if (isTrustedDappOrigin(u)) injectEip1193(v); }
+            @Override public void onPageFinished(WebView v, String u) { if (isWalletProviderEligibleUrl(u)) injectEip1193(v); }
         });
         root.addView(dappWebView, new LinearLayout.LayoutParams(-1, dp(420)));
         root.addView(label("Built-in dapp browser exposes the local EIP-1193 EVM provider and a Solana wallet provider on approved HTTPS origins. Solana mainnet transactions are simulated and reviewed before local signing. Dapps never receive the recovery phrase.", 11, MUTED, false));
@@ -841,7 +841,7 @@ public final class MainActivity extends Activity {
     private void loadDappUrl(String raw, WebView view) {
         String u = raw == null ? "" : raw.trim();
         if (!u.startsWith("http://") && !u.startsWith("https://")) u = "https://www.google.com/search?q=" + Uri.encode(u);
-        boolean trusted = isTrustedDappOrigin(u);
+        boolean trusted = isWalletProviderEligibleUrl(u);
         if (trusted) view.addJavascriptInterface(new DappBridge(), "BuildAWallet");
         else view.removeJavascriptInterface("BuildAWallet");
         view.loadUrl(u);

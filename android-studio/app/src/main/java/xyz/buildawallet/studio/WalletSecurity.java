@@ -125,7 +125,7 @@ final class WalletSecurity {
 
     static synchronized Reservation reserve(Context context, String walletAddress, BigDecimal usdAmount, int limitUsd) {
         if (limitUsd <= 0) return new Reservation(null, null, BigDecimal.ZERO);
-        if (usdAmount == null || usdAmount.signum() < 0) throw new IllegalArgumentException("Could not value this transaction for the USD spending limit.");
+        if (usdAmount != null && usdAmount.signum() < 0) throw new IllegalArgumentException("Could not value this transaction for the USD spending limit.");
         String walletKey = walletAddress.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
         String eventsKey = "events_usd_" + walletKey;
         android.content.SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -151,6 +151,13 @@ final class WalletSecurity {
             }
         } catch (Exception error) {
             throw new IllegalStateException("The saved spending-limit history is invalid. Transactions are blocked for safety.", error);
+        }
+        if (usdAmount == null) {
+            // For an unpriced imported token, conservatively reserve all remaining allowance.
+            usdAmount = BigDecimal.valueOf(limitUsd).subtract(spent);
+            if (usdAmount.signum() <= 0) {
+                throw new IllegalStateException("The rolling 24-hour spending cap is already exhausted; an unpriced token cannot be sent until capacity returns.");
+            }
         }
         BigDecimal total = spent.add(usdAmount);
         if (total.compareTo(BigDecimal.valueOf(limitUsd)) > 0) {

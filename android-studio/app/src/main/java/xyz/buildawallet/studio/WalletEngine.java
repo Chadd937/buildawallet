@@ -288,21 +288,24 @@ final class WalletEngine {
             String spender = abiAddress(words, 0);
             BigInteger raw = abiUint(words, 64);
             TokenMetadata token = readTokenMetadata(network, contract);
-            boolean unlimited = raw.equals(BigInteger.ONE.shiftLeft(256).subtract(BigInteger.ONE));
-            return "ERC-20 APPROVAL\nToken: " + token.symbol + " (" + contract + ")"
-                + "\nSpender: " + spender + "\nAllowance: " + (unlimited ? "UNLIMITED" : (token.decimalsKnown ? formatToken(raw, token.decimals) + " " + token.symbol : raw + " raw units"))
+            boolean unlimited = token.decimalsKnown && raw.equals(BigInteger.ONE.shiftLeft(256).subtract(BigInteger.ONE));
+            String approvalKind = token.decimalsKnown ? "ERC-20 APPROVAL" : "TOKEN / NFT APPROVAL (signature overlaps)";
+            String allowanceText = token.decimalsKnown
+                ? (unlimited ? "UNLIMITED" : formatToken(raw, token.decimals) + " " + token.symbol)
+                : raw + " raw units (may be an NFT token ID; standard not verified)";
+            return approvalKind + "\nToken contract: " + contract + "\nSpender: " + spender + "\nAllowance / token ID: " + allowanceText
                 + (unlimited ? "\n\nHIGH RISK: this grants the spender permission to transfer any amount of this token until the allowance is revoked." :
-                    "\n\nThe spender can transfer up to this allowance from your wallet. Verify the spender address.");
+                    "\n\nVerify whether this contract is a fungible token or NFT collection, and verify the spender address.");
         }
         if ("23b872dd".equals(selector) && words.length() >= 192) {
             String owner = abiAddress(words, 0);
             String recipient = abiAddress(words, 64);
             BigInteger raw = abiUint(words, 128);
             TokenMetadata token = readTokenMetadata(network, contract);
-            return "ERC-20 TRANSFER FROM\nToken: " + token.symbol + " (" + contract + ")"
-                + "\nFrom: " + owner + "\nRecipient: " + recipient
-                + "\nAmount: " + (token.decimalsKnown ? formatToken(raw, token.decimals) + " " + token.symbol : raw + " raw units (decimals unavailable)")
-                + "\n\nThis contract call attempts to move tokens from the displayed owner. Confirm the allowance and both addresses.";
+            return (token.decimalsKnown ? "ERC-20 TRANSFER FROM" : "TRANSFER_FROM (ERC-20 / NFT SIGNATURE OVERLAP)")
+                + "\nToken contract: " + contract + "\nFrom: " + owner + "\nRecipient: " + recipient
+                + "\nAmount / token ID: " + (token.decimalsKnown ? formatToken(raw, token.decimals) + " " + token.symbol : raw + " raw units (standard not verified)")
+                + "\n\nThis contract call attempts to move an asset from the displayed owner. Confirm the token standard, allowance and both addresses.";
         }
         if (("39509351".equals(selector) || "a457c2d7".equals(selector)) && words.length() >= 128) {
             String spender = abiAddress(words, 0);

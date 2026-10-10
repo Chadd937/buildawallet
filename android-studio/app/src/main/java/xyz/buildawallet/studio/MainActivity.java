@@ -1335,8 +1335,6 @@ public final class MainActivity extends Activity {
         dialog.show();
     }
 
-    private void prepareTransfer(String to, String amount) { prepareTransfer(to, amount, false); }
-
     private void prepareTransfer(String to, String amount, CustomToken token) {
         status("Fetching balance, nonce and network fee…");
         EvmNetwork network = selectedNetwork;

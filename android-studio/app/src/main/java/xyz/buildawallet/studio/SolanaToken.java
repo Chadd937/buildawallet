@@ -25,6 +25,21 @@ final class SolanaToken {
         this.programId = programId;
     }
 
+    static java.math.BigInteger toRawAmount(String amountText, int decimals) {
+        if (decimals < 0 || decimals > 18) throw new IllegalArgumentException("Token decimals must be between 0 and 18.");
+        java.math.BigDecimal amount;
+        try { amount = new java.math.BigDecimal(amountText.trim()); }
+        catch (Exception error) { throw new IllegalArgumentException("Enter a valid token amount."); }
+        if (amount.signum() <= 0) throw new IllegalArgumentException("Amount must be greater than zero.");
+        java.math.BigInteger raw;
+        try { raw = amount.movePointRight(decimals).toBigIntegerExact(); }
+        catch (ArithmeticException error) { throw new IllegalArgumentException("Amount has too many decimal places for this token."); }
+        if (raw.signum() <= 0 || raw.compareTo(java.math.BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
+            throw new IllegalArgumentException("Amount is outside the supported SPL token transfer range.");
+        }
+        return raw;
+    }
+
     static List<SolanaToken> load(Context context) {
         SharedPreferences prefs = context.getSharedPreferences("solana_custom_tokens_v1", Context.MODE_PRIVATE);
         ArrayList<SolanaToken> out = new ArrayList<>();

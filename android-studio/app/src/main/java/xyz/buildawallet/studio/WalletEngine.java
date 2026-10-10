@@ -340,7 +340,7 @@ final class WalletEngine {
             if ("7ff36ab5".equals(selector)) {
                 amountOutMin = abiUint(words, 0);
                 pathOffsetWord = 64;
-                recipientWord = 96;
+                recipientWord = 128;
             } else {
                 amountIn = abiUint(words, 0);
                 amountOutMin = abiUint(words, 64);
@@ -376,16 +376,19 @@ final class WalletEngine {
             verifyNetwork(web3j, network);
             String symbol = callTokenString(web3j, contract, "0x95d89b41");
             int decimals = 18;
+            boolean decimalsKnown = false;
             try {
                 String result = callRaw(web3j, contract, "0x313ce567");
                 String hex = result.startsWith("0x") ? result.substring(2) : result;
-                if (hex.length() >= 64) decimals = new BigInteger(hex.substring(hex.length() - 64), 16).intValueExact();
-                if (decimals < 0 || decimals > 36) decimals = 18;
+                if (hex.length() >= 64) {
+                    int parsed = new BigInteger(hex.substring(hex.length() - 64), 16).intValueExact();
+                    if (parsed >= 0 && parsed <= 36) { decimals = parsed; decimalsKnown = true; }
+                }
             } catch (Exception ignored) { }
             if (symbol == null || !symbol.matches("[A-Za-z0-9._-]{1,16}")) symbol = "TOKEN";
-            return new TokenMetadata(symbol, decimals);
+            return new TokenMetadata(symbol, decimals, decimalsKnown);
         } catch (Exception ignored) {
-            return new TokenMetadata("TOKEN", 18);
+            return new TokenMetadata("TOKEN", 18, false);
         } finally { web3j.shutdown(); }
     }
 
@@ -444,7 +447,10 @@ final class WalletEngine {
     private static final class TokenMetadata {
         final String symbol;
         final int decimals;
-        TokenMetadata(String symbol, int decimals) { this.symbol = symbol; this.decimals = decimals; }
+        final boolean decimalsKnown;
+        TokenMetadata(String symbol, int decimals, boolean decimalsKnown) {
+            this.symbol = symbol; this.decimals = decimals; this.decimalsKnown = decimalsKnown;
+        }
     }
 
     DappSpendEstimate estimateDappSpend(EvmNetwork network, org.json.JSONObject tx) throws Exception {
@@ -481,10 +487,12 @@ final class WalletEngine {
             boolean fullyValued = true;
             if ("a9059cbb".equals(selector) && words.length() >= 128) {
                 TokenMetadata token = readTokenMetadata(network, to);
+                if (!token.decimalsKnown) throw new IllegalStateException("Cannot enforce the USD spending cap because this token's decimals could not be read.");
                 BigDecimal amount = new BigDecimal(abiUint(words, 64)).movePointLeft(token.decimals);
                 totalUsd = totalUsd.add(WalletSecurity.tokenUsdValue(network, to, amount));
             } else if ("23b872dd".equals(selector) && words.length() >= 192) {
                 TokenMetadata token = readTokenMetadata(network, to);
+                if (!token.decimalsKnown) throw new IllegalStateException("Cannot enforce the USD spending cap because this token's decimals could not be read.");
                 BigDecimal amount = new BigDecimal(abiUint(words, 128)).movePointLeft(token.decimals);
                 totalUsd = totalUsd.add(WalletSecurity.tokenUsdValue(network, to, amount));
             } else if ("38ed1739".equals(selector) || "18cbafe5".equals(selector)
@@ -494,6 +502,7 @@ final class WalletEngine {
                 int pathStart = abiUint(words, pathOffsetWord).intValueExact() * 2;
                 String tokenIn = "0x" + words.substring(pathStart + 64 + 24, pathStart + 128);
                 TokenMetadata token = readTokenMetadata(network, tokenIn);
+                if (!token.decimalsKnown) throw new IllegalStateException("Cannot enforce the USD spending cap because the input token's decimals could not be read.");
                 BigDecimal amount = new BigDecimal(abiUint(words, amountOffset)).movePointLeft(token.decimals);
                 totalUsd = totalUsd.add(WalletSecurity.tokenUsdValue(network, tokenIn, amount));
             } else if ("7ff36ab5".equals(selector) || "39509351".equals(selector)

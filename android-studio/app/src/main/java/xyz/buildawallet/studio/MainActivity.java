@@ -990,7 +990,8 @@ public final class MainActivity extends Activity {
                 if (reservation != null && !dispatchStarted) WalletSecurity.release(this, reservation);
                 String message = safeMessage(error);
                 if (dispatchStarted) message += " The network outcome may be uncertain; spending capacity remains reserved for safety.";
-                runOnUiThread(() -> resolveDapp(id, null, 4000, message));
+                String responseMessage = message;
+                runOnUiThread(() -> resolveDapp(id, null, 4000, responseMessage));
             }
         });
     }

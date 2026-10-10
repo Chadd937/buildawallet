@@ -6,10 +6,13 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.app.KeyguardManager;
 import android.net.Uri;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -43,6 +46,11 @@ public final class MainActivity extends Activity {
     private static final int WARNING = 0xffffd38a;
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private static final int REQUEST_DEVICE_UNLOCK = 7101;
+    private boolean walletLocked;
+    private boolean unlockInProgress;
+    private final Runnable autoLockRunnable = () -> lockWallet(true);
 
     private SecureSeedStore seedStore;
     private WalletProfile profile;
@@ -70,6 +78,7 @@ public final class MainActivity extends Activity {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
 
         seedStore = new SecureSeedStore(this);
+        walletLocked = seedStore.exists();
         profile = WalletProfile.load(this);
         resetPendingFromProfile();
 
@@ -85,15 +94,113 @@ public final class MainActivity extends Activity {
         render();
     }
 
+    @Override public void onUserInteraction() {
+        super.onUserInteraction();
+        scheduleAutoLock();
+    }
+
+    @Override protected void onStop() {
+        super.onStop();
+        if (!unlockInProgress && seedStore != null && seedStore.exists()) lockWallet(false);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (seedStore != null && seedStore.exists() && walletLocked && content != null) render();
+        else scheduleAutoLock();
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_DEVICE_UNLOCK) return;
+        unlockInProgress = false;
+        if (resultCode == Activity.RESULT_OK) {
+            walletLocked = false;
+            render();
+            scheduleAutoLock();
+        } else {
+            walletLocked = true;
+            engine = null;
+            nonEvm = null;
+            render();
+        }
+    }
+
     @Override protected void onDestroy() {
+        mainHandler.removeCallbacks(autoLockRunnable);
         io.shutdownNow();
         super.onDestroy();
     }
 
     private void render() {
         content.removeAllViews();
-        if (seedStore.exists()) renderWallet();
-        else renderOnboarding();
+        if (seedStore.exists()) {
+            if (walletLocked) renderLocked();
+            else renderWallet();
+        } else renderOnboarding();
+    }
+
+    private void scheduleAutoLock() {
+        mainHandler.removeCallbacks(autoLockRunnable);
+        if (walletLocked || seedStore == null || !seedStore.exists() || profile == null) return;
+        long timeout = Math.max(1, profile.autoLockMin) * 60_000L;
+        mainHandler.postDelayed(autoLockRunnable, timeout);
+    }
+
+    private void lockWallet(boolean redraw) {
+        mainHandler.removeCallbacks(autoLockRunnable);
+        if (seedStore == null || !seedStore.exists()) return;
+        walletLocked = true;
+        engine = null;
+        nonEvm = null;
+        if (redraw && content != null) render();
+    }
+
+    private void renderLocked() {
+        content.addView(label("BUILDAWALLET  /  LOCKED", 11, activeAccent(), true));
+        add(label("Your wallet is locked.", 32, TEXT, true), 12);
+        add(label("The in-memory signing engines have been cleared. Authenticate with your Android device credential, or verify your recovery phrase if this device has no secure screen lock.", 14, MUTED, false), 16);
+        Button unlock = button("Unlock wallet", true);
+        unlock.setOnClickListener(v -> requestWalletUnlock());
+        add(unlock, 14);
+        add(notice("Never share your recovery phrase. The app will only compare it locally with the encrypted wallet to unlock this device."), 12);
+    }
+
+    private void requestWalletUnlock() {
+        KeyguardManager keyguard = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+        if (keyguard != null && keyguard.isDeviceSecure()) {
+            Intent intent = keyguard.createConfirmDeviceCredentialIntent("Unlock BuildAWallet", "Authenticate to access your wallet");
+            if (intent != null) {
+                unlockInProgress = true;
+                startActivityForResult(intent, REQUEST_DEVICE_UNLOCK);
+                return;
+            }
+        }
+        LinearLayout box = dialogBox();
+        EditText phrase = input("Enter your recovery phrase");
+        phrase.setSingleLine(false);
+        phrase.setMinLines(3);
+        phrase.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        box.addView(phrase);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Unlock with recovery phrase")
+            .setMessage("Use this fallback only if your Android device has no secure screen lock. The phrase is verified locally and is not sent anywhere.")
+            .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Unlock", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> io.execute(() -> {
+            try {
+                boolean matches = seedStore.matchesMnemonic(phrase.getText().toString());
+                runOnUiThread(() -> {
+                    if (matches) {
+                        dialog.dismiss();
+                        walletLocked = false;
+                        render();
+                        scheduleAutoLock();
+                    } else showError("Unlock failed", new IllegalArgumentException("Recovery phrase does not match this wallet."));
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> showError("Unlock failed", error));
+            }
+        })));
+        dialog.show();
     }
 
     private void renderOnboarding() {

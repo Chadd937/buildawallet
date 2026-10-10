@@ -528,7 +528,9 @@ final class WalletEngine {
             String from = tx.optString("from", "");
             if (!from.equalsIgnoreCase(address())) throw new IllegalArgumentException("Dapp transaction account does not match this wallet.");
             if (tx.has("chainId")) {
-                BigInteger requestedChain = Numeric.toBigInt(tx.getString("chainId"));
+                String rawChainId = tx.getString("chainId");
+                BigInteger requestedChain = rawChainId.startsWith("0x") || rawChainId.startsWith("0X")
+                    ? Numeric.toBigInt(rawChainId) : new BigInteger(rawChainId);
                 if (!requestedChain.equals(BigInteger.valueOf(network.chainId))) {
                     throw new IllegalArgumentException("Dapp transaction chain ID does not match the selected network.");
                 }

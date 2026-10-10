@@ -28,7 +28,10 @@ final class WalletSecurity {
             ? nativePrice(transfer.network)
             : tokenPrice(transfer.network, transfer.assetToken);
         if (price.signum() <= 0) throw new IllegalStateException("No trustworthy USD price is available for this asset.");
-        return amount.multiply(price).setScale(8, RoundingMode.HALF_UP);
+        BigDecimal assetUsd = amount.multiply(price);
+        BigDecimal feeNative = new BigDecimal(transfer.gasPrice.multiply(transfer.gasLimit)).movePointLeft(18);
+        BigDecimal feeUsd = feeNative.multiply(nativePrice(transfer.network));
+        return assetUsd.add(feeUsd).setScale(8, RoundingMode.HALF_UP);
     }
 
     static BigDecimal nativeUsdValue(EvmNetwork network, BigDecimal nativeAmount) throws Exception {

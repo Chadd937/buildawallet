@@ -962,16 +962,20 @@ public final class MainActivity extends Activity {
         String walletAddress = engine.address();
         io.execute(() -> {
             WalletSecurity.Reservation reservation = null;
+            boolean dispatchStarted = false;
             try {
                 if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
                 reservation = WalletSecurity.reserve(this, walletAddress,
                     estimate == null ? null : estimate.usdValue, profile.sessionLimitUsd);
                 if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                dispatchStarted = true;
                 String hash = engine.dappSendTransaction(network, tx);
                 resolveDapp(id, hash, 0, null);
             } catch (Exception error) {
-                if (reservation != null) WalletSecurity.release(this, reservation);
-                resolveDapp(id, null, 4000, safeMessage(error));
+                if (reservation != null && !dispatchStarted) WalletSecurity.release(this, reservation);
+                String message = safeMessage(error);
+                if (dispatchStarted) message += " The network outcome may be uncertain; spending capacity remains reserved for safety.";
+                resolveDapp(id, null, 4000, message);
             }
         });
     }

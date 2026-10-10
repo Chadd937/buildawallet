@@ -935,11 +935,11 @@ public final class MainActivity extends Activity {
             }
             if ("eth_requestAccounts".equals(method)) {
                 if (walletLocked || engine == null) { resolveDapp(id, null, 4001, "Wallet is locked."); return; }
-                new AlertDialog.Builder(this).setTitle("Dapp account access").setMessage("Site: " + (dappWebView == null ? "Unknown site" : Uri.parse(dappWebView.getUrl()).getHost()) + "\n\nAllow this HTTPS site to view and use your EVM address for this session? Solana-enabled sites can request separate Solana account access.").setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Connect", (d,w) -> resolveDapp(id, new org.json.JSONArray().put(engine.address()).toString(), 0, null)).show(); return;
+                new AlertDialog.Builder(this).setTitle("Dapp account access").setMessage("Site: " + dappOriginForRequest(id) + "\n\nAllow this HTTPS site to view and use your EVM address for this session? Solana-enabled sites can request separate Solana account access.").setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Connect", (d,w) -> resolveDapp(id, new org.json.JSONArray().put(engine.address()).toString(), 0, null)).show(); return;
             }
             if ("personal_sign".equals(method)) {
                 String message = params.length() > 0 ? params.getString(0) : "";
-                new AlertDialog.Builder(this).setTitle("Dapp signature request").setMessage("Site: " + (dappWebView == null ? "Unknown site" : Uri.parse(dappWebView.getUrl()).getHost()) + "\n\nSign this message?\n\n" + message).setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Sign", (d,w) -> io.execute(() -> {
+                new AlertDialog.Builder(this).setTitle("Dapp signature request").setMessage("Site: " + dappOriginForRequest(id) + "\n\nSign this message?\n\n" + message).setNegativeButton("Reject", (d,w) -> resolveDapp(id, null, 4001, "User rejected request")).setPositiveButton("Sign", (d,w) -> io.execute(() -> {
                     WalletEngine activeEngine = engine;
                     try {
                         if (walletLocked || activeEngine == null) throw new IllegalStateException("Wallet is locked.");
@@ -995,7 +995,7 @@ public final class MainActivity extends Activity {
             || decoded.contains("not fully decoded");
         boolean large = estimate != null && profile.bigSendUsd > 0
             && estimate.usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0;
-        String message = dappTransactionPreview(tx, network, decoded, estimate);
+        String message = dappTransactionPreview(tx, network, decoded, estimate, dappOriginForRequest(id));
         new AlertDialog.Builder(this)
             .setTitle(highRisk || large ? "High-risk dapp request · review" : "Dapp transaction · review carefully")
             .setMessage(message)
@@ -1017,7 +1017,7 @@ public final class MainActivity extends Activity {
     }
 
     private String dappTransactionPreview(org.json.JSONObject tx, EvmNetwork network, String decoded,
-                                          WalletEngine.DappSpendEstimate estimate) {
+                                          WalletEngine.DappSpendEstimate estimate, String dappOrigin) {
         String to = tx.optString("to", "(missing)");
         String value = tx.optString("value", "0x0");
         String gas = tx.optString("gas", "estimated by network");
@@ -1026,7 +1026,6 @@ public final class MainActivity extends Activity {
         String shownData = data.length() > 600 ? data.substring(0, 600) + "… (truncated)" : data;
         String usd = estimate == null ? "USD value not calculated (USD guardrails disabled)"
             : "Estimated native value + fee + decoded token spend: $" + estimate.usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString();
-        String dappOrigin = dappWebView == null || dappWebView.getUrl() == null ? "Unknown site" : String.valueOf(Uri.parse(dappWebView.getUrl()).getHost());
         return "Dapp origin: " + dappOrigin
             + "\nNetwork: " + network.name + " (chain " + network.chainId + ")"
             + "\nDestination / contract: " + to
@@ -1067,7 +1066,26 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private String dappOriginForRequest(String id) {
+        String origin = dappRequestOrigins.get(id);
+        if (origin != null && !origin.isEmpty()) return origin;
+        return dappWebView == null || dappWebView.getUrl() == null ? "Unknown site" : String.valueOf(Uri.parse(dappWebView.getUrl()).getHost());
+    }
+
     private void resolveDapp(String id, String result, int code, String message) {
+        JavaScriptReplyProxy reply = dappReplies.remove(id);
+        dappRequestOrigins.remove(id);
+        if (reply != null) {
+            try {
+                org.json.JSONObject response = new org.json.JSONObject()
+                    .put("id", id)
+                    .put("value", result == null ? org.json.JSONObject.NULL : result)
+                    .put("error", message == null ? org.json.JSONObject.NULL
+                        : new org.json.JSONObject().put("code", code).put("message", message));
+                reply.postMessage(response.toString());
+            } catch (Exception ignored) { }
+            return;
+        }
         if (dappWebView == null) return;
         String rid = org.json.JSONObject.quote(id), rr = result == null ? "null" : org.json.JSONObject.quote(result), err = message == null ? "null" : "{code:" + code + ",message:" + org.json.JSONObject.quote(message) + "}";
         dappWebView.evaluateJavascript("window.__bawResolve(" + rid + "," + rr + "," + err + ")", null);
@@ -1078,7 +1096,7 @@ public final class MainActivity extends Activity {
             resolveDapp(id, null, 4001, "Wallet is locked.");
             return;
         }
-        String origin = dappWebView == null ? "Unknown dapp" : Uri.parse(dappWebView.getUrl() == null ? "" : dappWebView.getUrl()).getHost();
+        String origin = dappOriginForRequest(id);
         if ("solana_connect".equals(method)) {
             if (solanaDappConnected && origin != null && origin.equals(solanaDappConnectedOrigin)) { resolveDapp(id, nonEvm.solanaAddress(), 0, null); return; }
             new AlertDialog.Builder(this).setTitle("Solana dapp connection")

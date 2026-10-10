@@ -134,12 +134,13 @@ function legacyTransaction(accountKeys: string[], readonlyUnsigned: number, bloc
 export type PrepareIntent = {
   from?: string;
   to?: string;
-  asset?: "native" | "usdc" | "spl";
+  asset?: "native" | "usdc" | "erc20" | "spl";
   amountAtomic?: string;
   data?: string;
   sourceTokenAccount?: string;
   destinationTokenAccount?: string;
   tokenMint?: string;
+  tokenAddress?: string;
   tokenDecimals?: number;
   tokenProgramId?: string;
 };
@@ -149,13 +150,31 @@ export async function prepareBaseTransaction(url: string, intent: PrepareIntent,
   if (!selectedChain || selectedChain.family !== "evm" || !selectedChain.chainId) throw new Error("Unsupported EVM transaction chain");
   if (!intent.from || !intent.to || !validAddress(selectedChain, intent.from) || !validAddress(selectedChain, intent.to)) throw new Error("Valid EVM from and to addresses required");
   if (intent.asset === "spl") throw new Error("SPL assets are only supported on Solana.");
-  const asset = intent.asset === "usdc" ? "usdc" : "native";
+  const asset = intent.asset === "erc20" ? "erc20" : intent.asset === "usdc" ? "usdc" : "native";
   const amount = quantity(intent.amountAtomic ?? "", "amountAtomic");
   if (asset === "usdc" && !selectedChain.stablecoin) throw new Error("No stablecoin configured for this chain");
   await checkEvmRpc(url, selectedChain.chainId);
   const from = intent.from;
   const to = intent.to;
-  if (!from || !to) throw new Error("Valid Base from and to addresses required");
+  if (!from || !to) throw new Error("Valid EVM from and to addresses required");
+  let tokenAddress: string | undefined;
+  let tokenDecimals: number | undefined;
+  if (asset === "erc20") {
+    tokenAddress = intent.tokenAddress;
+    tokenDecimals = Number(intent.tokenDecimals);
+    if (!tokenAddress || !validAddress(selectedChain, tokenAddress)) throw new Error("A valid tokenAddress is required for a custom ERC-20 transfer");
+    if (!Number.isInteger(tokenDecimals) || tokenDecimals < 0 || tokenDecimals > 36) throw new Error("tokenDecimals must be an integer from 0 through 36");
+    const [decimalsHex, balanceHex] = await Promise.all([
+      jsonRpc(url, "eth_call", [{ to: tokenAddress, data: "0x313ce567" }, "latest"]),
+      jsonRpc(url, "eth_call", [{ to: tokenAddress, data: "0x70a08231" + from.slice(2).toLowerCase().padStart(64, "0") }, "latest"]),
+    ]);
+    if (typeof decimalsHex !== "string" || !/^0x[0-9a-fA-F]+$/.test(decimalsHex) ||
+        typeof balanceHex !== "string" || !/^0x[0-9a-fA-F]+$/.test(balanceHex)) {
+      throw new Error("Token contract returned invalid decimals or balance data");
+    }
+    if (Number(BigInt(decimalsHex)) !== tokenDecimals) throw new Error("tokenDecimals do not match the contract's on-chain decimals");
+    if (BigInt(balanceHex) < amount) throw new Error("Insufficient ERC-20 token balance");
+  }
   const tx: Record<string, string> = { from };
   if (asset === "native") {
     tx["to"] = to;
@@ -165,7 +184,7 @@ export async function prepareBaseTransaction(url: string, intent: PrepareIntent,
       tx["data"] = intent.data;
     }
   } else {
-    tx["to"] = selectedChain.stablecoin!.address;
+    tx["to"] = asset === "usdc" ? selectedChain.stablecoin!.address : tokenAddress!;
     tx["value"] = "0x0";
     tx["data"] = erc20Transfer(to, amount);
   }
@@ -185,7 +204,8 @@ export async function prepareBaseTransaction(url: string, intent: PrepareIntent,
     chain: selectedChain.id,
     network: "mainnet",
     asset,
-    token: asset === "usdc" ? selectedChain.stablecoin!.address : undefined,
+    token: asset === "usdc" ? selectedChain.stablecoin!.address : asset === "erc20" ? tokenAddress : undefined,
+    tokenDecimals: asset === "usdc" ? 6 : tokenDecimals,
     amountAtomic: amount.toString(),
     unsignedTransaction: {
       ...tx,

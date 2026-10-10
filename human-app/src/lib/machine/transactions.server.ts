@@ -254,7 +254,7 @@ export async function prepareSolanaTransaction(url: string, intent: PrepareInten
     decimals = asset === "usdc" ? 6 : Number(intent.tokenDecimals);
     tokenProgram = asset === "usdc" ? TOKEN_PROGRAM : intent.tokenProgramId;
     if (!mint || !validSolanaAddress(mint)) throw new Error("A valid tokenMint is required for SPL transfers");
-    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) throw new Error("tokenDecimals must be an integer from 0 through 18");
+    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) throw new Error("SPL tokenDecimals must be an integer from 0 through 255");
     if (tokenProgram !== TOKEN_PROGRAM && tokenProgram !== TOKEN_2022_PROGRAM) throw new Error("Unsupported SPL token program");
     if (!validSolanaAddress(intent.sourceTokenAccount) || !validSolanaAddress(intent.destinationTokenAccount)) {
       throw new Error("sourceTokenAccount and destinationTokenAccount must be valid token-account addresses");

@@ -590,6 +590,7 @@ public final class MainActivity extends Activity {
         Button solSend = button("Send SOL", false);
         solSend.setOnClickListener(v -> sendSolanaDialog());
         addTo(nonEvmCard, solSend, 10);
+        addSolanaTokensSection(nonEvmCard);
         addTo(nonEvmCard, label("BITCOIN", 10, MUTED, true), 12);
         TextView btcAddress = label(nonEvm == null ? "Unavailable" : nonEvm.bitcoinAddress(), 12, TEXT, true);
         btcAddress.setTextIsSelectable(true);
@@ -1131,6 +1132,194 @@ public final class MainActivity extends Activity {
                     }
                     status("RPC error: " + safeMessage(error));
                 });
+            }
+        });
+    }
+
+
+    private void addSolanaTokensSection(LinearLayout card) {
+        card.addView(label("SPL TOKENS", 10, MUTED, true), layout(0, 0, 0, 4));
+        Button importToken = button("+ Import SPL token", false);
+        addTo(card, importToken, 8);
+        importToken.setOnClickListener(v -> importSolanaTokenDialog());
+        List<SolanaToken> tokens = SolanaToken.load(this);
+        if (tokens.isEmpty()) {
+            addTo(card, label("No SPL tokens imported. Import a mint address to view its balance and send supported tokens.", 11, MUTED, false), 8);
+            return;
+        }
+        for (SolanaToken token : tokens) {
+            LinearLayout item = new LinearLayout(this);
+            item.setOrientation(LinearLayout.VERTICAL);
+            item.setPadding(dp(12), dp(10), dp(12), dp(10));
+            item.setBackground(pill(0xff14171c, 0xff292d35));
+            TextView name = label(token.name + " · " + token.symbol, 14, TEXT, true);
+            TextView mint = label(shortAddress(token.mint) + " · " + token.decimals + " decimals", 10, MUTED, false);
+            TextView balance = label("Loading balance…", 12, MUTED, true);
+            addTo(item, name, 2);
+            addTo(item, mint, 4);
+            addTo(item, balance, 7);
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            Button send = button("Send " + token.symbol, true);
+            Button details = button("Details", false);
+            actions.addView(send, new LinearLayout.LayoutParams(0, dp(42), 1f));
+            actions.addView(details, new LinearLayout.LayoutParams(0, dp(42), 1f));
+            item.addView(actions);
+            addTo(card, item, 8);
+            send.setOnClickListener(v -> sendSolanaTokenDialog(token));
+            details.setOnClickListener(v -> solanaTokenInfo(token));
+            io.execute(() -> {
+                try {
+                    String value = nonEvm.solanaTokenBalance(token.mint);
+                    runOnUiThread(() -> balance.setText(value + " " + token.symbol));
+                } catch (Exception error) {
+                    runOnUiThread(() -> balance.setText("Balance unavailable · tap Details to verify mint"));
+                }
+            });
+        }
+    }
+
+    private void importSolanaTokenDialog() {
+        EditText mintInput = input("SPL mint address");
+        EditText nameInput = input("Token name (optional if on-chain metadata exists)");
+        EditText symbolInput = input("Token symbol (optional if on-chain metadata exists)");
+        LinearLayout box = dialogBox();
+        box.addView(label("Mint address", 12, MUTED, true));
+        box.addView(mintInput);
+        addTo(box, label("Display name", 12, MUTED, true), 10);
+        box.addView(nameInput);
+        addTo(box, label("Display symbol", 12, MUTED, true), 10);
+        box.addView(symbolInput);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Import SPL token")
+            .setMessage("The mint and decimals are verified on-chain. Names and symbols are display labels, not proof of token legitimacy.")
+            .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Validate mint", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            if (walletLocked || nonEvm == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before importing tokens.")); return; }
+            String mint = mintInput.getText().toString().trim();
+            String name = nameInput.getText().toString().trim();
+            String symbol = symbolInput.getText().toString().trim();
+            if (mint.isEmpty()) { showError("Invalid mint", new IllegalArgumentException("Enter the SPL mint address.")); return; }
+            dialog.dismiss();
+            io.execute(() -> {
+                try {
+                    NonEvmEngine active = nonEvm;
+                    if (walletLocked || active == null) throw new IllegalStateException("Wallet locked before mint validation.");
+                    NonEvmEngine.SolanaMintInfo info = active.inspectSolanaMint(mint);
+                    String finalName = name.isEmpty() ? info.onChainName : name;
+                    String finalSymbol = symbol.isEmpty() ? info.onChainSymbol : symbol;
+                    if (finalName == null || finalName.trim().isEmpty()) throw new IllegalArgumentException("Enter a token name because this mint does not expose readable on-chain metadata.");
+                    if (finalSymbol == null || !finalSymbol.matches("[A-Za-z0-9._-]{1,16}")) throw new IllegalArgumentException("Enter a token symbol (1–16 letters, numbers, or . _ -).");
+                    SolanaToken token = new SolanaToken(finalName.trim(), finalSymbol, info.mint, info.decimals, info.programId);
+                    SolanaToken.save(this, token);
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "SPL token imported", Toast.LENGTH_SHORT).show();
+                        render();
+                        if (!info.extensionsSupported) new AlertDialog.Builder(this).setTitle("Token imported · sending restricted")
+                            .setMessage(info.extensionWarning).setPositiveButton("OK", null).show();
+                    });
+                } catch (Exception error) { runOnUiThread(() -> showError("Could not import SPL token", error)); }
+            });
+        }));
+        dialog.show();
+    }
+
+    private void solanaTokenInfo(SolanaToken token) {
+        String message = "Name: " + token.name + "\nSymbol: " + token.symbol
+            + "\nMint: " + token.mint + "\nDecimals: " + token.decimals
+            + "\nToken program: " + (NonEvmEngine.TOKEN_2022_PROGRAM_ID.equals(token.programId) ? "Token-2022" : "Original SPL Token")
+            + "\nNetwork: Solana mainnet\n\nDisplay metadata can be misleading. Verify the mint with a trusted issuer.";
+        new AlertDialog.Builder(this).setTitle("SPL token details").setMessage(message)
+            .setNeutralButton("Explorer", (d,w) -> openExternal("https://explorer.solana.com/address/" + Uri.encode(token.mint)))
+            .setNegativeButton("Remove", (d,w) -> {
+                SolanaToken.remove(this, token);
+                render();
+            }).setPositiveButton("Close", null).show();
+    }
+
+    private void sendSolanaTokenDialog(SolanaToken token) {
+        EditText to = input("Recipient Solana wallet address");
+        EditText amount = input("0.01");
+        amount.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        LinearLayout box = dialogBox();
+        box.addView(label("Token: " + token.name + " · " + token.symbol, 12, MUTED, true));
+        addTo(box, label("Mint: " + shortAddress(token.mint), 10, MUTED, false), 4);
+        addTo(box, label("Recipient wallet", 12, MUTED, true), 10);
+        box.addView(to);
+        addTo(box, label("Amount (" + token.symbol + ")", 12, MUTED, true), 10);
+        box.addView(amount);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Send SPL token")
+            .setMessage("The wallet will verify the mint, balance, recipient token account, and fee/rent requirements before signing.")
+            .setView(box).setNegativeButton("Cancel", null).setPositiveButton("Review", null).create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String destination = to.getText().toString().trim();
+            String amountText = amount.getText().toString().trim();
+            if (walletLocked || nonEvm == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before sending.")); return; }
+            if (destination.isEmpty() || amountText.isEmpty()) { showError("Invalid SPL transfer", new IllegalArgumentException("Enter recipient and amount.")); return; }
+            dialog.dismiss();
+            io.execute(() -> {
+                try {
+                    NonEvmEngine active = nonEvm;
+                    if (walletLocked || active == null) throw new IllegalStateException("Wallet locked before transfer review.");
+                    String estimate = active.previewSolanaTokenTransfer(token, destination, amountText);
+                    BigDecimal value = new BigDecimal(amountText);
+                    BigDecimal usd = null;
+                    if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) {
+                        try {
+                            usd = WalletSecurity.solanaTokenUsdValue(token.mint, value)
+                                .add(WalletSecurity.coinUsdValue("solana", new BigDecimal("0.0022")));
+                        } catch (Exception ignoredPrice) { usd = null; }
+                    }
+                    BigDecimal finalUsd = usd;
+                    runOnUiThread(() -> confirmSolanaTokenTransfer(token, destination, value, finalUsd, estimate));
+                } catch (Exception error) { runOnUiThread(() -> showError("Cannot prepare SPL transfer", error)); }
+            });
+        }));
+        dialog.show();
+    }
+
+    private void confirmSolanaTokenTransfer(SolanaToken token, String destination, BigDecimal amount,
+                                             BigDecimal usdValue, String feeEstimate) {
+        boolean unpriced = usdValue == null && (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0);
+        boolean large = usdValue != null && profile.bigSendUsd > 0 && usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0;
+        String message = "Network: Solana mainnet\nRecipient wallet: " + destination
+            + "\nToken: " + token.name + " (" + token.symbol + ")\nAmount: " + amount.toPlainString() + " " + token.symbol
+            + "\nMint: " + token.mint + "\nDecimals: " + token.decimals
+            + (usdValue == null ? "" : "\nIndicative token + conservative fee/rent value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString())
+            + "\n" + feeEstimate + "\n\nThe transaction is signed locally on this device."
+            + (unpriced ? "\n\nWARNING: No reliable USD quote is available. This requires an additional confirmation; with the spend cap active, it reserves all remaining cap capacity." : "")
+            + (large ? "\n\nThis meets or exceeds the large-send threshold ($" + profile.bigSendUsd + ")." : "");
+        boolean extra = unpriced || large;
+        new AlertDialog.Builder(this).setTitle(extra ? "SPL transfer · extra review" : "Confirm SPL transfer")
+            .setMessage(message).setNegativeButton("Cancel", null)
+            .setPositiveButton(extra ? "Continue to final review" : "Sign & send", (d,w) -> {
+                if (extra) new AlertDialog.Builder(this).setTitle("Final SPL transfer confirmation")
+                    .setMessage("Send " + amount.toPlainString() + " " + token.symbol + " to " + destination
+                        + "?\nMint: " + token.mint + "\nThis transfer is irreversible.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("I verified · Sign & send", (dd,ww) -> broadcastSolanaToken(token, destination, amount, usdValue)).show();
+                else broadcastSolanaToken(token, destination, amount, usdValue);
+            }).show();
+    }
+
+    private void broadcastSolanaToken(SolanaToken token, String destination, BigDecimal amount, BigDecimal usdValue) {
+        if (walletLocked || nonEvm == null || engine == null) { showError("Wallet is locked", new IllegalStateException("Unlock the wallet before sending.")); return; }
+        String walletAddress = nonEvm.solanaAddress();
+        io.execute(() -> {
+            WalletSecurity.Reservation reservation = null;
+            boolean dispatchStarted = false;
+            try {
+                NonEvmEngine active = nonEvm;
+                if (walletLocked || active == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
+                if (walletLocked || active != nonEvm || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                dispatchStarted = true;
+                String signature = active.sendSolanaToken(token.mint, destination, amount.toPlainString(), token.decimals, token.programId);
+                runOnUiThread(() -> Toast.makeText(this, "SPL token sent: " + signature, Toast.LENGTH_LONG).show());
+            } catch (Exception error) {
+                if (reservation != null && !dispatchStarted) WalletSecurity.release(this, reservation);
+                Exception shown = dispatchStarted ? new IllegalStateException(safeMessage(error)
+                    + " The network outcome may be uncertain; spending capacity remains reserved for safety.", error) : error;
+                runOnUiThread(() -> showError("SPL transfer failed", shown));
             }
         });
     }

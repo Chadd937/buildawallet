@@ -124,17 +124,30 @@ final class WalletSecurity {
         if (limitUsd <= 0) return new Reservation(null, null, BigDecimal.ZERO);
         if (usdAmount == null || usdAmount.signum() < 0) throw new IllegalArgumentException("Could not value this transaction for the USD spending limit.");
         String walletKey = walletAddress.toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9]", "");
-        String startKey = "window_start_" + walletKey;
-        String spentKey = "spent_usd_" + walletKey;
+        String eventsKey = "events_usd_" + walletKey;
         android.content.SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         long now = System.currentTimeMillis();
-        long started = prefs.getLong(startKey, 0L);
-        BigDecimal spent;
-        try { spent = new BigDecimal(prefs.getString(spentKey, "0")); }
-        catch (Exception ignored) { spent = BigDecimal.ZERO; }
-        if (started <= 0 || now < started || now - started >= WINDOW_MS) {
-            started = now;
-            spent = BigDecimal.ZERO;
+        org.json.JSONArray stored;
+        try { stored = new org.json.JSONArray(prefs.getString(eventsKey, "[]")); }
+        catch (Exception error) {
+            throw new IllegalStateException("The saved spending-limit history could not be read. Transactions are blocked until the local limit history is repaired.", error);
+        }
+        org.json.JSONArray active = new org.json.JSONArray();
+        BigDecimal spent = BigDecimal.ZERO;
+        try {
+            for (int i = 0; i < stored.length(); i++) {
+                JSONObject event = stored.optJSONObject(i);
+                if (event == null) throw new IllegalStateException("Invalid spending-limit history entry.");
+                long timestamp = event.getLong("timestamp");
+                if (timestamp > now) throw new IllegalStateException("Spending-limit history contains a future timestamp.");
+                if (now - timestamp >= WINDOW_MS) continue;
+                BigDecimal amount = new BigDecimal(event.getString("amount"));
+                if (amount.signum() < 0) throw new IllegalStateException("Invalid spending-limit history amount.");
+                active.put(event);
+                spent = spent.add(amount);
+            }
+        } catch (Exception error) {
+            throw new IllegalStateException("The saved spending-limit history is invalid. Transactions are blocked for safety.", error);
         }
         BigDecimal total = spent.add(usdAmount);
         if (total.compareTo(BigDecimal.valueOf(limitUsd)) > 0) {
@@ -143,33 +156,45 @@ final class WalletSecurity {
                 + usdAmount.setScale(2, RoundingMode.HALF_UP).toPlainString() + "; limit: $"
                 + limitUsd + ".");
         }
-        boolean saved = prefs.edit().putLong(startKey, started).putString(spentKey, total.toPlainString()).commit();
+        String reservationId = java.util.UUID.randomUUID().toString();
+        JSONObject event = new JSONObject();
+        try {
+            event.put("id", reservationId);
+            event.put("timestamp", now);
+            event.put("amount", usdAmount.toPlainString());
+            active.put(event);
+        } catch (Exception error) {
+            throw new IllegalStateException("Could not prepare the spending-limit reservation.", error);
+        }
+        boolean saved = prefs.edit().putString(eventsKey, active.toString()).commit();
         if (!saved) throw new IllegalStateException("Could not persist the spending-limit reservation. Transaction cancelled for safety.");
-        return new Reservation(walletAddress.toLowerCase(java.util.Locale.ROOT), started, usdAmount);
+        return new Reservation(walletAddress.toLowerCase(java.util.Locale.ROOT), reservationId, usdAmount);
     }
 
     static synchronized void release(Context context, Reservation reservation) {
-        if (reservation == null || reservation.wallet == null || reservation.amount == null || reservation.amount.signum() <= 0) return;
+        if (reservation == null || reservation.wallet == null || reservation.id == null) return;
         String walletKey = reservation.wallet.replaceAll("[^a-z0-9]", "");
-        String startKey = "window_start_" + walletKey;
-        String spentKey = "spent_usd_" + walletKey;
+        String eventsKey = "events_usd_" + walletKey;
         android.content.SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        if (prefs.getLong(startKey, 0L) != reservation.windowStart) return;
-        BigDecimal spent;
-        try { spent = new BigDecimal(prefs.getString(spentKey, "0")); }
-        catch (Exception ignored) { return; }
-        BigDecimal remaining = spent.subtract(reservation.amount);
-        if (remaining.signum() < 0) remaining = BigDecimal.ZERO;
-        prefs.edit().putString(spentKey, remaining.toPlainString()).commit();
+        org.json.JSONArray stored;
+        try { stored = new org.json.JSONArray(prefs.getString(eventsKey, "[]")); }
+        catch (Exception error) { return; }
+        org.json.JSONArray next = new org.json.JSONArray();
+        for (int i = 0; i < stored.length(); i++) {
+            JSONObject event = stored.optJSONObject(i);
+            if (event == null || reservation.id.equals(event.optString("id"))) continue;
+            next.put(event);
+        }
+        prefs.edit().putString(eventsKey, next.toString()).commit();
     }
 
     static final class Reservation {
         final String wallet;
-        final Long windowStart;
+        final String id;
         final BigDecimal amount;
-        Reservation(String wallet, Long windowStart, BigDecimal amount) {
+        Reservation(String wallet, String id, BigDecimal amount) {
             this.wallet = wallet;
-            this.windowStart = windowStart;
+            this.id = id;
             this.amount = amount;
         }
     }

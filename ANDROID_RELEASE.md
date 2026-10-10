@@ -1,54 +1,51 @@
 # Android wallet release status
 
-The HUMAN website currently produces a wallet **design**, a JSON export and a
-detailed implementation plan for free. It does not produce a wallet APK. The
-old root Gradle init placeholders and unverified Gradle 4.4.1 wrapper have been
-removed. The separate `android-studio/` project is an offline design preview,
-not a funded wallet or production release.
+The `android-studio/` project is now a native, noncustodial Android wallet implementation, separate from the HUMAN website designer. It derives wallet accounts locally, encrypts the recovery phrase using Android Keystore-backed storage, and signs supported transactions on-device. The website and Cloudflare Workers do not receive wallet secrets.
 
-The requested deliverable is a **functional, noncustodial Android wallet APK**.
-The existing website's `/human/live` page is an optional read-only viewer of an
-existing external wallet, not a substitute for the Android app. The local
-`agent_protocol.py` signer is a prototype and is not an Android wallet backend.
+## Implemented wallet coverage
 
-## Required before an APK can be offered
+- Native SOL and BTC transfers.
+- Native-asset transfers and configured/custom ERC-20 token transfers on Ethereum, Base, Arbitrum, Optimism, Polygon, BNB Chain and Avalanche.
+- Import, balance display, review and sending for standard SPL Token mints and basic Token-2022 mints on Solana mainnet.
+- On-chain Solana mint/program/decimals validation, checked token transfers, recipient associated-token-account creation, and SOL fee/rent sufficiency checks.
+- Token-2022 mints with unsupported extensions are blocked from sending. The Android dapp browser remains EVM-provider-only; arbitrary Solana dapp transaction signing is not implemented.
+- Local inactivity/foreground locking, large-transfer confirmation, and a rolling 24-hour USD spending cap. These are client-side protections, not an on-chain cryptographic policy; local market prices are indicative.
 
-1. Create a real Android project with an application ID, supported Android
-   versions, reproducible dependency locks and release build configuration.
-2. Specify the first supported chains and assets, then implement address
-   derivation, balances and transaction construction for each. A Studio choice
-   is a request in a design spec; it does not imply the corresponding feature
-   has been implemented in the app.
-3. Implement on-device key generation, protected storage, backup and restore.
-   Keep secrets out of the website, Cloudflare Workers, telemetry and logs.
-4. Implement transaction review, fee display, destination and chain checks,
-   signing on device and broadcast with explicit user approval. Test failure,
-   replacement, RPC mismatch and recovery paths using isolated accounts.
-5. Add meaningful device and integration tests, an independent security
-   review of key handling and transaction signing, then sign the APK with an
-   owner-controlled release key. Publish a checksum and a clear distribution
-   route after release verification.
+See [the targeted security review](SECURITY_AUDIT_2026-10.md) for known limitations. It is a source-level review, not a penetration test or independent wallet audit.
 
-No current API plan purchases an APK. The HUMAN design remains free while the
-Android implementation is outstanding.
+## Required before production promotion
 
-The previously shared `BuildAWallet-1.0.0.apk` is a 9.8 KB signed Android
-WebView wrapper. Its bytecode loads `https://buildawallet.xyz/wallet`; it has
-no bundled wallet implementation, key handling, signing, or transaction logic.
-It must not be offered as a functional wallet release. The Studio finalization
-screen therefore provides the design JSON and implementation plan and reports
-the Android wallet release as pending.
+1. Ensure the latest branch-head Android unit tests and `:app:assembleDebug` pass. Do not rely on a CI run from an earlier commit.
+2. Test SOL, SPL Token, supported Token-2022, EVM native and ERC-20 sends on devnet/testnet or isolated test accounts, including a recipient with no associated token account, invalid mints, unsupported extensions, insufficient fee/rent balance, RPC failures, and lock/unlock during review.
+3. Verify recovery/restore and transaction behavior on physical Android devices.
+4. Obtain an independent review of seed storage, signing, transaction parsing, and guardrails before using meaningful funds.
+5. Configure the owner-controlled Android release keystore in GitHub Actions secrets and verify the release signature and SHA-256 checksum before distributing the APK.
 
-## Android Studio preview source
+## Build and publish workflow
 
-`android-studio/` is a separate native Android project that imports HUMAN
-Studio design JSON and renders a local concept preview. It has no Internet
-permission, private key handling or wallet signing. CI builds its debug APK
-as `buildawallet-studio-preview-not-a-wallet` for device testing. This design
-companion is not the requested wallet release, and the website must continue
-to report that release as pending. See `android-studio/README.md`.
+The workflow `.github/workflows/android-wallet.yml` runs on pushes to `main` that change `android-studio/**`, or can be started manually with GitHub Actions `workflow_dispatch`.
 
-The later uploaded 3.4 MB APK (`buildawallet_a1ccfe16-299e-4a99-bf0d-f1838998c047 (1).apk`)
-is a stock Apache Cordova Hello World app with the placeholder package
-`com.example.buildawallet`. Its bundled HTML and JavaScript contain no wallet
-UI or cryptographic implementation. We did not re-sign or publish it.
+Required repository secrets for a signed release:
+
+- `BAW_ANDROID_KEYSTORE_B64`
+- `BAW_ANDROID_KEYSTORE_PASSWORD`
+- `BAW_ANDROID_KEY_ALIAS`
+- `BAW_ANDROID_KEY_PASSWORD`
+
+When all four secrets are configured, the workflow builds and publishes the owner-signed APK and checksum as the `android-latest` GitHub Release. If the secrets are absent, it uploads a **debug APK artifact only**; that is not a production release. Keep the keystore and passwords private and backed up, and always use the same signing identity for future updates.
+
+The signed release asset is expected at:
+
+`https://github.com/Chadd937/buildawallet/releases/download/android-latest/BuildAWallet-Wallet.apk`
+
+## Local build
+
+Use JDK 17+, Gradle 8.13+, Android SDK platform 35 and build-tools 35.0.0:
+
+```bash
+cd ~/buildawallet/android-studio
+gradle :app:testDebugUnitTest
+gradle :app:assembleDebug
+```
+
+The signed production release and live-funds validation remain separate from a successful CI build.

@@ -112,7 +112,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
     auth: "api-key",
     units: 1,
     tag: "Transactions",
-    summary: "Build an unsigned transfer for any configured EVM mainnet or Solana. Bitcoin transaction preparation is not implemented.",
+    summary: "Build unsigned native or token transfers for configured EVM mainnets and native SOL, USDC, or validated SPL transfers on Solana. SPL transfers require existing source and destination token accounts; Bitcoin transaction preparation is not implemented.",
   },
   {
     method: "POST",

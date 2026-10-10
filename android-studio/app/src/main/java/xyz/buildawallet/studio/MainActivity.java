@@ -32,6 +32,8 @@ import android.webkit.WebSettings;
 import android.webkit.JavascriptInterface;
 import android.widget.Toast;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -48,7 +50,7 @@ public final class MainActivity extends Activity {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private static final int REQUEST_DEVICE_UNLOCK = 7101;
-    private boolean walletLocked;
+    private volatile boolean walletLocked;
     private boolean unlockInProgress;
     private final Runnable autoLockRunnable = () -> lockWallet(true);
 
@@ -1204,14 +1206,19 @@ public final class MainActivity extends Activity {
         EvmNetwork network = selectedNetwork;
         io.execute(() -> {
             try {
+                WalletEngine activeEngine = engine;
+                if (walletLocked || activeEngine == null) throw new IllegalStateException("Wallet is locked. Unlock it before preparing a transaction.");
                 WalletEngine.PreparedTransfer prepared;
                 if (token == null) {
-                    prepared = engine.prepare(network, to, amount);
+                    prepared = activeEngine.prepare(network, to, amount);
                 } else {
                     if (token.chainId != network.chainId) throw new IllegalArgumentException("Token network does not match the selected network.");
-                    prepared = engine.prepareTokenTransfer(network, to, amount, token.address, token.decimals, token.symbol);
+                    prepared = activeEngine.prepareTokenTransfer(network, to, amount, token.address, token.decimals, token.symbol);
                 }
-                runOnUiThread(() -> reviewTransfer(prepared));
+                BigDecimal usdValue = null;
+                if (profile.bigSendUsd > 0 || profile.sessionLimitUsd > 0) usdValue = WalletSecurity.usdValue(prepared);
+                BigDecimal finalUsdValue = usdValue;
+                runOnUiThread(() -> reviewTransfer(prepared, finalUsdValue));
             } catch (Exception error) {
                 runOnUiThread(() -> {
                     status("Transaction not prepared");
@@ -1221,38 +1228,71 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void reviewTransfer(WalletEngine.PreparedTransfer transfer) {
+    private void reviewTransfer(WalletEngine.PreparedTransfer transfer, BigDecimal usdValue) {
+        String valueLine = usdValue == null ? "\nUSD estimate: unavailable (USD guardrails disabled)"
+            : "\nEstimated USD value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()
+                + "\nPrice estimate is indicative and may differ from execution value.";
         String message = "Network: " + transfer.network.name
             + "\nTo: " + transfer.to
+            + "\nAsset: " + transfer.assetText()
             + "\nAmount: " + transfer.amountText()
             + "\nEstimated network fee: " + transfer.feeText()
-            + "\n\nSigning happens on this device after you press Sign & broadcast.";
-
+            + valueLine
+            + "\n\nSigning happens on this device after you confirm.";
+        boolean large = usdValue != null && profile.bigSendUsd > 0
+            && usdValue.compareTo(BigDecimal.valueOf(profile.bigSendUsd)) >= 0;
         new AlertDialog.Builder(this)
-            .setTitle("Review transaction")
-            .setMessage(message)
+            .setTitle(large ? "Large transfer · first review" : "Review transaction")
+            .setMessage(message + (large ? "\n\nThis meets or exceeds your large-send confirmation threshold of $" + profile.bigSendUsd + "." : ""))
             .setNegativeButton("Cancel", null)
-            .setPositiveButton("Sign & broadcast", (dialog, which) -> broadcast(transfer))
+            .setPositiveButton(large ? "Continue to final review" : "Sign & broadcast",
+                (dialog, which) -> {
+                    if (large) showLargeSendConfirmation(transfer, usdValue);
+                    else broadcast(transfer, usdValue);
+                })
             .show();
     }
 
-    private void broadcast(WalletEngine.PreparedTransfer transfer) {
-        status("Signing locally and broadcasting…");
+    private void showLargeSendConfirmation(WalletEngine.PreparedTransfer transfer, BigDecimal usdValue) {
+        new AlertDialog.Builder(this)
+            .setTitle("Confirm large transfer")
+            .setMessage("You are about to send " + transfer.amountText() + " on " + transfer.network.name
+                + "\nRecipient: " + transfer.to
+                + "\nIndicative value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()
+                + "\nEstimated fee: " + transfer.feeText()
+                + "\n\nThis transfer meets your large-send threshold ($" + profile.bigSendUsd + "). Transactions cannot be reversed. Verify the network, recipient, token contract and amount.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("I verified · Sign & broadcast", (dialog, which) -> broadcast(transfer, usdValue))
+            .show();
+    }
+
+    private void broadcast(WalletEngine.PreparedTransfer transfer, BigDecimal usdValue) {
+        if (walletLocked || engine == null) {
+            showError("Wallet is locked", new IllegalStateException("Unlock the wallet before broadcasting."));
+            return;
+        }
+        final String walletAddress = engine.address();
+        status("Checking spending limit, signing locally and broadcasting…");
         io.execute(() -> {
+            WalletSecurity.Reservation reservation = null;
             try {
+                if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
+                if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
                 String hash = engine.broadcast(transfer);
                 runOnUiThread(() -> {
                     status("Broadcast: " + hash);
                     new AlertDialog.Builder(this)
                         .setTitle("Transaction broadcast")
-                        .setMessage(hash)
+                        .setMessage(hash + (usdValue == null ? "" : "\n\nCounted toward the rolling 24-hour spending limit: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()))
                         .setPositiveButton("OK", null)
                         .show();
                     refreshBalance();
                 });
             } catch (Exception error) {
+                if (reservation != null) WalletSecurity.release(this, reservation);
                 runOnUiThread(() -> {
-                    status("Broadcast failed");
+                    status("Broadcast failed or was cancelled");
                     showError("Transaction failed", error);
                 });
             }
@@ -1289,11 +1329,11 @@ public final class MainActivity extends Activity {
 
     private void securitySettingsDialog() {
         LinearLayout box = dialogBox();
-        addTo(box, notice("Important: these three values are currently saved as preferences only. The native wallet does not yet enforce automatic locking, a USD large-send threshold, or a session spending limit. Do not rely on them as security controls."), 8);
-        EditText lock = input("Auto-lock minutes (not enforced yet)"); lock.setInputType(InputType.TYPE_CLASS_NUMBER); lock.setText(Integer.toString(profile.autoLockMin));
-        EditText large = input("Large-send threshold USD (not enforced yet)"); large.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); large.setText(Integer.toString(profile.bigSendUsd));
-        EditText limit = input("Session spend limit USD (not enforced yet)"); limit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL); limit.setText(Integer.toString(profile.sessionLimitUsd));
-        box.addView(label("Auto-lock", 12, MUTED, true)); box.addView(lock); addTo(box, label("Large-send guard", 12, MUTED, true), 10); box.addView(large); addTo(box, label("Session spend limit", 12, MUTED, true), 10); box.addView(limit);
+        addTo(box, notice("Enforced controls: the wallet locks after inactivity and whenever the app leaves the foreground. Large sends require a second confirmation. The spending limit is a persistent rolling 24-hour USD cap. Current market-price lookup is required while either USD guard is enabled; unknown-price tokens cannot be sent under an active USD cap. Set a USD limit to 0 only if you intentionally want to disable that guard."), 8);
+        EditText lock = input("Auto-lock after inactivity (minutes)"); lock.setInputType(InputType.TYPE_CLASS_NUMBER); lock.setText(Integer.toString(profile.autoLockMin));
+        EditText large = input("Large-send extra-confirmation threshold USD (0 = off)"); large.setInputType(InputType.TYPE_CLASS_NUMBER); large.setText(Integer.toString(profile.bigSendUsd));
+        EditText limit = input("Rolling 24-hour spending cap USD (0 = off)"); limit.setInputType(InputType.TYPE_CLASS_NUMBER); limit.setText(Integer.toString(profile.sessionLimitUsd));
+        box.addView(label("Inactivity lock", 12, MUTED, true)); box.addView(lock); addTo(box, label("Large-send confirmation", 12, MUTED, true), 10); box.addView(large); addTo(box, label("24-hour spending cap", 12, MUTED, true), 10); box.addView(limit);
         AlertDialog d = new AlertDialog.Builder(this).setTitle("Security settings").setView(box).setNegativeButton("Cancel", null).setPositiveButton("Save", null).create();
         d.setOnShowListener(v -> d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(x -> { try { profile=profile.withSettings(Integer.parseInt(lock.getText().toString()), Integer.parseInt(large.getText().toString()), Integer.parseInt(limit.getText().toString()), profile.currency, profile.walletStyle, profile.navigationStyle, profile.assetStyle, profile.actionStyle); profile.save(this); d.dismiss(); render(); } catch(Exception e){ showError("Invalid security settings", e); } })); d.show();
     }

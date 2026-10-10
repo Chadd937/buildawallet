@@ -3,33 +3,40 @@
 Date: 2026-10-09
 Branch: `feat/android-token-support-chain-matrix-audit`
 
-This is a source-level review of the Android wallet and the current `human-app` machine API. CI passed for the implementation changes; see the pull request for the latest check status. Do not treat this document as a penetration test or a release certification.
+This is a source-level review and implementation record, not a penetration test, independent smart-contract audit, or release certification. The Android build and full CI checks must pass on the final commit before merging.
 
-## Changes made in this branch
+## Implemented in this branch
 
-- **APK download flow:** the official APK buttons now navigate to the stable GitHub release asset `BuildAWallet-Wallet.apk`. The generated Android Studio project remains a separate, explicitly labelled ZIP download.
-- **Custom ERC-20 tokens:** the native Android wallet can import a token by network, name, symbol, contract address, and decimals; metadata is stored locally. The app queries the token's `balanceOf` for the current wallet, shows imported balances, opens a token information panel, links to the network explorer, and allows removing the local entry. This is display/import support, not custom-token sending.
-- **Chain transfer support:** machine transaction preparation and broadcast are generalized from Base-only to all seven configured EVM mainnets, while retaining Solana support. RPC chain IDs are checked against the selected chain, and EVM stablecoin calls use that chain's configured contract. Bitcoin remains read-only for this API's wallet/transaction endpoints.
-- **MCP parity:** MCP now advertises prepare/broadcast tools for each configured EVM chain as well as Solana.
-- **Capability matrix:** table headings and cells now line up, network count is corrected to nine for this API, and the matrix marks transfer support and configured payment rails separately.
-- **Signing review:** the Android dapp transaction confirmation now displays the selected network, destination, value, gas limit and call data preview, and flags common ERC-20 transfer/approval selectors.
-- **Security-setting transparency:** the native wallet's settings screen now explicitly warns that auto-lock, large-send threshold, and session-spend values are stored preferences only and are not enforced yet.
+- **APK download:** official APK links point directly to the signed GitHub release asset; the Android Studio project ZIP remains a separate download.
+- **Custom ERC-20 sending:** users can import ERC-20 tokens per EVM network and send them through the standard review, balance check, fee estimation, on-device signing, and broadcast flow. On-chain token decimals are checked against imported metadata before signing, and the final confirmation displays the token contract address. This covers the seven configured EVM networks. Solana SPL token import/sending is not included in this change.
+- **Token information:** imported tokens retain local display metadata, show balances, open a detailed information panel, and link to the corresponding explorer. User-entered names and symbols are not treated as proof that a token is authentic.
+- **Transaction guardrails:** the app locks after configured foreground inactivity and whenever the activity leaves the foreground; it clears the in-memory signing engines and closes the embedded dapp browser. Unlock requires the Android device credential, or local recovery-phrase verification if no secure device lock is configured.
+- **Large-transfer confirmation:** native EVM, imported/configured ERC-20, SOL, BTC, and decoded dapp sends display an indicative USD estimate and require a second explicit confirmation when the configured threshold is met.
+- **Rolling 24-hour cap:** successful/attempted transaction value is reserved in local persistent history before broadcast, counted over a true rolling 24-hour window, and released on a reported failure. The cap applies to EVM native/token transfers, SOL/BTC native sends, and dapp operations that can be reliably valued.
+- **USD price lookup:** CoinGecko's public API provides indicative native-asset and listed-token prices. If a required price or token decimals cannot be obtained, transfers are blocked while USD guardrails are enabled. A user can explicitly set a guard to zero to disable it.
+- **Dapp decoding:** the confirmation now decodes common ERC-20 transfer, approval, transfer-from, allowance changes, NFT/operator approvals, wrapped-native deposit/withdrawal, and common Uniswap-style swaps. It displays network, destination, value, gas information, decoded fields and bounded raw calldata. Approvals and unknown/multicall requests receive additional warnings/confirmation.
+- **Input validation:** dapp transaction signing checks the selected chain ID, sender, destination, calldata shape/size, nonce, value, gas limit, and EIP-1559 fee fields before signing.
 
-## Findings and residual risks
+## Remaining risks and limitations
 
-### High priority
+### High priority before a production wallet release
 
-1. **Native wallet spending controls are not enforced.** The app stores auto-lock, large-send threshold and session spend limit settings but does not currently apply them to wallet lifecycle or signing. The UI now warns users, but implementation is still needed before these can be presented as active controls.
-2. **Dapp contract calls are not fully decoded.** The confirmation now displays a bounded calldata preview and warns for ERC-20 transfer/approval selectors, but arbitrary contract methods and token semantics can still be opaque. Treat unfamiliar dapp requests as high risk; a future release should decode common ERC-20 operations and show fee estimates, spender/recipient, and allowance size before signing.
-3. **The APK link depends on a signed release asset.** The direct URL is correct for the `android-latest` release created by the Android workflow. That workflow publishes the stable APK only when all owner signing secrets are configured. If the release is absent or secrets are missing, the official APK button will not produce an installer; unsigned debug artifacts must not be advertised as production releases.
+1. **Client-side guardrails are not a cryptographic policy boundary.** The 24-hour history is local app data and can be removed by a rooted device, modified app, or a user who disables the limit. It is a user-protection feature, not a guaranteed on-chain spending policy.
+2. **USD values are estimates, not a secure oracle.** CoinGecko can rate-limit, return stale or unavailable data, and market prices for illiquid tokens can be manipulated. The app fails closed when it needs a price and none is available, but a bad price can still distort the USD cap.
+3. **Unknown dapp methods are not fully decoded.** When the USD cap is active, unknown/unvalued contract methods are blocked. When the cap is disabled, users can still explicitly confirm unknown calls, but their full effects cannot be guaranteed from calldata alone. Multicalls and arbitrary protocols require protocol-specific decoders and testing.
+4. **Approvals are permissions, not immediate transfers.** The wallet flags unlimited approvals and requires an additional confirmation, but it cannot prevent a user from granting a malicious spender permission. Users should prefer exact allowances and revoke permissions they no longer need.
+5. **App lock does not replace Android device security.** The device credential is an OS authentication gate and the fallback recovery phrase is checked locally. The underlying wallet seed remains encrypted with Android Keystore, but this change does not bind that encryption key to per-use biometric/device authentication. Use a secure device lock and keep the recovery phrase offline.
+6. **Token coverage is EVM ERC-20 only.** This branch does not add SPL-token import/send for Solana, Bitcoin ordinals/assets, or other non-EVM token standards. Native SOL and BTC transfers remain supported.
 
 ### Medium priority
 
-4. **Imported token metadata is user supplied.** Token name, symbol and decimals can be spoofed. The app displays a warning, scopes entries to a chain ID, validates EVM address syntax and reads balances without granting token permissions. It does not yet discover metadata from the contract or support sending imported tokens.
-5. **Machine API chain count differs from the legacy Python registry.** The machine API currently exposes nine networks: seven EVM chains, Solana and Bitcoin. The older top-level `chains.py` registry also includes Litecoin, but Litecoin is not part of the current machine API matrix/payment rails. This branch corrects current machine-facing descriptions rather than claiming unsupported Litecoin API coverage.
-6. **External RPC availability is not guaranteed.** Chain ID validation prevents an EVM endpoint from silently serving the wrong network, but public RPC providers can still fail or rate-limit. Production deployments should configure monitored RPC endpoints.
-7. **No claim of a complete security audit.** This review did not exercise live transactions, inspect deployed Cloudflare secrets, verify the signing keystore, or perform a device/runtime penetration test.
+7. **Public RPCs can fail or rate-limit.** Chain-ID validation reduces wrong-network mistakes but does not guarantee endpoint availability or transaction inclusion. Production releases should use monitored RPC endpoints and test each supported chain.
+8. **Token metadata can be misleading.** Imported name/symbol are local labels. On-chain decimals are checked before sending, but that does not certify a token's issuer, value, liquidity, transfer restrictions, or safety.
+9. **Transaction fee estimates can change.** EVM gas estimates and BTC fee-size estimates are approximations; chain congestion and transaction behavior may alter actual fees.
+10. **No live-funds test or penetration test was performed.** CI verifies compilation and automated checks only. Before release, exercise each chain on testnet/forked environments, inspect transaction receipts, verify recovery/unlock behavior on real Android devices, and conduct an independent security review.
 
-## Validation plan
+## Validation
 
-CI should run the HUMAN app build, TypeScript typecheck, Vitest suite, machine-worker checks, Python tests and Android debug APK build on the pull request. The new machine test covers Arbitrum chain ID/token selection and rejects a mismatched RPC chain ID. Release signing and direct APK download must be checked separately against the published signed release.
+- The repository CI runs the HUMAN app production build, machine-worker typecheck/tests/bundle check, Python compilation/tests, and Android debug APK build.
+- Android unit tests cover deterministic wallet derivation, network lookup, and custom-token transfer amount/symbol formatting.
+- The final pull-request checks must be green before merge. The signed production APK release and direct download link should be verified separately after release signing.

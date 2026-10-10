@@ -1371,6 +1371,7 @@ public final class MainActivity extends Activity {
         String message = "Network: " + transfer.network.name
             + "\nTo: " + transfer.to
             + "\nAsset: " + transfer.assetText()
+            + (transfer.assetToken == null ? "" : "\nToken contract: " + transfer.assetToken)
             + "\nAmount: " + transfer.amountText()
             + "\nEstimated network fee: " + transfer.feeText()
             + valueLine
@@ -1394,6 +1395,7 @@ public final class MainActivity extends Activity {
             .setTitle("Confirm large transfer")
             .setMessage("You are about to send " + transfer.amountText() + " on " + transfer.network.name
                 + "\nRecipient: " + transfer.to
+                + (transfer.assetToken == null ? "" : "\nToken contract: " + transfer.assetToken)
                 + "\nIndicative value: $" + usdValue.setScale(2, RoundingMode.HALF_UP).toPlainString()
                 + "\nEstimated fee: " + transfer.feeText()
                 + "\n\nThis transfer meets your large-send threshold ($" + profile.bigSendUsd + "). Transactions cannot be reversed. Verify the network, recipient, token contract and amount.")

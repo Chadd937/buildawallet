@@ -1188,15 +1188,18 @@ public final class MainActivity extends Activity {
         String walletAddress = engine == null ? "" : engine.address();
         io.execute(() -> {
             WalletSecurity.Reservation reservation = null;
+            boolean dispatchStarted = false;
             try {
                 if (walletLocked || nonEvm == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
                 reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
                 if (walletLocked || nonEvm == null || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                dispatchStarted = true;
                 String signature = nonEvm.sendSolana(destination, amount);
                 runOnUiThread(() -> Toast.makeText(this, "SOL sent: " + signature, Toast.LENGTH_LONG).show());
             } catch (Exception error) {
-                if (reservation != null) WalletSecurity.release(this, reservation);
-                runOnUiThread(() -> showError("SOL transfer failed", error));
+                if (reservation != null && !dispatchStarted) WalletSecurity.release(this, reservation);
+                Exception shown = dispatchStarted ? new IllegalStateException(safeMessage(error) + " The network outcome may be uncertain; spending capacity remains reserved for safety.", error) : error;
+                runOnUiThread(() -> showError("SOL transfer failed", shown));
             }
         });
     }
@@ -1276,8 +1279,9 @@ public final class MainActivity extends Activity {
                 String txid = nonEvm.sendBitcoin(destination, amount, feeRate);
                 runOnUiThread(() -> Toast.makeText(this, "BTC sent: " + txid, Toast.LENGTH_LONG).show());
             } catch (Exception error) {
-                if (reservation != null) WalletSecurity.release(this, reservation);
-                runOnUiThread(() -> showError("BTC transfer failed", error));
+                if (reservation != null && !dispatchStarted) WalletSecurity.release(this, reservation);
+                Exception shown = dispatchStarted ? new IllegalStateException(safeMessage(error) + " The network outcome may be uncertain; spending capacity remains reserved for safety.", error) : error;
+                runOnUiThread(() -> showError("BTC transfer failed", shown));
             }
         });
     }
@@ -1428,10 +1432,12 @@ public final class MainActivity extends Activity {
         status("Checking spending limit, signing locally and broadcasting…");
         io.execute(() -> {
             WalletSecurity.Reservation reservation = null;
+            boolean dispatchStarted = false;
             try {
                 if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
                 reservation = WalletSecurity.reserve(this, walletAddress, usdValue, profile.sessionLimitUsd);
                 if (walletLocked || engine == null) throw new IllegalStateException("Wallet locked before signing; transaction cancelled.");
+                dispatchStarted = true;
                 String hash = engine.broadcast(transfer);
                 runOnUiThread(() -> {
                     status("Broadcast: " + hash);
@@ -1445,10 +1451,11 @@ public final class MainActivity extends Activity {
                     refreshBalance();
                 });
             } catch (Exception error) {
-                if (reservation != null) WalletSecurity.release(this, reservation);
+                if (reservation != null && !dispatchStarted) WalletSecurity.release(this, reservation);
+                Exception shown = dispatchStarted ? new IllegalStateException(safeMessage(error) + " The network outcome may be uncertain; spending capacity remains reserved for safety.", error) : error;
                 runOnUiThread(() -> {
                     status("Broadcast failed or was cancelled");
-                    showError("Transaction failed", error);
+                    showError("Transaction failed", shown);
                 });
             }
         });

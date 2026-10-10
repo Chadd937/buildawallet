@@ -213,8 +213,8 @@ describe("multi-chain EVM transaction support", () => {
       token: "0x1111111111111111111111111111111111111111",
       tokenDecimals: 6,
     });
-    expect((prepared.unsignedTransaction as Record<string, string>)["to"].toBe("0x1111111111111111111111111111111111111111");
-    expect((prepared.unsignedTransaction as Record<string, string>)["data"].toMatch(/^0xa9059cbb/);
+    expect((prepared.unsignedTransaction as Record<string, string>)["to"]).toBe("0x1111111111111111111111111111111111111111");
+    expect((prepared.unsignedTransaction as Record<string, string>)["data"]).toMatch(/^0xa9059cbb/);
   });
 
   it("rejects an RPC endpoint whose chain ID does not match the requested EVM chain", async () => {

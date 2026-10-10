@@ -1035,20 +1035,42 @@ public final class MainActivity extends Activity {
 
     private void sendDialog() {
         EditText to = input("0x destination");
-        Spinner asset = new Spinner(this);
-        asset.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
-            new String[] { selectedNetwork.symbol, "USDC" }));
         EditText amount = input("0.01");
         amount.setSingleLine(true);
         amount.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
 
+        List<CustomToken> tokenChoices = new ArrayList<>();
+        try {
+            tokenChoices.add(new CustomToken(selectedNetwork.chainId, "USD Coin", "USDC",
+                WalletEngine.configuredUsdcAddress(selectedNetwork), 6));
+        } catch (Exception ignored) { }
+        for (CustomToken token : CustomToken.load(this, selectedNetwork.chainId)) {
+            boolean duplicate = false;
+            for (CustomToken existing : tokenChoices) if (existing.address.equalsIgnoreCase(token.address)) duplicate = true;
+            if (!duplicate) tokenChoices.add(token);
+        }
+        List<String> assetLabels = new ArrayList<>();
+        assetLabels.add(selectedNetwork.symbol + " (native)");
+        for (CustomToken token : tokenChoices) assetLabels.add(token.symbol + " · " + shortAddress(token.address));
+
+        Spinner asset = new Spinner(this);
+        asset.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, assetLabels));
         LinearLayout box = dialogBox();
         box.addView(label("Asset", 12, MUTED, true));
         box.addView(asset);
         addTo(box, label("Destination", 12, MUTED, true), 12);
         box.addView(to);
-        addTo(box, label("Amount (" + selectedNetwork.symbol + ")", 12, MUTED, true), 12);
+        TextView amountLabel = label("Amount (" + selectedNetwork.symbol + ")", 12, MUTED, true);
+        addTo(box, amountLabel, 12);
         box.addView(amount);
+        asset.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String symbol = position == 0 ? selectedNetwork.symbol : tokenChoices.get(position - 1).symbol;
+                amountLabel.setText("Amount (" + symbol + ")");
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) { }
+        });
+        if (tokenChoices.isEmpty()) addTo(box, notice("No configured stablecoin is available on this network. Import an ERC-20 token to send it."), 8);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
             .setTitle("Prepare transaction")
@@ -1060,23 +1082,28 @@ public final class MainActivity extends Activity {
         dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String destination = to.getText().toString().trim();
             String value = amount.getText().toString().trim();
+            int selected = asset.getSelectedItemPosition();
+            CustomToken token = selected <= 0 ? null : tokenChoices.get(selected - 1);
             dialog.dismiss();
-            boolean usdc = "USDC".equals(String.valueOf(asset.getSelectedItem()));
-            prepareTransfer(destination, value, usdc);
+            prepareTransfer(destination, value, token);
         }));
         dialog.show();
     }
 
     private void prepareTransfer(String to, String amount) { prepareTransfer(to, amount, false); }
 
-    private void prepareTransfer(String to, String amount, boolean usdc) {
-        status("Fetching nonce and network fee…");
+    private void prepareTransfer(String to, String amount, CustomToken token) {
+        status("Fetching balance, nonce and network fee…");
         EvmNetwork network = selectedNetwork;
         io.execute(() -> {
             try {
-                WalletEngine.PreparedTransfer prepared = usdc
-                    ? engine.prepareUsdc(network, to, amount)
-                    : engine.prepare(network, to, amount);
+                WalletEngine.PreparedTransfer prepared;
+                if (token == null) {
+                    prepared = engine.prepare(network, to, amount);
+                } else {
+                    if (token.chainId != network.chainId) throw new IllegalArgumentException("Token network does not match the selected network.");
+                    prepared = engine.prepareTokenTransfer(network, to, amount, token.address, token.decimals, token.symbol);
+                }
                 runOnUiThread(() -> reviewTransfer(prepared));
             } catch (Exception error) {
                 runOnUiThread(() -> {

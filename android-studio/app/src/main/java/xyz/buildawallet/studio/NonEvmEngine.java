@@ -516,19 +516,14 @@ final class NonEvmEngine {
             }
         }
 
-        if (TokenProgram.PROGRAM_ID.toBase58().equals(mintInfo.programId)) {
-            tx.addInstruction(TokenProgram.transferChecked(source, destinationAta, raw.longValueExact(),
-                (byte) mintInfo.decimals, solana.getPublicKey(), mint));
-        } else {
-            byte[] data = java.nio.ByteBuffer.allocate(10).order(ByteOrder.LITTLE_ENDIAN)
-                .put((byte) 12).putLong(raw.longValueExact()).put((byte) mintInfo.decimals).array();
-            List<AccountMeta> keys = List.of(
-                new AccountMeta(source, false, true),
-                new AccountMeta(mint, false, false),
-                new AccountMeta(destinationAta, false, true),
-                new AccountMeta(solana.getPublicKey(), true, false));
-            tx.addInstruction(new TransactionInstruction(tokenProgram, keys, data));
-        }
+        byte[] data = java.nio.ByteBuffer.allocate(10).order(ByteOrder.LITTLE_ENDIAN)
+            .put((byte) 12).putLong(raw.longValue()).put((byte) mintInfo.decimals).array();
+        List<AccountMeta> keys = List.of(
+            new AccountMeta(source, false, true),
+            new AccountMeta(mint, false, false),
+            new AccountMeta(destinationAta, false, true),
+            new AccountMeta(solana.getPublicKey(), true, false));
+        tx.addInstruction(new TransactionInstruction(tokenProgram, keys, data));
         return solanaRpc.getApi().sendTransaction(tx, solana);
     }
 

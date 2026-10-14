@@ -37,7 +37,8 @@ publicWallet.get("/solana/:address/history", async (c) => {
       key: "public-solana:" + (c.req.header("CF-Connecting-IP") ?? "unknown"),
     });
     if (!success) return c.json({ error: "Rate limit exceeded" }, 429);
-    const configured = c.env.SOLANA_RPC_URL?.startsWith("https://") ? [c.env.SOLANA_RPC_URL] : [];
+    const preferredUrl = c.env.SOLANA_RPC_URL;
+    const configured: string[] = preferredUrl?.startsWith("https://") ? [preferredUrl] : [];
     const candidates = [...new Set([...configured, "https://solana-rpc.publicnode.com",
       "https://api.mainnet-beta.solana.com"])];
     for (const url of candidates) {

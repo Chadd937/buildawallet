@@ -7,6 +7,18 @@ const env = { REQUEST_RATE_LIMITER: { limit: async () => ({ success: true }) } }
 afterEach(() => vi.unstubAllGlobals());
 
 describe("public multichain inspection", () => {
+  it("serves the wallet inspector and its terminal/API guide without authentication", async () => {
+    const response = await app.request("/machine/inspector");
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Wallet Inspector");
+    expect(html).toContain("Use the same service from your terminal or app");
+    expect(html).toContain("/machine/public/portfolio/");
+    expect(html).toContain("/machine/public/solana/");
+    expect(html).toContain("curl -sS");
+    expect(html).not.toContain("Enter seed phrase");
+    expect(response.headers.get("content-security-policy")).toContain("connect-src 'self'");
+  });
   it("lists supported public chains", async () => {
     const r = await app.request("/machine/public/chains");
     expect(r.status).toBe(200);

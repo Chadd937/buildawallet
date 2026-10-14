@@ -28,7 +28,23 @@ describe("public multichain inspection", () => {
     const r = await app.request("/machine/public/base/" + address, {}, env);
     expect(r.status, await r.clone().text()).toBe(200);
     expect(await r.json()).toMatchObject({ native: { balance: "1" },
-      stablecoin: { balance: "1" }, complete: true });
+      stablecoin: { balance: "1" }, complete: false });
+  });
+  it("tries a second chain-verified RPC for USDC when the native provider blocks eth_call", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      const method = JSON.parse(init.body as string).method;
+      if (method === "eth_call" && url === "https://mainnet.base.org")
+        return new Response("blocked", { status: 403 });
+      const values: Record<string, string> = {
+        eth_chainId: "0x2105", eth_getBalance: "0x0",
+        eth_getTransactionCount: "0x0", eth_blockNumber: "0x10",
+        eth_call: "0xf4240",
+      };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: values[method] }));
+    }));
+    const r = await app.request("/machine/public/base/" + address, {}, env);
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await r.json()).toMatchObject({ stablecoin: { balance: "1" } });
   });
   it("does not return an incorrect zero on public RPC failure", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("blocked", { status: 403 })));

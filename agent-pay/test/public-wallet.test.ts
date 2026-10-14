@@ -61,4 +61,20 @@ describe("public Solana lookup", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ balanceSol: "0.005611784", complete: false });
   });
+  it("falls back to a verified mainnet RPC when configured endpoint fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      if (url === "https://solana.example") return new Response("blocked", { status: 403 });
+      const method = JSON.parse(init.body as string).method;
+      let result: unknown;
+      if (method === "getGenesisHash") result = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
+      else if (method === "getBalance") result = { value: 5611784, context: { slot: 456962350 } };
+      else if (method === "getTokenAccountsByOwner") result = { value: [] };
+      else if (method === "getSignaturesForAddress") result = [];
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result }));
+    }));
+    const res = await app.request("/machine/public/solana/" + address, {}, env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ balanceSol: "0.005611784", complete: true });
+  });
+
 });

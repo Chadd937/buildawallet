@@ -10,6 +10,7 @@ import pages from "./human-pages";
 import api from "./api";
 import publicWallet from "./public-wallet";
 import publicMultichain from "./public-multichain";
+import { inspectorHtml } from "./inspector-page";
 import { handleMcp } from "./mcp";
 import { openapi, swaggerHtml } from "./openapi";
 import * as swaggerAssets from "./swagger-assets";
@@ -251,6 +252,10 @@ const resourceServer = new x402ResourceServer(facilitator);
 resourceServer.register(SOLANA_MAINNET, new ExactSvmScheme());
 resourceServer.register(BASE_MAINNET, new ExactEvmScheme());
 
+app.get("/machine/inspector", (c) => c.html(inspectorHtml, 200, {
+  "Cache-Control": "public, max-age=300", "X-Content-Type-Options": "nosniff",
+  "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+}));
 app.get("/machine/info", (c) => c.json({
   name: "BuildAWallet machine services",
   status: "read-only mainnet data; check configuredNetworks before use",

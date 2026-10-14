@@ -1,4 +1,4 @@
-export const inspectorHtml = String.raw\`<!doctype html>
+export const inspectorHtml = String.raw`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Wallet Inspector | BuildAWallet</title>
 <meta name="description" content="Inspect public cryptocurrency wallet balances, tokens and transaction details. Includes a free API and terminal guide.">
@@ -73,11 +73,11 @@ copyapi.classList.remove("hidden");
 if(d.complete!==false)status.textContent="Lookup returned successfully. Some asset categories may still require indexing.";
 }catch(e){status.textContent="Lookup error: "+(e instanceof Error?e.message:"Request failed");tile("Lookup unavailable","No verified data","Do not treat an error as zero balance")}finally{search.disabled=false}}
 form.addEventListener("submit",function(e){e.preventDefault();var value=address.value.trim(),chain=network.value;if(!valid(chain,value)){status.textContent="That public address does not match the selected network.";return}lastUrl=url(chain,value);sample.textContent=sampleCommand();load(lastUrl);
-var q=new URL(location.href);q.searchParams.set("chain",chain);q.searchParams.set("address",value);history.replaceState(null,"",q)});
+var q=new URL(location.href);q.searchParams.set("chain",chain);q.searchParams.set("address",value);window.history.replaceState(null,"",q)});
 history.addEventListener("click",function(){var u=base+"/solana/"+encodeURIComponent(address.value.trim())+"/history?limit=10";lastUrl=u;sample.textContent=sampleCommand();load(u)});
 utxos.addEventListener("click",function(){var u=base+"/bitcoin/"+encodeURIComponent(address.value.trim())+"/utxos";lastUrl=u;sample.textContent=sampleCommand();load(u)});
 copyapi.addEventListener("click",function(){copy(lastUrl)});
 document.getElementById("copysample").addEventListener("click",function(){copy(sampleCommand())});
 var q=new URLSearchParams(location.search),c=q.get("chain"),a=q.get("address");if(c&&a&&Array.from(network.options).some(function(x){return x.value===c})&&valid(c,a)){network.value=c;address.value=a;lastUrl=url(c,a);sample.textContent=sampleCommand();load(lastUrl)}
 })();
-</script></body></html>\`;
+</script></body></html>`;

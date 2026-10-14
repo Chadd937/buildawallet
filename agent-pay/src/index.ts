@@ -267,6 +267,7 @@ app.get("/machine/info", (c) => c.json({
   subscriptionApi: "/machine/v1/usage", quote: "/machine/quote?chain=base&kind=wallet&access=x402",
   subscriptionReads: ["wallet", "usdc", "transaction", "snapshot"],
   snapshotUnits: 2, paymentHistory: "/machine/human/payments",
+  inspector: "/machine/inspector",
   documentation: "/machine/openapi.json",
   mcp: "/mcp",
   plans: publicPlans(),

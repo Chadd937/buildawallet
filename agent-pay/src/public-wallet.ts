@@ -15,9 +15,10 @@ async function rpc(url: string, method: string, params: unknown[]): Promise<any>
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
     signal: AbortSignal.timeout(9000),
   });
-  if (!response.ok) throw new Error("RPC HTTP " + response.status);
+  if (!response.ok) throw new Error("rpc_http_" + response.status);
   const payload: any = await response.json();
-  if (payload?.error || !("result" in payload)) throw new Error("RPC returned an error");
+  if (payload?.error) throw new Error("rpc_code_" + String(payload.error.code ?? "unknown"));
+  if (!("result" in payload)) throw new Error("rpc_invalid_response");
   return payload.result;
 }
 
@@ -103,18 +104,29 @@ publicWallet.get("/solana/:address", async (c) => {
       diagnostics: failures,
     }, 503, { "Cache-Control": "no-store" });
     const warnings: string[] = [];
+    const diagnostics: Record<string, string[]> = {};
+    function failureReason(error: unknown): string {
+      const message = error instanceof Error ? error.message : "";
+      if (/^rpc_http_\d+$/.test(message) || /^rpc_code_-?\d+$/.test(message) ||
+          message === "rpc_invalid_response") return message;
+      return "connection_or_timeout";
+    }
     // The provider that allows getBalance may block account and history methods.
     // Retry each method independently across public RPCs after validating the genesis.
     async function readWithFallback(method: string, params: unknown[]) {
+      const methodFailures: string[] = [];
       for (const candidate of [url, ...urls.filter((candidate) => candidate !== url)]) {
         try {
           if (candidate !== url) {
             const genesis = await rpc(candidate, "getGenesisHash", []);
-            if (genesis !== "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d") continue;
+            if (genesis !== "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d") {
+              methodFailures.push("network_mismatch"); continue;
+            }
           }
           return await rpc(candidate, method, params);
-        } catch { /* next public RPC */ }
+        } catch (error) { methodFailures.push(failureReason(error)); }
       }
+      diagnostics[method] = methodFailures;
       throw new Error(method + " unavailable");
     }
     const tokenAccounts: Array<Record<string, unknown>> = [];
@@ -159,7 +171,7 @@ publicWallet.get("/solana/:address", async (c) => {
       chain: "solana", network: "mainnet-beta", address,
       balanceLamports: native.balanceLamports, balanceSol: native.balanceSol, slot: native.slot,
       tokenAccounts, tokenAccountCount: warnings.some(w => w.includes("token balances unavailable")) ? null : tokenAccounts.length, recentTransactions,
-      complete: warnings.length === 0, warnings, observedAt: new Date().toISOString(),
+      complete: warnings.length === 0, warnings, diagnostics, observedAt: new Date().toISOString(),
       explorer: "https://solscan.io/account/" + address,
       notes: "Read-only public-chain data. Token metadata, prices, NFT classification and stake accounts are not included. An incomplete token query does not imply zero holdings.",
     }, 200, headers);

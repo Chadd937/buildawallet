@@ -5,7 +5,7 @@ const app = new Hono<{ Bindings: Env }>();
 const evm = [
   { id: "ethereum", chainId: 1, symbol: "ETH", rpc: ["https://ethereum-rpc.publicnode.com", "https://eth.llamarpc.com"], explorer: "https://etherscan.io", usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", decimals: 6 },
   { id: "base", chainId: 8453, symbol: "ETH", rpc: ["https://mainnet.base.org", "https://base-rpc.publicnode.com"], explorer: "https://basescan.org", usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
-  { id: "arbitrum", chainId: 42161, symbol: "ETH", rpc: ["https://arb1.arbitrum.io/rpc", "https://arbitrum-one-rpc.publicnode.com", "https://arbitrum.llamarpc.com"], explorer: "https://arbiscan.io", usdc: "0xaf88d065e77c8C2239327C5EDb3A432268e5831", decimals: 6 },
+  { id: "arbitrum", chainId: 42161, symbol: "ETH", rpc: ["https://arb1.arbitrum.io/rpc", "https://arbitrum-one-rpc.publicnode.com", "https://arbitrum.llamarpc.com"], explorer: "https://arbiscan.io", usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", decimals: 6 },
   { id: "optimism", chainId: 10, symbol: "ETH", rpc: ["https://mainnet.optimism.io", "https://optimism-rpc.publicnode.com"], explorer: "https://optimistic.etherscan.io", usdc: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", decimals: 6 },
   { id: "polygon", chainId: 137, symbol: "POL", rpc: ["https://polygon-bor-rpc.publicnode.com", "https://polygon-rpc.com"], explorer: "https://polygonscan.com", usdc: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", decimals: 6 },
   { id: "bnb", chainId: 56, symbol: "BNB", rpc: ["https://bsc-dataseed.bnbchain.org", "https://bsc-rpc.publicnode.com"], explorer: "https://bscscan.com", usdc: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", decimals: 18 },

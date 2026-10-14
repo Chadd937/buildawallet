@@ -208,8 +208,8 @@ app.get("/portfolio/:address", async (c) => {
     // Bound public fanout to the seven configured EVM mainnets.
     const result = await Promise.allSettled(evm.map(config => evmInspect(config, address)));
     const networks = result.map((item, index) => item.status === "fulfilled"
-      ? { chain: evm[index].id, ok: true, data: item.value }
-      : { chain: evm[index].id, ok: false, data: null, error: "Public RPC unavailable" });
+      ? { chain: evm[index]!.id, ok: true, data: item.value }
+      : { chain: evm[index]!.id, ok: false, data: null, error: "Public RPC unavailable" });
     return c.json({ address, chainsQueried: evm.length, networks,
       complete: false, tokenDiscovery: "indexed_discovery_not_available",
       observedAt: new Date().toISOString() }, 200,

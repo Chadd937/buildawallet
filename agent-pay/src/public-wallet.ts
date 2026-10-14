@@ -60,10 +60,24 @@ publicWallet.get("/solana/:address", async (c) => {
       diagnostics: failures,
     }, 503, { "Cache-Control": "no-store" });
     const warnings: string[] = [];
+    // The provider that allows getBalance may block account and history methods.
+    // Retry each method independently across public RPCs after validating the genesis.
+    async function readWithFallback(method: string, params: unknown[]) {
+      for (const candidate of [url, ...urls.filter((candidate) => candidate !== url)]) {
+        try {
+          if (candidate !== url) {
+            const genesis = await rpc(candidate, "getGenesisHash", []);
+            if (genesis !== "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d") continue;
+          }
+          return await rpc(candidate, method, params);
+        } catch { /* next public RPC */ }
+      }
+      throw new Error(method + " unavailable");
+    }
     const tokenAccounts: Array<Record<string, unknown>> = [];
     for (const program of programs) {
       try {
-        const result = await rpc(url, "getTokenAccountsByOwner", [
+        const result = await readWithFallback("getTokenAccountsByOwner", [
           address, { programId: program.id }, { encoding: "jsonParsed", commitment: "confirmed" },
         ]);
         if (!Array.isArray(result?.value)) throw new Error("Malformed token response");
@@ -84,7 +98,7 @@ publicWallet.get("/solana/:address", async (c) => {
     }
     let recentTransactions: Array<Record<string, unknown>> | null = null;
     try {
-      const entries = await rpc(url, "getSignaturesForAddress", [
+      const entries = await readWithFallback("getSignaturesForAddress", [
         address, { limit: 10, commitment: "confirmed" },
       ]);
       if (!Array.isArray(entries)) throw new Error("Malformed signature history");
@@ -98,10 +112,10 @@ publicWallet.get("/solana/:address", async (c) => {
     return c.json({
       chain: "solana", network: "mainnet-beta", address,
       balanceLamports: native.balanceLamports, balanceSol: native.balanceSol, slot: native.slot,
-      tokenAccounts, tokenAccountCount: tokenAccounts.length, recentTransactions,
+      tokenAccounts, tokenAccountCount: warnings.some(w => w.includes("token balances unavailable")) ? null : tokenAccounts.length, recentTransactions,
       complete: warnings.length === 0, warnings, observedAt: new Date().toISOString(),
       explorer: "https://solscan.io/account/" + address,
-      notes: "Read-only public-chain data. Token metadata, prices, NFT classification and stake accounts are not included.",
+      notes: "Read-only public-chain data. Token metadata, prices, NFT classification and stake accounts are not included. An incomplete token query does not imply zero holdings.",
     }, 200, headers);
   } catch {
     return c.json({ error: "Wallet lookup failed; balance not verified", code: "wallet_lookup_failed" }, 503, { "Cache-Control": "no-store" });

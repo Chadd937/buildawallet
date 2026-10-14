@@ -10,6 +10,20 @@ const env = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("public Solana lookup", () => {
+  it("pages Solana signatures using a public genesis-verified RPC", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      const payload = JSON.parse(init.body as string);
+      const result = payload.method === "getGenesisHash"
+        ? "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
+        : [{ signature: "3iFnuNMJqoGsCSEntBP1G4Ztr4dFkWhEC81cyTmnqvq8f87Ad5mkV99yS1CibBxxPdQqNiB6sxGkCiGoYK224a6P",
+            slot: 456872600, blockTime: 1791988315, err: null, confirmationStatus: "finalized" }];
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result }));
+    }));
+    const r = await app.request("/machine/public/solana/" + address + "/history?limit=1", {}, env);
+    expect(r.status, await r.clone().text()).toBe(200);
+    expect(await r.json()).toMatchObject({ completeHistory: false,
+      transactions: [{ success: true }] });
+  });
   it("rejects invalid addresses before touching RPC", async () => {
     const res = await app.request("/machine/public/solana/not-a-key", {}, env);
     expect(res.status).toBe(400);

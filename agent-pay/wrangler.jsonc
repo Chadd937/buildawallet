@@ -24,7 +24,7 @@
     { "binding": "HUMAN_API", "service": "buildawallet-human-api" }
   ],
   "d1_databases": [
-    { "binding": "DB", "database_name": "buildawallet", "database_id": "00000000-0000-4000-8000-000000000001", "migrations_dir": "../cloudflare-human/migrations" }
+    { "binding": "DB", "database_name": "buildawallet", "database_id": "f9bc91c2-f66f-4fbe-a099-8913952584e3", "migrations_dir": "../cloudflare-human/migrations" }
   ],
   "ratelimits": [
     { "name": "REQUEST_RATE_LIMITER", "namespace_id": "8127543", "simple": { "limit": 60, "period": 60 } }

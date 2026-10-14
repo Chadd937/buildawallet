@@ -5,7 +5,7 @@ import { solanaWalletSnapshot, validSolanaAddress } from "./solana";
 const publicWallet = new Hono<{ Bindings: Env }>();
 const programs = [
   { label: "spl-token", id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" },
-  { label: "token-2022", id: "TokenzQdBNbLqP5VEhdkAS6EPFfUVuMY8R7rzb9x7K" },
+  { label: "token-2022", id: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" },
 ] as const;
 
 async function rpc(url: string, method: string, params: unknown[]): Promise<any> {

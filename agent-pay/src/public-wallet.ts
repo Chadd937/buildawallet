@@ -21,6 +21,48 @@ async function rpc(url: string, method: string, params: unknown[]): Promise<any>
   return payload.result;
 }
 
+// Paginated public transaction signatures, separate from the lightweight snapshot.
+publicWallet.get("/solana/:address/history", async (c) => {
+  const address = c.req.param("address");
+  if (!validSolanaAddress(address)) return c.json({ error: "Invalid Solana address" }, 400);
+  const before = c.req.query("before");
+  if (before && !/^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(before))
+    return c.json({ error: "Invalid before signature" }, 400);
+  const requested = Number(c.req.query("limit") ?? "10");
+  if (!Number.isInteger(requested) || requested < 1 || requested > 20)
+    return c.json({ error: "limit must be between 1 and 20" }, 400);
+  if (!c.env.REQUEST_RATE_LIMITER) return c.json({ error: "Rate limiter unavailable" }, 503);
+  try {
+    const { success } = await c.env.REQUEST_RATE_LIMITER.limit({
+      key: "public-solana:" + (c.req.header("CF-Connecting-IP") ?? "unknown"),
+    });
+    if (!success) return c.json({ error: "Rate limit exceeded" }, 429);
+    const configured = c.env.SOLANA_RPC_URL?.startsWith("https://") ? [c.env.SOLANA_RPC_URL] : [];
+    const candidates = [...new Set([...configured, "https://solana-rpc.publicnode.com",
+      "https://api.mainnet-beta.solana.com"])];
+    for (const url of candidates) {
+      try {
+        if (await rpc(url, "getGenesisHash", []) !==
+            "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d") continue;
+        const entries = await rpc(url, "getSignaturesForAddress", [address, {
+          limit: requested, commitment: "confirmed", ...(before ? { before } : {}),
+        }]);
+        if (!Array.isArray(entries)) throw new Error("Malformed RPC history");
+        return c.json({ chain: "solana", address,
+          transactions: entries.map((tx: any) => ({
+            signature: tx.signature, slot: tx.slot, blockTime: tx.blockTime ?? null,
+            confirmationStatus: tx.confirmationStatus ?? null, success: tx.err === null,
+          })),
+          nextBefore: entries.length === requested ? entries[entries.length - 1]?.signature ?? null : null,
+          completeHistory: false,
+          observedAt: new Date().toISOString() },
+          200, { "Cache-Control": "public, max-age=15" });
+      } catch { /* continue to next public mainnet RPC */ }
+    }
+    return c.json({ error: "Public transaction-history providers unavailable" }, 503);
+  } catch { return c.json({ error: "History lookup failed" }, 503); }
+});
+
 publicWallet.get("/solana/:address", async (c) => {
   const address = c.req.param("address");
   const headers = { "Cache-Control": "public, max-age=15", "X-Content-Type-Options": "nosniff" };

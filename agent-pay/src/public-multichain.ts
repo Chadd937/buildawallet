@@ -8,7 +8,7 @@ const evm = [
   { id: "arbitrum", chainId: 42161, symbol: "ETH", rpc: ["https://arb1.arbitrum.io/rpc", "https://arbitrum-one-rpc.publicnode.com"], explorer: "https://arbiscan.io", usdc: "0xaf88d065e77c8C2239327C5EDb3A432268e5831", decimals: 6 },
   { id: "optimism", chainId: 10, symbol: "ETH", rpc: ["https://mainnet.optimism.io", "https://optimism-rpc.publicnode.com"], explorer: "https://optimistic.etherscan.io", usdc: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", decimals: 6 },
   { id: "polygon", chainId: 137, symbol: "POL", rpc: ["https://polygon-bor-rpc.publicnode.com", "https://polygon-rpc.com"], explorer: "https://polygonscan.com", usdc: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", decimals: 6 },
-  { id: "bnb", chainId: 56, symbol: "BNB", rpc: ["https://bsc-dataseed.bnbchain.org", "https://bsc-rpc.publicnode.com"], explorer: "https://bscscan.com", usdc: "0x8AC76a51cc950982D68b83f1D09cd849c35F18", decimals: 18 },
+  { id: "bnb", chainId: 56, symbol: "BNB", rpc: ["https://bsc-dataseed.bnbchain.org", "https://bsc-rpc.publicnode.com"], explorer: "https://bscscan.com", usdc: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", decimals: 18 },
   { id: "avalanche", chainId: 43114, symbol: "AVAX", rpc: ["https://api.avax.network/ext/bc/C/rpc", "https://avalanche-c-chain-rpc.publicnode.com"], explorer: "https://snowtrace.io", usdc: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", decimals: 6 },
 ] as const;
 const btcApi = ["https://mempool.space/api", "https://blockstream.info/api"];

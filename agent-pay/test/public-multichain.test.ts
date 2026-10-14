@@ -46,6 +46,32 @@ describe("public multichain inspection", () => {
     expect(r.status, await r.clone().text()).toBe(200);
     expect(await r.json()).toMatchObject({ stablecoin: { balance: "1" } });
   });
+  it("uses valid 20-byte USDC contract addresses on every EVM chain", async () => {
+    const ids: Record<string, string> = {
+      ethereum: "0x1", base: "0x2105", arbitrum: "0xa4b1",
+      optimism: "0xa", polygon: "0x89", bnb: "0x38", avalanche: "0xa86a",
+    };
+    for (const [chain, chainId] of Object.entries(ids)) {
+      const observed: string[] = [];
+      vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+        const request = JSON.parse(init.body as string);
+        const values: Record<string, string> = {
+          eth_chainId: chainId, eth_getBalance: "0x0",
+          eth_getTransactionCount: "0x0", eth_blockNumber: "0x10",
+          eth_call: "0x0",
+        };
+        if (request.method === "eth_call") {
+          observed.push(request.params[0].to);
+          expect(request.params[0].to).toMatch(/^0x[0-9a-fA-F]{40}$/);
+        }
+        return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: values[request.method] }));
+      }));
+      const response = await app.request("/machine/public/" + chain + "/" + address, {}, env);
+      expect(response.status, chain + ": " + await response.clone().text()).toBe(200);
+      expect(observed.length, chain + " did not read USDC").toBeGreaterThan(0);
+      vi.unstubAllGlobals();
+    }
+  });
   it("does not return an incorrect zero on public RPC failure", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("blocked", { status: 403 })));
     const r = await app.request("/machine/public/polygon/" + address, {}, env);

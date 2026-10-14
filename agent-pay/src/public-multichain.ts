@@ -126,6 +126,96 @@ const validBitcoin = (address: string) =>
 const allChains = [...evm.map((chain) => chain.id), "solana", "bitcoin"];
 app.get("/chains", (c) => c.json({ chains: allChains, source: "public API only",
   note: "EVM full ERC-20/NFT discovery and Bitcoin Ordinals/Runes require indexed data; never inferred as zero." }));
+
+const evmAddress = (value: string) => /^0x[0-9a-fA-F]{40}$/.test(value);
+async function limited(c: any) {
+  if (!c.env.REQUEST_RATE_LIMITER) return false;
+  const ip = c.req.header("CF-Connecting-IP") ?? "unknown";
+  const result = await c.env.REQUEST_RATE_LIMITER.limit({ key: "public-inspect:" + ip });
+  return result.success;
+}
+async function contractCall(config: typeof evm[number], to: string, data: string) {
+  return (await firstSuccessful(config.rpc, async (url) => {
+    const chainId = await jsonRpc(url, "eth_chainId", []);
+    if (Number(BigInt(String(chainId))) !== config.chainId) throw new Error("network_mismatch");
+    const result = await jsonRpc(url, "eth_call", [{ to, data }, "latest"]);
+    if (typeof result !== "string" || !/^0x[0-9a-fA-F]+$/.test(result))
+      throw new Error("invalid_contract_response");
+    return result;
+  })).result;
+}
+// Known ERC-20 contracts can be queried without an indexer. This is NOT wallet-wide token discovery.
+app.get("/:chain/:address/token/:contract", async (c) => {
+  const config = evm.find((item) => item.id === c.req.param("chain"));
+  const address = c.req.param("address"), contract = c.req.param("contract");
+  if (!config || !evmAddress(address) || !evmAddress(contract))
+    return c.json({ error: "Valid EVM chain, address and token contract required" }, 400);
+  try {
+    if (!(await limited(c))) return c.json({ error: "Rate limited or unavailable" }, 429);
+    const atomic = BigInt(await contractCall(config, contract,
+      "0x70a08231" + address.slice(2).toLowerCase().padStart(64, "0")));
+    let decimals: number | null = null, symbol: string | null = null;
+    const warnings: string[] = [];
+    try {
+      const raw = BigInt(await contractCall(config, contract, "0x313ce567"));
+      if (raw >= 0n && raw <= 255n) decimals = Number(raw);
+      else warnings.push("Token decimals invalid");
+    } catch { warnings.push("Token decimals unavailable"); }
+    try {
+      const result = await contractCall(config, contract, "0x95d89b41");
+      const raw = result.slice(2);
+      // Support conventional ABI dynamic strings and fixed bytes32 symbols.
+      if (raw.length >= 128 && BigInt("0x" + raw.slice(0, 64)) === 32n) {
+        const len = Number(BigInt("0x" + raw.slice(64, 128)));
+        if (len <= 64 && raw.length >= 128 + len * 2) {
+          const bytes = raw.slice(128, 128 + len * 2).match(/../g) ?? [];
+          symbol = new TextDecoder().decode(Uint8Array.from(bytes.map(h => parseInt(h, 16))));
+        }
+      } else if (raw.length === 64) {
+        const bytes = raw.match(/../g) ?? [];
+        symbol = new TextDecoder().decode(Uint8Array.from(bytes.map(h => parseInt(h, 16)))).replace(/\\0+$/g, "");
+      }
+      if (!symbol) warnings.push("Token symbol unavailable");
+    } catch { warnings.push("Token symbol unavailable"); }
+    return c.json({ chain: config.id, address, contract, standard: "ERC-20 balanceOf",
+      balanceAtomic: atomic.toString(), decimals, symbol,
+      balance: decimals === null ? null : formatted(atomic, decimals),
+      complete: warnings.length === 0, warnings, observedAt: new Date().toISOString() });
+  } catch {
+    return c.json({ error: "Token contract read unavailable", code: "token_unavailable" }, 503);
+  }
+});
+app.get("/bitcoin/:address/utxos", async (c) => {
+  const address = c.req.param("address");
+  if (!validBitcoin(address)) return c.json({ error: "Invalid Bitcoin address" }, 400);
+  try {
+    if (!(await limited(c))) return c.json({ error: "Rate limited or unavailable" }, 429);
+    const { result } = await firstSuccessful(btcApi, url =>
+      jsonGet(url + "/address/" + encodeURIComponent(address) + "/utxo"));
+    if (!Array.isArray(result)) throw new Error("invalid_utxo_response");
+    return c.json({ chain: "bitcoin", address, utxos: result.slice(0, 100).map((x: any) => ({
+      txid: x.txid, vout: x.vout, valueSats: x.value, confirmed: Boolean(x.status?.confirmed),
+      blockHeight: x.status?.block_height ?? null })),
+      truncated: result.length > 100, totalReturned: result.length,
+      note: "UTXO information is not an Ordinals or Runes inventory." });
+  } catch { return c.json({ error: "Bitcoin UTXO providers unavailable" }, 503); }
+});
+app.get("/portfolio/:address", async (c) => {
+  const address = c.req.param("address");
+  if (!evmAddress(address)) return c.json({ error: "Valid EVM address required" }, 400);
+  try {
+    if (!(await limited(c))) return c.json({ error: "Rate limited or unavailable" }, 429);
+    // Bound public fanout to the seven configured EVM mainnets.
+    const result = await Promise.allSettled(evm.map(config => evmInspect(config, address)));
+    const networks = result.map((item, index) => item.status === "fulfilled"
+      ? { chain: evm[index].id, ok: true, data: item.value }
+      : { chain: evm[index].id, ok: false, data: null, error: "Public RPC unavailable" });
+    return c.json({ address, chainsQueried: evm.length, networks,
+      complete: false, tokenDiscovery: "indexed_discovery_not_available",
+      observedAt: new Date().toISOString() }, 200,
+      { "Cache-Control": "public, max-age=30" });
+  } catch { return c.json({ error: "Portfolio lookup unavailable" }, 503); }
+});
 app.get("/:chain/:address", async (c) => {
   const chainId = c.req.param("chain"), address = c.req.param("address");
   if (chainId === "solana") return c.json({ error: "Use /machine/public/solana/:address" }, 308);

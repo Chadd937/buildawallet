@@ -9,6 +9,7 @@ import human from "./subscription";
 import pages from "./human-pages";
 import api from "./api";
 import publicWallet from "./public-wallet";
+import publicMultichain from "./public-multichain";
 import { handleMcp } from "./mcp";
 import { openapi, swaggerHtml } from "./openapi";
 import * as swaggerAssets from "./swagger-assets";
@@ -347,6 +348,7 @@ app.get("/machine/solana-wallet", (c) => c.json(c.get("snapshot")));
 
 app.route("/machine/human", human);
 app.route("/machine/public", publicWallet);
+app.route("/machine/public", publicMultichain);
 app.route("/machine/v1", api);
 
 export default app;

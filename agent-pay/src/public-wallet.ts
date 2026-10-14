@@ -25,8 +25,8 @@ publicWallet.get("/solana/:address", async (c) => {
   const address = c.req.param("address");
   const headers = { "Cache-Control": "public, max-age=15", "X-Content-Type-Options": "nosniff" };
   if (!validSolanaAddress(address)) return c.json({ error: "Invalid Solana wallet address" }, 400, headers);
-  const url = c.env.SOLANA_RPC_URL;
-  if (!url?.startsWith("https://") || !c.env.REQUEST_RATE_LIMITER)
+  const configuredUrl = c.env.SOLANA_RPC_URL;
+  if (!configuredUrl?.startsWith("https://") || !c.env.REQUEST_RATE_LIMITER)
     return c.json({ error: "Wallet lookup is not configured" }, 503, headers);
   const ip = c.req.header("CF-Connecting-IP") ?? "unknown";
   try {
@@ -37,7 +37,28 @@ publicWallet.get("/solana/:address", async (c) => {
   }
   try {
     // A failure to confirm mainnet or native balance is fatal, not an empty wallet.
-    const native = await solanaWalletSnapshot(url, address);
+    // Validate every candidate with the mainnet genesis hash before reading balances.
+    const urls = [configuredUrl, "https://solana-rpc.publicnode.com", "https://api.mainnet.solana.com"]
+      .filter((candidate, index, all) => all.indexOf(candidate) === index);
+    let url = configuredUrl;
+    let native: Awaited<ReturnType<typeof solanaWalletSnapshot>> | undefined;
+    const failures: string[] = [];
+    for (const [index, candidate] of urls.entries()) {
+      try {
+        native = await solanaWalletSnapshot(candidate, address);
+        url = candidate;
+        break;
+      } catch (error) {
+        failures.push("provider-" + (index + 1) + ": " +
+          (error instanceof Error && /network mismatch/i.test(error.message)
+            ? "network mismatch" : "unavailable"));
+      }
+    }
+    if (!native) return c.json({
+      error: "Solana RPC providers unavailable; balance not verified",
+      code: "solana_rpc_unavailable", providersTried: urls.length,
+      diagnostics: failures,
+    }, 503, { "Cache-Control": "no-store" });
     const warnings: string[] = [];
     const tokenAccounts: Array<Record<string, unknown>> = [];
     for (const program of programs) {
@@ -83,7 +104,7 @@ publicWallet.get("/solana/:address", async (c) => {
       notes: "Read-only public-chain data. Token metadata, prices, NFT classification and stake accounts are not included.",
     }, 200, headers);
   } catch {
-    return c.json({ error: "Solana RPC temporarily unavailable; balance not verified" }, 503, { "Cache-Control": "no-store" });
+    return c.json({ error: "Wallet lookup failed; balance not verified", code: "wallet_lookup_failed" }, 503, { "Cache-Control": "no-store" });
   }
 });
 

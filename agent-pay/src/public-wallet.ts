@@ -90,6 +90,9 @@ publicWallet.get("/solana/:address", async (c) => {
             account: row.pubkey, mint: info.mint, program: program.label,
             amountAtomic: balance.amount, decimals: balance.decimals,
             amount: balance.uiAmountString ?? null, state: info.state ?? null,
+            delegatedAmountAtomic: info.delegatedAmount?.amount ?? null,
+            delegate: info.delegate ?? null, closeAuthority: info.closeAuthority ?? null,
+            token2022Extensions: Array.isArray(info.extensions) ? info.extensions : [],
           });
         }
       } catch {

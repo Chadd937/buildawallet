@@ -1,7 +1,5 @@
 import { Hono } from "hono";
 import type { Env } from "./index";
-import { validSolanaAddress } from "./solana";
-import solana from "./public-wallet";
 
 const app = new Hono<{ Bindings: Env }>();
 const evm = [

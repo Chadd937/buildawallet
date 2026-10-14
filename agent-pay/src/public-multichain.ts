@@ -5,7 +5,7 @@ const app = new Hono<{ Bindings: Env }>();
 const evm = [
   { id: "ethereum", chainId: 1, symbol: "ETH", rpc: ["https://ethereum-rpc.publicnode.com", "https://eth.llamarpc.com"], explorer: "https://etherscan.io", usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", decimals: 6 },
   { id: "base", chainId: 8453, symbol: "ETH", rpc: ["https://mainnet.base.org", "https://base-rpc.publicnode.com"], explorer: "https://basescan.org", usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
-  { id: "arbitrum", chainId: 42161, symbol: "ETH", rpc: ["https://arb1.arbitrum.io/rpc", "https://arbitrum-one-rpc.publicnode.com"], explorer: "https://arbiscan.io", usdc: "0xaf88d065e77c8C2239327C5EDb3A432268e5831", decimals: 6 },
+  { id: "arbitrum", chainId: 42161, symbol: "ETH", rpc: ["https://arb1.arbitrum.io/rpc", "https://arbitrum-one-rpc.publicnode.com", "https://arbitrum.llamarpc.com"], explorer: "https://arbiscan.io", usdc: "0xaf88d065e77c8C2239327C5EDb3A432268e5831", decimals: 6 },
   { id: "optimism", chainId: 10, symbol: "ETH", rpc: ["https://mainnet.optimism.io", "https://optimism-rpc.publicnode.com"], explorer: "https://optimistic.etherscan.io", usdc: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85", decimals: 6 },
   { id: "polygon", chainId: 137, symbol: "POL", rpc: ["https://polygon-bor-rpc.publicnode.com", "https://polygon-rpc.com"], explorer: "https://polygonscan.com", usdc: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", decimals: 6 },
   { id: "bnb", chainId: 56, symbol: "BNB", rpc: ["https://bsc-dataseed.bnbchain.org", "https://bsc-rpc.publicnode.com"], explorer: "https://bscscan.com", usdc: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", decimals: 18 },
@@ -53,12 +53,14 @@ async function evmInspect(config: typeof evm[number], address: string) {
   });
   const warnings: string[] = [];
   let stablecoin: Record<string, unknown> | null = null;
+  const usdcDiagnostics: string[] = [];
   try {
     // A provider may support native reads while rejecting eth_call.
     // Verify chain ID independently on every fallback before trusting token data.
     const tokenResult = await firstSuccessful(
       [endpoint, ...config.rpc.filter((candidate) => candidate !== endpoint)],
       async (url) => {
+        try {
         if (url !== endpoint) {
           const actualChainId = await jsonRpc(url, "eth_chainId", []);
           if (Number(BigInt(String(actualChainId))) !== config.chainId) throw new Error("network_mismatch");
@@ -69,6 +71,16 @@ async function evmInspect(config: typeof evm[number], address: string) {
         if (typeof value !== "string" || !/^0x[0-9a-fA-F]+$/.test(value))
           throw new Error("invalid_contract_response");
         return BigInt(value);
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "unknown";
+          const reason = detail.startsWith("upstream_http_") ? detail
+            : detail === "network_mismatch" ? "network_mismatch"
+            : detail === "invalid_contract_response" ? "invalid_contract_response"
+            : detail === "upstream_rpc_error" ? "upstream_rpc_error"
+            : "connection_or_timeout";
+          usdcDiagnostics.push("provider-" + (config.rpc.indexOf(url) + 1) + ":" + reason);
+          throw error;
+        }
       },
     );
     const atomic = tokenResult.result;
@@ -77,7 +89,7 @@ async function evmInspect(config: typeof evm[number], address: string) {
   } catch { warnings.push("USDC balance unavailable"); }
   return { chain: config.id, network: "mainnet", address, asset: config.symbol,
     native: { ...native, balance: formatted(BigInt(native.balanceAtomic), 18), symbol: config.symbol },
-    stablecoin, tokenDiscovery: "not_supported_by_standard_public_rpc",
+    stablecoin, diagnostics: { usdc: usdcDiagnostics }, tokenDiscovery: "not_supported_by_standard_public_rpc",
     recentTransactions: null, historyStatus: "indexer_required",
     explorer: config.explorer + "/address/" + address, complete: false,
     warnings, observedAt: new Date().toISOString() };

@@ -78,7 +78,7 @@ async function evmInspect(config: typeof evm[number], address: string) {
             : detail === "invalid_contract_response" ? "invalid_contract_response"
             : detail === "upstream_rpc_error" ? "upstream_rpc_error"
             : "connection_or_timeout";
-          usdcDiagnostics.push("provider-" + (config.rpc.indexOf(url) + 1) + ":" + reason);
+          usdcDiagnostics.push("provider-" + ((config.rpc as readonly string[]).indexOf(url) + 1) + ":" + reason);
           throw error;
         }
       },

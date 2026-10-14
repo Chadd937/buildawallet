@@ -50,7 +50,7 @@ publicWallet.get("/solana/:address", async (c) => {
           const info = row?.account?.data?.parsed?.info;
           const balance = info?.tokenAmount;
           if (info?.owner !== address || typeof info?.mint !== "string" ||
-              !/^\\d+$/.test(balance?.amount ?? "") || !Number.isInteger(balance?.decimals)) continue;
+              !/^\d+$/.test(balance?.amount ?? "") || !Number.isInteger(balance?.decimals)) continue;
           tokenAccounts.push({
             account: row.pubkey, mint: info.mint, program: program.label,
             amountAtomic: balance.amount, decimals: balance.decimals,

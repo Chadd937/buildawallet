@@ -72,6 +72,49 @@ describe("public multichain inspection", () => {
       vi.unstubAllGlobals();
     }
   });
+  it("reads a supplied ERC-20 contract balance and metadata", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      const payload = JSON.parse(init.body as string);
+      const selector = payload.params?.[0]?.data?.slice(0, 10);
+      const symbol = "55534443"; // USDC
+      const encoded = "0x" + (32n).toString(16).padStart(64, "0")
+        + (4n).toString(16).padStart(64, "0") + symbol.padEnd(64, "0");
+      const value = payload.method === "eth_chainId" ? "0x2105"
+        : selector === "0x70a08231" ? "0xf4240"
+        : selector === "0x313ce567" ? "0x06"
+        : selector === "0x95d89b41" ? encoded : "0x0";
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: value }));
+    }));
+    const token = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    const res = await app.request("/machine/public/base/" + address + "/token/" + token, {}, env);
+    expect(res.status, await res.clone().text()).toBe(200);
+    expect(await res.json()).toMatchObject({ symbol: "USDC", decimals: 6,
+      balanceAtomic: "1000000", balance: "1", complete: true });
+  });
+  it("rejects invalid contract addresses without contacting public RPC", async () => {
+    const mock = vi.fn();
+    vi.stubGlobal("fetch", mock);
+    const res = await app.request("/machine/public/base/" + address + "/token/not-a-contract", {}, env);
+    expect(res.status).toBe(400);
+    expect(mock).not.toHaveBeenCalled();
+  });
+  it("provides Bitcoin UTXOs separately from ordinal indexing", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([
+      { txid: "a", vout: 1, value: 9000, status: { confirmed: true, block_height: 100 } },
+    ]))));
+    const res = await app.request("/machine/public/bitcoin/" + btc + "/utxos", {}, env);
+    expect(res.status, await res.clone().text()).toBe(200);
+    expect(await res.json()).toMatchObject({ utxos: [{ valueSats: 9000 }], truncated: false });
+  });
+  it("returns per-network partial errors for unified EVM portfolio", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("blocked", { status: 503 })));
+    const res = await app.request("/machine/public/portfolio/" + address, {}, env);
+    expect(res.status).toBe(200);
+    const payload = await res.json() as any;
+    expect(payload.chainsQueried).toBe(7);
+    expect(payload.networks.every((item: any) => item.ok === false)).toBe(true);
+    expect(payload.complete).toBe(false);
+  });
   it("does not return an incorrect zero on public RPC failure", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("blocked", { status: 403 })));
     const r = await app.request("/machine/public/polygon/" + address, {}, env);

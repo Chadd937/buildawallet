@@ -29,9 +29,11 @@ describe("public Solana lookup", () => {
     expect(res.status).toBe(400);
   });
   it("reports SOL, token holdings and recent signatures without a key", async () => {
+    const programsSeen: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
       const body = JSON.parse(init.body as string);
       const program = body.params?.[1]?.programId;
+      if (body.method === "getTokenAccountsByOwner") programsSeen.push(program);
       let result: unknown;
       if (body.method === "getGenesisHash") result = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
       else if (body.method === "getBalance") result = { value: 5611784, context: { slot: 456962350 } };
@@ -55,6 +57,10 @@ describe("public Solana lookup", () => {
       balanceSol: "0.005611784", slot: 456962350,
       tokenAccountCount: 1, complete: true,
     });
+    expect(programsSeen).toEqual([
+      "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    ]);
   });
   it("never returns an empty wallet when upstream balance fails", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("unavailable", { status: 503 })));

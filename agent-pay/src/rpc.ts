@@ -31,29 +31,28 @@ export async function checkBaseRpc(url: string): Promise<void> {
 export async function walletSnapshot(url: string, address: string) {
   const endpoints = url === "https://mainnet.base.org"
     ? [url, "https://base-rpc.publicnode.com"] : [url];
-  let selected = url;
-  let healthy = false;
   for (const endpoint of endpoints) {
-    try { await checkBaseRpc(endpoint); selected = endpoint; healthy = true; break; }
-    catch { /* next public mainnet RPC */ }
+    try {
+      await checkBaseRpc(endpoint);
+      const [balanceHex, nonceHex, blockHex] = await Promise.all([
+        rpc(endpoint, "eth_getBalance", [address, "latest"]),
+        rpc(endpoint, "eth_getTransactionCount", [address, "latest"]),
+        rpc(endpoint, "eth_blockNumber", []),
+      ]);
+      const wei = BigInt(balanceHex);
+      const whole = wei / 10n ** 18n;
+      const fraction = (wei % 10n ** 18n).toString().padStart(18, "0").replace(/0+$/, "");
+      return {
+        chain: "base",
+        chainId: 8453,
+        address,
+        balanceWei: wei.toString(),
+        balanceEth: fraction ? `${whole}.${fraction}` : whole.toString(),
+        transactionCount: Number(BigInt(nonceHex)),
+        blockNumber: Number(BigInt(blockHex)),
+        source: "verified Base mainnet JSON-RPC",
+      };
+    } catch { /* another free endpoint may work */ }
   }
-  if (!healthy) throw new Error("Base RPC unavailable");
-  const [balanceHex, nonceHex, blockHex] = await Promise.all([
-    rpc(selected, "eth_getBalance", [address, "latest"]),
-    rpc(selected, "eth_getTransactionCount", [address, "latest"]),
-    rpc(selected, "eth_blockNumber", []),
-  ]);
-  const wei = BigInt(balanceHex);
-  const whole = wei / 10n ** 18n;
-  const fraction = (wei % 10n ** 18n).toString().padStart(18, "0").replace(/0+$/, "");
-  return {
-    chain: "base",
-    chainId: 8453,
-    address,
-    balanceWei: wei.toString(),
-    balanceEth: fraction ? `${whole}.${fraction}` : whole.toString(),
-    transactionCount: Number(BigInt(nonceHex)),
-    blockNumber: Number(BigInt(blockHex)),
-    source: "configured Base mainnet JSON-RPC",
-  };
+  throw new Error("Base RPC unavailable");
 }

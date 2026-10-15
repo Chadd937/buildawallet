@@ -15,8 +15,16 @@ export function validSolanaAddress(value: string | undefined): value is string {
 }
 
 export async function solanaWalletSnapshot(rpcUrl: string, walletAddress: string) {
-  await checkSolanaRpc(rpcUrl);
-  const response = await fetch(rpcUrl, {
+  const endpoints = rpcUrl === "https://api.mainnet-beta.solana.com"
+    ? [rpcUrl, "https://solana-rpc.publicnode.com", "https://api.mainnet.solana.com"] : [rpcUrl];
+  let selected = rpcUrl;
+  let healthy = false;
+  for (const endpoint of endpoints) {
+    try { await checkSolanaRpc(endpoint); selected = endpoint; healthy = true; break; }
+    catch { /* try another genesis-verified public RPC */ }
+  }
+  if (!healthy) throw new Error("Solana RPC unavailable");
+  const response = await fetch(selected, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getBalance", params: [walletAddress, { commitment: "confirmed" }] }),

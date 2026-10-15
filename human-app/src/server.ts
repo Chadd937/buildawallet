@@ -15,6 +15,44 @@ async function machineResponse(request: Request) {
 
 async function discoveryResponse(path: string) {
   const { llms, offer, openapi } = await import("./lib/machine/spec");
+  // The old root discovery documents deliberately remain attached to the
+  // original two-chain Worker. The scoped alias is the NEW nine-chain product.
+  const scoped = "/api/public/machine";
+  const rewrite = (value: string) =>
+    value.replaceAll("/machine/v1", scoped + "/v1")
+      .replaceAll("https://buildawallet.xyz/mcp", "https://buildawallet.xyz/api/public/mcp")
+      .replaceAll("https://buildawallet.xyz/openapi.json", "https://buildawallet.xyz/api/public/machine/openapi.json")
+      .replaceAll("https://buildawallet.xyz/.well-known/agent.json", "https://buildawallet.xyz/api/public/machine/agent.json");
+  const scopedPaths = Object.fromEntries(
+    Object.entries(openapi.paths).map(([path, methods]) => [path.replace("/machine/v1", scoped + "/v1"), methods]),
+  );
+  if (path === scoped + "/openapi.json")
+    return Response.json({ ...openapi, paths: scopedPaths }, {
+      headers: { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" },
+    });
+  if (path === scoped + "/agent.json") {
+    return Response.json({
+      ...offer,
+      version: "4.1.0",
+      api: "https://buildawallet.xyz" + scoped + "/v1",
+      mcp: "https://buildawallet.xyz/api/public/mcp",
+      openapi: "https://buildawallet.xyz" + scoped + "/openapi.json",
+      billing: {
+        ...offer.billing,
+        machineBootstrap: "https://buildawallet.xyz" + scoped + "/v1/agent/bootstrap",
+        quote: "https://buildawallet.xyz" + scoped + "/v1/agent/quote",
+        activate: "https://buildawallet.xyz" + scoped + "/v1/agent/activate",
+        rule: "Pay on the requested blockchain; EVM/Solana use their native USDC, Bitcoin uses BTC. New subscriptions use the $15/$49/$149 plans.",
+      },
+      x402: { ...offer.x402,
+        documentedNetworks: ["base", "polygon", "solana"],
+        note: "Only advertise instant settlement when supported by the current facilitator; other networks use verified prepaid purchase on the same chain." },
+    }, { headers: { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });
+  }
+  if (path === scoped + "/llms.txt") return new Response(rewrite(llms), {
+    headers: { "content-type": "text/plain; charset=utf-8",
+      "access-control-allow-origin": "*", "cache-control": "public, max-age=300" },
+  });
   if (path === "/openapi.json" || path === "/machine/openapi.json")
     return Response.json(openapi, {
       headers: { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" },

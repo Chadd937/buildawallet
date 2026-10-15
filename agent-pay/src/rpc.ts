@@ -6,6 +6,14 @@ export function validAddress(address: string | undefined): address is string {
   return typeof address === "string" && ADDRESS.test(address);
 }
 
+// Public mainnet read fallbacks. Every candidate must confirm Base chain ID 8453.
+// The official Base RPC is rate-limited; preserve the configured endpoint as first choice.
+const FREE_BASE_RPC_FALLBACKS = [
+  "https://base-rpc.publicnode.com",
+  "https://base.drpc.org",
+  "https://base.llamarpc.com",
+] as const;
+
 async function rpc(url: string, method: string, params: unknown[]): Promise<string> {
   const response = await fetch(url, {
     method: "POST",
@@ -13,26 +21,26 @@ async function rpc(url: string, method: string, params: unknown[]): Promise<stri
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
     signal: AbortSignal.timeout(8000),
   });
-  if (!response.ok) throw new Error("RPC unavailable");
+  if (!response.ok) throw new Error(method + ":rpc_http_" + response.status);
   const data: unknown = await response.json();
   if (!data || typeof data !== "object" || !("result" in data) ||
       typeof data.result !== "string" || !HEX_QUANTITY.test(data.result)) {
-    throw new Error("RPC returned invalid data");
+    throw new Error(method + ":rpc_invalid_response");
   }
   return data.result;
 }
 
 export async function checkBaseRpc(url: string): Promise<void> {
-  // Check the configured RPC before reporting a balance under a named chain.
   const chainId = await rpc(url, "eth_chainId", []);
   if (BigInt(chainId) !== BigInt(BASE_CHAIN_ID)) throw new Error("RPC network mismatch");
 }
 
 export async function walletSnapshot(url: string, address: string) {
-  const endpoints = url === "https://mainnet.base.org"
-    ? [url, "https://base-rpc.publicnode.com"] : [url];
+  // Keep configured/private endpoints first, and never infer that a failed RPC means zero balance.
+  const endpoints = [...new Set([url, ...FREE_BASE_RPC_FALLBACKS])];
   let mismatchedNetworks = 0;
-  for (const endpoint of endpoints) {
+  const diagnostics: string[] = [];
+  for (const [index, endpoint] of endpoints.entries()) {
     try {
       await checkBaseRpc(endpoint);
       const [balanceHex, nonceHex, blockHex] = await Promise.all([
@@ -54,13 +62,17 @@ export async function walletSnapshot(url: string, address: string) {
         source: "verified Base mainnet JSON-RPC",
       };
     } catch (error) {
-      // Try alternate providers, but preserve an explicit wrong-chain error
-      // when every configured provider responds with a wrong chain ID.
-      if (error instanceof Error && error.message === "RPC network mismatch") {
-        mismatchedNetworks++;
-      }
+      const reason = error instanceof Error ? error.message : "";
+      if (reason === "RPC network mismatch") mismatchedNetworks++;
+      // Only log known-safe codes/methods; never reveal configured RPC URLs or tokens.
+      const safe = reason === "RPC network mismatch" ? "wrong_network"
+        : /^(?:eth_chainId|eth_getBalance|eth_getTransactionCount|eth_blockNumber):rpc_http_\d{3}$/.test(reason) ? reason
+        : /^(?:eth_chainId|eth_getBalance|eth_getTransactionCount|eth_blockNumber):rpc_invalid_response$/.test(reason) ? reason
+        : "connection_or_timeout";
+      diagnostics.push("provider_" + (index + 1) + ":" + safe);
     }
   }
   if (mismatchedNetworks === endpoints.length) throw new Error("RPC network mismatch");
+  console.warn("Base paid RPC read failed", diagnostics.join(" | "));
   throw new Error("Base RPC unavailable");
 }

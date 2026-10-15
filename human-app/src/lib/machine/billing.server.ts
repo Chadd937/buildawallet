@@ -267,7 +267,7 @@ export async function createMachineAccessQuote(
     decimals: rail.decimals,
     collector: rail.collector,
     expiresAt,
-    activate: "/machine/v1/agent/activate",
+    activate: "/api/public/machine/v1/agent/activate",
   };
 }
 

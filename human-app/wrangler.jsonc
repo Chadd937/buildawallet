@@ -80,6 +80,22 @@
     {
       "pattern": "buildawallet.xyz/owner*",
       "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/nonhuman",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/human",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/swagger",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/api/human/*",
+      "zone_name": "buildawallet.xyz"
     }
   ],
   "observability": {

@@ -17,34 +17,33 @@ export function validSolanaAddress(value: string | undefined): value is string {
 export async function solanaWalletSnapshot(rpcUrl: string, walletAddress: string) {
   const endpoints = rpcUrl === "https://api.mainnet-beta.solana.com"
     ? [rpcUrl, "https://solana-rpc.publicnode.com", "https://api.mainnet.solana.com"] : [rpcUrl];
-  let selected = rpcUrl;
-  let healthy = false;
   for (const endpoint of endpoints) {
-    try { await checkSolanaRpc(endpoint); selected = endpoint; healthy = true; break; }
-    catch { /* try another genesis-verified public RPC */ }
+    try {
+      await checkSolanaRpc(endpoint);
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getBalance",
+          params: [walletAddress, { commitment: "confirmed" }] }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) throw new Error("Solana RPC unavailable");
+      const payload: unknown = await response.json();
+      const result = (payload as { result?: { value?: unknown; context?: { slot?: unknown } } } | null)?.result;
+      if (typeof result?.value !== "number" || !Number.isSafeInteger(result.value) || result.value < 0 ||
+          typeof result.context?.slot !== "number" || !Number.isSafeInteger(result.context.slot))
+        throw new Error("Invalid Solana RPC response");
+      const lamports = result.value;
+      const slot = result.context.slot;
+      return {
+        chain: "solana",
+        address: walletAddress,
+        balanceLamports: String(lamports),
+        balanceSol: `${Math.floor(lamports / 1e9)}.${String(lamports % 1e9).padStart(9, "0")}`.replace(/\\.0+$/, ""),
+        slot,
+        source: "verified Solana mainnet JSON-RPC",
+      };
+    } catch { /* fallback only after another genesis check */ }
   }
-  if (!healthy) throw new Error("Solana RPC unavailable");
-  const response = await fetch(selected, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getBalance", params: [walletAddress, { commitment: "confirmed" }] }),
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!response.ok) throw new Error("Solana RPC unavailable");
-  const payload: unknown = await response.json();
-  const result = (payload as { result?: { value?: unknown; context?: { slot?: unknown } } } | null)?.result;
-  if (typeof result?.value !== "number" || !Number.isSafeInteger(result.value) || result.value < 0 ||
-      typeof result.context?.slot !== "number" || !Number.isSafeInteger(result.context.slot)) {
-    throw new Error("Invalid Solana RPC response");
-  }
-  const lamports = result.value;
-  const slot = result.context.slot;
-  return {
-    chain: "solana",
-    address: walletAddress,
-    balanceLamports: String(lamports),
-    balanceSol: `${Math.floor(lamports / 1e9)}.${String(lamports % 1e9).padStart(9, "0")}`.replace(/\.0+$/, ""),
-    slot,
-    source: "configured Solana mainnet JSON-RPC",
-  };
+  throw new Error("Solana RPC unavailable");
 }

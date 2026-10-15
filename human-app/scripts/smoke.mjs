@@ -56,15 +56,16 @@ for (const path of [
   "/openapi.json",
   "/.well-known/agent.json",
   "/llms.txt",
-  "/machine/v1/chains",
-  "/machine/v1/plans",
   "/api/public/machine/v1/chains",
+  "/api/public/machine/v1/plans",
+  "/api/public/machine/openapi.json",
+  "/api/public/machine/agent.json",
 ]) {
   const response = await fetch(origin + path);
   if (response.status !== 200) throw new Error(`${path}: HTTP ${response.status}`);
   console.log(`PASS ${path}`);
 }
-const r = await fetch(origin + "/mcp", {
+const r = await fetch(origin + "/api/public/mcp", {
   method: "POST",
   headers: { "content-type": "application/json" },
   body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
@@ -73,17 +74,16 @@ const mcp = await r.json();
 if (r.status !== 200 || mcp.result?.tools?.length < 50) throw new Error("MCP tools failed");
 console.log(`PASS MCP ${mcp.result.tools.length} tools`);
 const denied = await fetch(
-  origin + "/machine/v1/base/wallet/0x0000000000000000000000000000000000000001",
+  origin + "/api/public/machine/v1/base/wallet/0x0000000000000000000000000000000000000001",
   { headers: { authorization: "Bearer garbage" } },
 );
 if (denied.status !== 401) throw new Error("Invalid credential was not refused");
 console.log("PASS invalid bearer refused");
 
 for (const path of [
-  "/machine/x402/wallet",
   "/api/public/machine/x402/wallet",
-  "/machine/wallet",
-  "/machine/solana-wallet",
+  "/api/public/machine/wallet",
+  "/api/public/machine/solana-wallet",
 ]) {
   const response = await fetch(origin + path, {
     headers: { "payment-signature": "retired-smoke-payload" },
@@ -97,11 +97,11 @@ for (const path of [
   )
     throw new Error("Per-call payment settlement must be disabled");
 }
-const plans = await (await fetch(origin + "/machine/v1/plans")).json();
+const plans = await (await fetch(origin + "/api/public/machine/v1/plans")).json();
 if (
   plans.billing?.mode !== "prepaid" ||
   plans.billing?.perRequestOnchainPayment !== true ||
   mcp.result.tools.some((tool) => tool.name === "wallet_payg")
 )
   throw new Error("Discovery must advertise prepaid + x402 usage and retire legacy wallet_payg");
-console.log("PASS prepaid + x402 billing and retired settlement routes");
+console.log("PASS nine-chain prepaid + x402 billing, with legacy Worker routes left intact");

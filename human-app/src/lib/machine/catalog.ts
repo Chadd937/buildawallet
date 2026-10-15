@@ -11,7 +11,7 @@ export type EndpointDoc = {
 export const ENDPOINTS: readonly EndpointDoc[] = [
   {
     method: "GET",
-    path: "/machine/v1/chains",
+    path: "/api/public/machine/v1/chains",
     auth: "none",
     units: 0,
     tag: "Discovery",
@@ -19,7 +19,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "GET",
-    path: "/machine/v1/plans",
+    path: "/api/public/machine/v1/plans",
     auth: "none",
     units: 0,
     tag: "Discovery",
@@ -27,7 +27,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "GET",
-    path: "/machine/v1/wallets/kit",
+    path: "/api/public/machine/v1/wallets/kit",
     auth: "none",
     units: 0,
     tag: "Agent wallets",
@@ -35,7 +35,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "GET",
-    path: "/machine/v1/wallets/kit.mjs",
+    path: "/api/public/machine/v1/wallets/kit.mjs",
     auth: "none",
     units: 0,
     tag: "Agent wallets",
@@ -43,7 +43,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "POST",
-    path: "/machine/v1/wallets/validate",
+    path: "/api/public/machine/v1/wallets/validate",
     auth: "none",
     units: 0,
     tag: "Agent wallets",
@@ -51,7 +51,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "POST",
-    path: "/machine/v1/wallets/generate",
+    path: "/api/public/machine/v1/wallets/generate",
     auth: "none",
     units: 0,
     tag: "Agent wallets",
@@ -60,7 +60,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "GET",
-    path: "/machine/v1/usage",
+    path: "/api/public/machine/v1/usage",
     auth: "api-key",
     units: 0,
     tag: "Subscribed API",
@@ -68,7 +68,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "GET",
-    path: "/machine/v1/{chain}/wallet/{address}",
+    path: "/api/public/machine/v1/{chain}/wallet/{address}",
     auth: "api-key",
     units: 1,
     tag: "Subscribed API",
@@ -76,7 +76,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "GET",
-    path: "/machine/v1/{chain}/stablecoin/{address}",
+    path: "/api/public/machine/v1/{chain}/stablecoin/{address}",
     auth: "api-key",
     units: 1,
     tag: "Subscribed API",
@@ -84,7 +84,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "GET",
-    path: "/machine/v1/{chain}/transaction/{tx}",
+    path: "/api/public/machine/v1/{chain}/transaction/{tx}",
     auth: "api-key",
     units: 1,
     tag: "Subscribed API",
@@ -92,7 +92,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "GET",
-    path: "/machine/v1/{chain}/snapshot/{address}",
+    path: "/api/public/machine/v1/{chain}/snapshot/{address}",
     auth: "api-key",
     units: 1,
     tag: "Subscribed API",
@@ -100,7 +100,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "GET",
-    path: "/machine/v1/portfolio/{address}",
+    path: "/api/public/machine/v1/portfolio/{address}",
     auth: "api-key",
     units: 1,
     tag: "Subscribed API",
@@ -108,7 +108,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "POST",
-    path: "/machine/v1/{chain}/transaction/prepare",
+    path: "/api/public/machine/v1/{chain}/transaction/prepare",
     auth: "api-key",
     units: 1,
     tag: "Transactions",
@@ -116,7 +116,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "POST",
-    path: "/machine/v1/{chain}/transaction/broadcast",
+    path: "/api/public/machine/v1/{chain}/transaction/broadcast",
     auth: "api-key",
     units: 1,
     tag: "Transactions",
@@ -125,7 +125,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "POST",
-    path: "/machine/v1/auth/challenge",
+    path: "/api/public/machine/v1/auth/challenge",
     auth: "none",
     units: 0,
     tag: "Wallet subscription",
@@ -133,7 +133,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "POST",
-    path: "/machine/v1/auth/verify",
+    path: "/api/public/machine/v1/auth/verify",
     auth: "none",
     units: 0,
     tag: "Wallet subscription",
@@ -141,7 +141,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "GET",
-    path: "/machine/v1/subscription",
+    path: "/api/public/machine/v1/subscription",
     auth: "session",
     units: 0,
     tag: "Wallet subscription",
@@ -149,7 +149,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "POST",
-    path: "/machine/v1/subscription/confirm",
+    path: "/api/public/machine/v1/subscription/confirm",
     auth: "session",
     units: 0,
     tag: "Wallet subscription",
@@ -157,7 +157,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "POST",
-    path: "/machine/v1/subscription/key",
+    path: "/api/public/machine/v1/subscription/key",
     auth: "session",
     units: 0,
     tag: "Wallet subscription",
@@ -165,7 +165,7 @@ export const ENDPOINTS: readonly EndpointDoc[] = [
   },
   {
     method: "DELETE",
-    path: "/machine/v1/subscription/key",
+    path: "/api/public/machine/v1/subscription/key",
     auth: "session",
     units: 0,
     tag: "Wallet subscription",

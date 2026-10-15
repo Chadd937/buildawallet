@@ -16,8 +16,10 @@ describe("public multichain inspection", () => {
     expect(html).toContain("/machine/public/portfolio/");
     expect(html).toContain("/machine/public/solana/");
     expect(html).toContain("curl -sS");
+    expect(html).toContain("Try direct Solana token lookup (browser)");
+    expect(html).toContain("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
     expect(html).not.toContain("Enter seed phrase");
-    expect(response.headers.get("content-security-policy")).toContain("connect-src 'self'");
+    expect(response.headers.get("content-security-policy")).toContain("https://api.mainnet-beta.solana.com");
   });
   it("lists supported public chains", async () => {
     const r = await app.request("/machine/public/chains");

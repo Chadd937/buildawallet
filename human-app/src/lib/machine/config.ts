@@ -13,7 +13,7 @@ export const EVM_MAINNETS = {
   avalanche: "eip155:43114",
 } as const;
 export const SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
-export const BITCOIN_MAINNET = "bip122:000000000019d6689c085ae165831e934ff763ae46a2e3b6c5c2b0c1f4f4f";
+export const BITCOIN_MAINNET = "bip122:000000000019d6689c085ae165831e93";
 
 export const BASE_MAINNET = EVM_MAINNETS.base;
 export const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";

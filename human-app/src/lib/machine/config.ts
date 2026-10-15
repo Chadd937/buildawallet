@@ -107,7 +107,7 @@ export const PAYMENT_RAILS = {
   bnb: {
     network: EVM_MAINNETS.bnb,
     asset: "USDC",
-    assetAddress: "0x8AC76a51cc950982D68b83f1D09cd849c35F18",
+    assetAddress: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
     decimals: 18,
     collector: BASE_COLLECTOR,
   },

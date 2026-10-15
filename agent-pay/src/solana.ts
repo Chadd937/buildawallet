@@ -39,7 +39,7 @@ export async function solanaWalletSnapshot(rpcUrl: string, walletAddress: string
         chain: "solana",
         address: walletAddress,
         balanceLamports: String(lamports),
-        balanceSol: `${Math.floor(lamports / 1e9)}.${String(lamports % 1e9).padStart(9, "0")}`.replace(/\\.0+$/, ""),
+        balanceSol: `${Math.floor(lamports / 1e9)}.${String(lamports % 1e9).padStart(9, "0")}`.replace(/\.0+$/, ""),
         slot,
         source: "verified Solana mainnet JSON-RPC",
       };

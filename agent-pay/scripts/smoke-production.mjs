@@ -18,7 +18,7 @@ const tasks = [
   ["Agent discovery", "/.well-known/agent.json", [200], "json"],
   ["Agent offering", "/agent-offer.json", [200], "json"],
   ["Agent guidance", "/llms.txt", [200], "text"],
-  ["MCP endpoint (discovery via POST below)", "/mcp", [200,400,404,405,406], "status"],
+
   ["API documentation", "/api-docs", [200,301,302,307,308], "page"],
   ["X402 quote", "/machine/quote?chain=base&kind=wallet&access=x402", [200], "quote"],
   ["Subscription quote", "/machine/quote?chain=solana&kind=snapshot&access=subscription", [200], "json"],
@@ -72,6 +72,23 @@ for (const [name, path, expected, shape] of tasks) {
     results.push({ name, ok, note });
     console.log((ok?"PASS":"FAIL")+" "+name+" — "+note);
   } catch(error) {failed++;results.push({name,ok:false,note:String(error)});console.log("FAIL "+name+" — "+String(error));}
+}
+try {
+  const response = await fetch(origin + "/mcp", {
+    method: "POST", redirect: "manual",
+    headers: { "content-type": "application/json", "accept": "application/json, text/event-stream" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+    signal: AbortSignal.timeout(14000)
+  });
+  const content = await response.text();
+  const ok = response.status === 200 &&
+    (content.includes("base_wallet") || content.includes("solana_wallet"));
+  console.log((ok ? "PASS" : "FAIL") + " MCP tools/list — HTTP " + response.status +
+    " (" + (ok ? "wallet tools advertised" : "missing tools or unexpected response") + ")");
+  if (ok) passed++; else failed++;
+} catch (error) {
+  failed++;
+  console.log("FAIL MCP tools/list — " + String(error));
 }
 console.log("\nRESULT: "+passed+" passed, "+failed+" failed, "+warnings+" informational partial results. No payments were made.");
 console.log("Note: 402 confirms a payment challenge, NOT a settled AI payment.");

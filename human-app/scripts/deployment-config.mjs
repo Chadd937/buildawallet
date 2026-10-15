@@ -53,8 +53,14 @@ export function loadDeploymentConfig({
 export function prepareDeploymentConfig(builtConfig, sourceConfig, values) {
   if (builtConfig.name !== sourceConfig.name)
     throw new Error("Built Worker name differs from wrangler.jsonc. Rebuild before deploying.");
+  if (sourceConfig.name === "buildawallet-agent-pay" ||
+      (sourceConfig.routes ?? []).some((route) =>
+        (typeof route === "string" ? route : route.pattern) === "buildawallet.xyz/*"))
+    throw new Error("Unsafe Worker identity or catch-all route. Deployment stopped.");
   return {
     ...builtConfig,
+    name: sourceConfig.name,
+    routes: sourceConfig.routes,
     vars: {
       ...builtConfig.vars,
       ...Object.fromEntries(

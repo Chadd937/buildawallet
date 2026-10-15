@@ -10,6 +10,46 @@
   "preview_urls": false,
   "routes": [
     {
+      "pattern": "buildawallet.xyz/",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/assets/*",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/blog",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/blog/*",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/sitemap.xml",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/privacy",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/terms",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/support",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/advertising",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/privacy-choices",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
       "pattern": "buildawallet.xyz/human/*",
       "zone_name": "buildawallet.xyz"
     },

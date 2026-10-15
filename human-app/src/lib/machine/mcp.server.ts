@@ -113,7 +113,7 @@ const tools = [
     name: "wallet_generate",
     title: "Server-made wallet (opt-in)",
     description:
-      "Generate a fresh BIP-39 wallet covering all ten networks. The recovery phrase is returned ONCE and never stored. Requires acknowledgeCustodyRisk=true. Limited to 5 per hour. Prefer wallet_local_kit.",
+      "Generate a fresh BIP-39 wallet covering all nine configured networks. The recovery phrase is returned ONCE and never stored. Requires acknowledgeCustodyRisk=true. Limited to 5 per hour. Prefer wallet_local_kit.",
     inputSchema: schema(["acknowledgeCustodyRisk"], {
       acknowledgeCustodyRisk: { type: "boolean", description: "Must be true" },
       words: { type: "integer", enum: [12, 24] },
@@ -123,7 +123,7 @@ const tools = [
     name: "wallet_validate",
     title: "Validate address",
     description:
-      "List which of the ten networks accept a public address, with explorer links. Free.",
+      "List which of the nine configured networks accept a public address, with explorer links. Free.",
     inputSchema: schema(["address"], { address: { type: "string" } }),
   },
   {

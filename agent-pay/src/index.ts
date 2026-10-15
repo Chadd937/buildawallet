@@ -254,7 +254,7 @@ resourceServer.register(BASE_MAINNET, new ExactEvmScheme());
 
 app.get("/machine/inspector", (c) => c.html(inspectorHtml, 200, {
   "Cache-Control": "public, max-age=300", "X-Content-Type-Options": "nosniff",
-  "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+  "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://api.mainnet-beta.solana.com; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
 }));
 app.get("/machine/info", (c) => c.json({
   name: "BuildAWallet machine services",

@@ -29,7 +29,7 @@ function Mcp() {
   const [toolError, setToolError] = useState(false);
   useEffect(() => {
     setOrigin(window.location.origin);
-    fetch("/mcp", {
+    fetch("/api/public/mcp", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
@@ -38,7 +38,7 @@ function Mcp() {
       .then((d) => setTools(d.result?.tools ?? []))
       .catch(() => setToolError(true));
   }, []);
-  const url = `${origin}/mcp`;
+  const url = `${origin}/api/public/mcp`;
   const selected = MCP_CLIENTS.find((c) => c.id === client) ?? MCP_CLIENTS[0];
 
   return (

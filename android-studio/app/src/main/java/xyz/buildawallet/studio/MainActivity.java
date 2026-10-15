@@ -1238,13 +1238,20 @@ public final class MainActivity extends Activity {
         tile.setFocusable(true);
         TextView icon = label(glyph, 20, activeAccent(), true);
         icon.setGravity(Gravity.CENTER);
+        // Make the whole tile reliably tappable, including its child views.
+        // Some Android touch dispatch paths deliver taps to the child rather than the parent.
+        icon.setOnClickListener(listener);
+        icon.setClickable(true);
         tile.addView(icon);
         TextView text = label(title, 11, TEXT, true);
         text.setGravity(Gravity.CENTER);
+        text.setOnClickListener(listener);
+        text.setClickable(true);
         LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         textParams.topMargin = dp(4);
         tile.addView(text, textParams);
+        tile.setContentDescription(title);
         return tile;
     }
 

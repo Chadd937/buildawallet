@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "buildawallet-agent-pay",
+  "name": "buildawallet-human-app",
   "main": "src/server.ts",
   "compatibility_date": "2026-10-04",
   "compatibility_flags": [
@@ -10,7 +10,11 @@
   "preview_urls": false,
   "routes": [
     {
-      "pattern": "buildawallet.xyz/*",
+      "pattern": "buildawallet.xyz/human/*",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/nonhuman/*",
       "zone_name": "buildawallet.xyz"
     },
     {
@@ -19,6 +23,22 @@
     },
     {
       "pattern": "buildawallet.xyz/api/human-ai",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/login",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/signin",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/account",
+      "zone_name": "buildawallet.xyz"
+    },
+    {
+      "pattern": "buildawallet.xyz/owner*",
       "zone_name": "buildawallet.xyz"
     }
   ],
@@ -34,9 +54,18 @@
     "AI_PROVIDER": "workers-ai",
     "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct-fast"
   },
-  "ai": { "binding": "AI" },
+  "ai": {
+    "binding": "AI"
+  },
   "ratelimits": [
-    { "name": "REQUEST_RATE_LIMITER", "namespace_id": "8127543", "simple": { "limit": 60, "period": 60 } }
+    {
+      "name": "REQUEST_RATE_LIMITER",
+      "namespace_id": "8127543",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    }
   ],
   "d1_databases": [
     {

@@ -29,11 +29,19 @@ export async function checkBaseRpc(url: string): Promise<void> {
 }
 
 export async function walletSnapshot(url: string, address: string) {
-  await checkBaseRpc(url);
+  const endpoints = url === "https://mainnet.base.org"
+    ? [url, "https://base-rpc.publicnode.com"] : [url];
+  let selected = url;
+  let healthy = false;
+  for (const endpoint of endpoints) {
+    try { await checkBaseRpc(endpoint); selected = endpoint; healthy = true; break; }
+    catch { /* next public mainnet RPC */ }
+  }
+  if (!healthy) throw new Error("Base RPC unavailable");
   const [balanceHex, nonceHex, blockHex] = await Promise.all([
-    rpc(url, "eth_getBalance", [address, "latest"]),
-    rpc(url, "eth_getTransactionCount", [address, "latest"]),
-    rpc(url, "eth_blockNumber", []),
+    rpc(selected, "eth_getBalance", [address, "latest"]),
+    rpc(selected, "eth_getTransactionCount", [address, "latest"]),
+    rpc(selected, "eth_blockNumber", []),
   ]);
   const wei = BigInt(balanceHex);
   const whole = wei / 10n ** 18n;

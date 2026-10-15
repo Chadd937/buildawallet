@@ -34,6 +34,43 @@ await probe("Nine-chain MCP tools/list", "/api/public/mcp", {
 await probe("Multichain transaction requires valid API credentials", "/api/public/machine/v1/arbitrum/transaction/0x"+"0".repeat(64), {
   headers:{authorization:"Bearer deliberately_invalid"}
 },(r,j)=>({ok:r.status===401,detail:r.status===401?"proper authorization gate; no blockchain calls":j?.error??"unexpected response"}));
+const wallets = {
+  ethereum: "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d",
+  base: "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d",
+  arbitrum: "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d",
+  optimism: "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d",
+  polygon: "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d",
+  bnb: "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d",
+  avalanche: "0xBcCA6AED433d9020C50D44560F9679F1B5eB511d",
+  solana: "Ew8mbrKwD6LGaSX28a6XGmXqeQSs2hykRibjXVhftTRC",
+  bitcoin: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+};
+const expected = {
+  ethereum: "eip155:1",base: "eip155:8453",arbitrum: "eip155:42161",
+  optimism: "eip155:10",polygon: "eip155:137",bnb: "eip155:56",
+  avalanche: "eip155:43114",solana: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+};
+for (const chain of chains) {
+  await probe("In-chain payment on "+chain, "/api/public/machine/v1/"+chain+"/wallet/"+wallets[chain], {}, (r,j) => {
+    const h = r.headers.get("payment-required");
+    if (r.status === 402 && h) {
+      try {
+        const payment=JSON.parse(Buffer.from(h,"base64").toString("utf8"));
+        const accepts=payment.accepts??[];
+        const okay=chain!=="bitcoin"&&accepts.length>0&&
+          accepts.every(a=>a.network===expected[chain]);
+        return {ok:okay,detail:okay?"same-chain x402 payment requirement":
+          "mismatched or invalid x402 network"};
+      }catch{return {ok:false,detail:"invalid payment-required header"}}
+    }
+    const policy=j?.payment;
+    const okay=r.status===402&&policy?.serviceChain===chain&&
+      policy?.network===(expected[chain]??policy?.network)&&
+      (chain==="bitcoin"?policy.currency==="BTC":policy.currency==="USDC");
+    return {ok:okay,detail:okay?"same-chain prepaid quote available; no payment made":
+      (j?.error??"missing same-chain offer")};
+  });
+}
 await probe("Existing x402 MCP stays separate", "/mcp", {
   method:"POST",headers:{"content-type":"application/json","accept":"application/json, text/event-stream"},
   body:JSON.stringify({jsonrpc:"2.0",method:"tools/list",id:1})

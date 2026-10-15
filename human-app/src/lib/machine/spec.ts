@@ -388,7 +388,7 @@ export const llms = `# BuildAWallet.xyz
 - Metered endpoints also accept x402 v2 \`PAYMENT-SIGNATURE\` for direct $0.01 USDC-per-request access when the facilitator is configured.
 
 ## Prepaid access
-- Pay once for a block of service units. Every metered request deducts backend units, without a blockchain payment per call. Purchases and renewals settle in USDC on Base or Solana.
+- Pay once for a block of service units. Every metered request deducts backend units, without a blockchain payment per call. For new nine-chain API access, pay on the chain you are querying: USDC on the seven EVM chains or Solana, and BTC on Bitcoin. Payment on unsupported x402 networks uses the verified on-chain prepaid quote flow.
 - Subscribe: humans buy plans at ${ORIGIN}/nonhuman/dashboard (baw_acct_ keys). Agents can self-subscribe through the machine quote flow on any payment network. Wallet-signature login remains Base/Solana-only for the legacy session flow.
 - Free: 1,000 units once for every new dashboard account.
 - Plans: ${publicPlans()

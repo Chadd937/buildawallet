@@ -28,6 +28,41 @@ describe("Machine routing and wallet safety", () => {
       expect((await r.json()).chains).toHaveLength(9);
     }
   });
+  it("offers BTC payment on Bitcoin for a Bitcoin API read without advertising BTC x402", async () => {
+    const r = await handleMachineRequest(new Request(
+      "https://buildawallet.xyz/api/public/machine/v1/bitcoin/wallet/bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
+    ));
+    expect(r.status).toBe(402);
+    const data = await r.json();
+    expect(data).toMatchObject({
+      code: "same_chain_prepaid_required",
+      payment: { serviceChain: "bitcoin", currency: "BTC",
+        prepaid: { quote: "/api/public/machine/v1/agent/quote" },
+        x402: { potential: false } },
+    });
+    expect(JSON.stringify(data)).not.toContain("payment-required");
+  });
+
+  it("offers same-network prepaid USDC for an Arbitrum read rather than Base/Solana x402", async () => {
+    const r = await handleMachineRequest(new Request(
+      "https://buildawallet.xyz/api/public/machine/v1/arbitrum/wallet/0x0000000000000000000000000000000000000001"
+    ));
+    expect(r.status).toBe(402);
+    expect(await r.json()).toMatchObject({
+      code: "same_chain_prepaid_required",
+      payment: { serviceChain: "arbitrum", network: "eip155:42161",
+        currency: "USDC", x402: { potential: false } },
+    });
+  });
+
+  it("requires a payer chain choice on multi-chain portfolio rather than silently billing Base", async () => {
+    const r = await handleMachineRequest(new Request(
+      "https://buildawallet.xyz/api/public/machine/v1/portfolio/0x0000000000000000000000000000000000000001"
+    ));
+    expect(r.status).toBe(400);
+    expect(await r.json()).toMatchObject({ code: "portfolio_payment_chain_required" });
+  });
+
   it("refuses invalid credentials before reading upstream data", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
     const r = await handleMachineRequest(

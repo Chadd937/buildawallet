@@ -20,7 +20,7 @@ code{overflow-wrap:anywhere}details{margin:16px 0}summary{cursor:pointer;font-we
 @media(max-width:700px){form{grid-template-columns:1fr}header nav a{margin-left:8px}}
 </style></head>
 <body><header><strong>◈ BuildAWallet</strong><nav><a href="/">Home</a><a href="/api-docs">API docs</a></nav></header>
-<main><h1>Wallet Inspector</h1><p class="lead">Look up a public wallet address using BuildAWallet's read-only, public-API-backed blockchain endpoints. No login, seed phrase or private key required.</p>
+<main><h1>Wallet Inspector</h1><p class="lead">Look up a public wallet address using BuildAWallet's read-only, public-API-backed blockchain endpoints. No login, seed phrase or private key required. For Solana, try a direct browser RPC lookup if the Cloudflare server is rate-limited; browser CORS and public RPC limits still apply.</p>
 <section class="panel"><h2>Look up an address</h2>
 <form id="lookup"><div><label for="chain">Network</label><select id="chain">
 <option value="portfolio">All 7 EVM networks</option><option value="solana">Solana</option>
@@ -33,6 +33,7 @@ code{overflow-wrap:anywhere}details{margin:16px 0}summary{cursor:pointer;font-we
 <div id="results" class="grid" aria-live="polite"></div>
 <div class="actions"><button id="history" class="secondary hidden" type="button">Load Solana signatures</button>
 <button id="utxos" class="secondary hidden" type="button">Load Bitcoin UTXOs</button>
+<button id="directsol" class="secondary hidden" type="button">Try direct Solana token lookup (browser)</button>
 <button id="copyapi" class="secondary hidden" type="button">Copy API URL</button></div>
 <details><summary>Raw API response</summary><pre id="raw">Run a lookup to see JSON.</pre></details>
 </section>
@@ -55,6 +56,7 @@ var form=document.getElementById("lookup"),network=document.getElementById("chai
 var status=document.getElementById("status"),results=document.getElementById("results"),raw=document.getElementById("raw");
 var search=document.getElementById("search"),history=document.getElementById("history"),utxos=document.getElementById("utxos"),copyapi=document.getElementById("copyapi"),sample=document.getElementById("sample");
 var base=location.origin+"/machine/public",lastUrl="";
+var directsol=document.getElementById("directsol"), solanaRpc="https://api.mainnet-beta.solana.com";
 var evm=/^0x[0-9a-fA-F]{40}$/,sol=/^[1-9A-HJ-NP-Za-km-z]{32,44}$/,btc=/^(bc1[ac-hj-np-z02-9]{11,71}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})$/;
 function node(tag,cls,label){var x=document.createElement(tag);if(cls)x.className=cls;if(label!==undefined)x.textContent=String(label);return x}
 function tile(title,value,detail){var x=node("article","tile"),heading=node("div","muted",title),number=node("b","",value);x.append(heading,number);if(detail)x.append(node("div","muted",detail));results.append(x)}
@@ -66,9 +68,9 @@ function valid(chain,value){if(chain==="solana")return sol.test(value);if(chain=
 function url(chain,value){return base+"/"+(chain==="portfolio"?"portfolio":chain)+"/"+encodeURIComponent(value)}
 function sampleCommand(){var u=lastUrl||base+"/chains";return "curl -sS '"+u+"' | jq ."}
 async function copy(value){try{await navigator.clipboard.writeText(value);status.textContent="Copied to clipboard."}catch{status.textContent="Copy failed. Select the text manually."}}
-async function load(u){status.textContent="Loading public blockchain data…";search.disabled=true;results.replaceChildren();history.classList.add("hidden");utxos.classList.add("hidden");
+async function load(u){status.textContent="Loading public blockchain data…";search.disabled=true;results.replaceChildren();history.classList.add("hidden");utxos.classList.add("hidden");directsol.classList.add("hidden");
 try{var r=await fetch(u,{headers:{"Accept":"application/json"}}),d=await r.json();raw.textContent=JSON.stringify(d,null,2);if(!r.ok)throw Error(d.error||("HTTP "+r.status));show(d);
-history.classList.toggle("hidden",network.value!=="solana");utxos.classList.toggle("hidden",network.value!=="bitcoin");
+history.classList.toggle("hidden",network.value!=="solana");utxos.classList.toggle("hidden",network.value!=="bitcoin");directsol.classList.toggle("hidden",network.value!=="solana");
 copyapi.classList.remove("hidden");
 if(d.complete!==false)status.textContent="Lookup returned successfully. Some asset categories may still require indexing.";
 }catch(e){status.textContent="Lookup error: "+(e instanceof Error?e.message:"Request failed");tile("Lookup unavailable","No verified data","Do not treat an error as zero balance")}finally{search.disabled=false}}
@@ -76,6 +78,46 @@ form.addEventListener("submit",function(e){e.preventDefault();var value=address.
 var q=new URL(location.href);q.searchParams.set("chain",chain);q.searchParams.set("address",value);window.history.replaceState(null,"",q)});
 history.addEventListener("click",function(){var u=base+"/solana/"+encodeURIComponent(address.value.trim())+"/history?limit=10";lastUrl=u;sample.textContent=sampleCommand();load(u)});
 utxos.addEventListener("click",function(){var u=base+"/bitcoin/"+encodeURIComponent(address.value.trim())+"/utxos";lastUrl=u;sample.textContent=sampleCommand();load(u)});
+async function directRpc(method,params){
+var response=await fetch(solanaRpc,{method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({jsonrpc:"2.0",id:1,method:method,params:params})});
+if(!response.ok)throw Error("RPC HTTP "+response.status);
+var data=await response.json();if(data.error)throw Error("RPC error "+data.error.code);
+if(!Object.prototype.hasOwnProperty.call(data,"result"))throw Error("Invalid RPC response");
+return data.result;
+}
+directsol.addEventListener("click",async function(){
+if(network.value!=="solana"||!sol.test(address.value.trim()))return;
+directsol.disabled=true;status.textContent="Checking public Solana token programs directly from your browser…";
+var wallet=address.value.trim(),programs=[
+["SPL Token","TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"],
+["Token-2022","TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"]];
+var output={source:"direct_browser_rpc",network:"mainnet-beta",address:wallet,tokenAccounts:[],warnings:[]};
+try{
+var genesis=await directRpc("getGenesisHash",[]);
+if(genesis!=="5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d")throw Error("RPC network mismatch");
+for(var item of programs){
+try{
+var result=await directRpc("getTokenAccountsByOwner",[wallet,{programId:item[1]},{encoding:"jsonParsed",commitment:"confirmed"}]);
+if(!result||!Array.isArray(result.value))throw Error("Invalid token-account response");
+for(var entry of result.value){
+var info=entry.account?.data?.parsed?.info,amount=info?.tokenAmount;
+if(info?.owner!==wallet||typeof info?.mint!=="string"||typeof amount?.amount!=="string")continue;
+output.tokenAccounts.push({program:item[0],account:entry.pubkey,mint:info.mint,
+amountAtomic:amount.amount,decimals:amount.decimals,amount:amount.uiAmountString??null});
+}
+}catch(error){output.warnings.push(item[0]+": "+(error instanceof Error?error.message:"Unavailable"))}
+}
+output.complete=output.warnings.length===0;
+tile("Direct SPL accounts",output.complete?output.tokenAccounts.length:"Partial / unknown",
+"Browser RPC, not the Worker; results are not exhaustive");
+output.tokenAccounts.forEach(function(t){tile(t.program+": "+(t.mint==="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"?"USDC":t.mint),
+(t.amount??t.amountAtomic)+" tokens","Mint: "+t.mint)});
+raw.textContent=JSON.stringify(output,null,2);status.textContent=output.warnings.length?
+"Direct token lookup partially succeeded. Check warnings in raw JSON.":"Direct token lookup succeeded for both token programs.";
+}catch(error){status.textContent="Browser RPC unavailable ("+(error instanceof Error?error.message:"connection failed")+"). Public RPC browser CORS/rate limits may block it."}
+finally{directsol.disabled=false}
+});
 copyapi.addEventListener("click",function(){copy(lastUrl)});
 document.getElementById("copysample").addEventListener("click",function(){copy(sampleCommand())});
 var q=new URLSearchParams(location.search),c=q.get("chain"),a=q.get("address");if(c&&a&&Array.from(network.options).some(function(x){return x.value===c})&&valid(c,a)){network.value=c;address.value=a;lastUrl=url(c,a);sample.textContent=sampleCommand();load(lastUrl)}

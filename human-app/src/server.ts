@@ -99,7 +99,7 @@ export default {
         if (aliases[path]) return Response.redirect(new URL(aliases[path], request.url), 302);
         const discovery = await discoveryResponse(path);
         if (discovery) return discovery;
-        if (path === "/mcp") {
+        if (path === "/mcp" || path === "/api/public/mcp") {
           const { handleMcp } = await import("./lib/machine/mcp.server");
           return await handleMcp(request);
         }

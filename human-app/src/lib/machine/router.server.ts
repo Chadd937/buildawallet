@@ -62,7 +62,16 @@ const subscriptionRead = async (
   let payment: Awaited<ReturnType<typeof x402Protect>> | null = null;
   if (!access && request.headers.get("authorization")) return authError();
   if (!access && cost > 0) {
-    payment = await x402Protect(request, X402_PRICE_USD, "BuildAWallet machine API request");
+    // Single-chain reads must be payable on their own blockchain. A portfolio
+    // spans multiple chains, so the caller selects a settlement chain explicitly.
+    const payChain = chain === "all"
+      ? new URL(request.url).searchParams.get("payChain")
+      : chain;
+    if (!payChain) return json({
+      error: "Specify ?payChain=<chain> for a multi-chain portfolio, or use a prepaid API key",
+      code: "portfolio_payment_chain_required",
+    }, 400, cors);
+    payment = await x402Protect(request, X402_PRICE_USD, "BuildAWallet machine API request", payChain);
     if (payment.kind === "error") {
       const response = payment.response;
       Object.entries(cors).forEach(([key, value]) => response.headers.set(key, value));

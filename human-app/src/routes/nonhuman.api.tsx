@@ -38,7 +38,7 @@ function ApiPage() {
         }
       >
         The full spec lives at{" "}
-        <a href="/openapi.json" className="text-primary underline">
+        <a href="/api/public/machine/openapi.json" className="text-primary underline">
           /openapi.json
         </a>
         . Free endpoints work right here; for metered ones click{" "}

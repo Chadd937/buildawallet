@@ -3,6 +3,7 @@ import { appDatabase } from "@/lib/db/context.server";
 import { activateWalletPayment, consumeUnits } from "@/lib/db/storage.server";
 import { PAYMENT_RAILS, paymentCollector, planById, type PlanId, type PaymentChain } from "./config";
 import { paymentAmountAtomic } from "./receipts.server";
+import { consumeLegacyKey } from "./legacy-billing.server";
 
 export const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 export const secretToken = () => randomBytes(32).toString("hex");
@@ -146,13 +147,18 @@ export async function consumeApiKey(
   const walletToken = bearer(request, /^Bearer (baw_live_[0-9a-f]{64})$/);
   const token = accountToken ?? walletToken;
   if (!token) return null;
-  return consumeUnits(
+  const tokenHash = sha256(token);
+  const current = await consumeUnits(
     accountToken ? "account" : "wallet",
-    sha256(token),
+    tokenHash,
     cost,
     meta.endpoint ?? new URL(request.url).pathname,
     meta.chain ?? "",
   );
+  // An existing baw_live_ key from the original agent-pay Worker is still
+  // valid. Never migrate it by copying or resetting its counters.
+  if (current || !walletToken) return current;
+  return consumeLegacyKey(tokenHash, cost);
 }
 export async function txAlreadyUsed(chain: string, tx: string) {
   const row = await appDatabase()

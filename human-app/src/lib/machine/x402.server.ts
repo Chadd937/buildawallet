@@ -4,7 +4,8 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { appDatabase } from "@/lib/db/context.server";
 import { recordAgentPayment } from "./billing.server";
-import { EVM_MAINNETS, BASE_COLLECTOR, SOLANA_COLLECTOR, SOLANA_MAINNET } from "./config";
+import { EVM_MAINNETS, SOLANA_MAINNET } from "./config";
+import { sameChainPaymentPolicy, x402Eligible } from "./payment-policy";
 
 type PaymentContext = {
   payload: any;
@@ -44,84 +45,56 @@ export async function x402Protect(
   request: Request,
   priceUSD: string,
   description: string,
+  serviceChain: string,
 ): Promise<
   | { kind: "error"; response: Response }
   | { kind: "paid"; payment: PaymentContext }
 > {
-  const resourceServer = makeServer();
-  if (!resourceServer)
+  let policy: ReturnType<typeof sameChainPaymentPolicy>;
+  try {
+    policy = sameChainPaymentPolicy(serviceChain);
+  } catch {
+    return { kind: "error", response: Response.json({
+      error: "Valid service chain required for same-chain payment",
+      code: "invalid_payment_chain",
+    }, { status: 400 }) };
+  }
+
+  // Never advertise an x402 rail we cannot settle. Bitcoin and EVM networks
+  // without documented CDP support use the existing verified same-chain prepaid
+  // quote -> on-chain transfer -> activation -> API key workflow.
+  if (!x402Eligible(serviceChain)) {
     return {
       kind: "error",
-      response: Response.json(
-        {
-          error: "Pay-per-call is not configured yet",
-          code: "x402_facilitator_not_configured",
-          configure: "Set CDP_API_KEY_ID and CDP_API_KEY_SECRET and redeploy.",
-        },
-        { status: 503 },
-      ),
+      response: Response.json({
+        error: "Use a same-chain prepaid payment for this service",
+        code: "same_chain_prepaid_required",
+        payment: policy,
+      }, { status: 402, headers: { "Cache-Control": "no-store" } }),
     };
+  }
+
+  const resourceServer = makeServer();
+  if (!resourceServer) {
+    return {
+      kind: "error",
+      response: Response.json({
+        error: "Instant x402 is unavailable; same-chain prepaid access is available",
+        code: "x402_facilitator_not_configured",
+        payment: policy,
+      }, { status: 402, headers: { "Cache-Control": "no-store" } }),
+    };
+  }
 
   const routes = {
     "*": {
-      accepts: [
-        {
-          scheme: "exact",
-          price: priceUSD,
-          network: EVM_MAINNETS.ethereum,
-          payTo: BASE_COLLECTOR,
-          maxTimeoutSeconds: 300,
-        },
-        {
-          scheme: "exact",
-          price: priceUSD,
-          network: EVM_MAINNETS.base,
-          payTo: BASE_COLLECTOR,
-          maxTimeoutSeconds: 300,
-        },
-        {
-          scheme: "exact",
-          price: priceUSD,
-          network: EVM_MAINNETS.arbitrum,
-          payTo: BASE_COLLECTOR,
-          maxTimeoutSeconds: 300,
-        },
-        {
-          scheme: "exact",
-          price: priceUSD,
-          network: EVM_MAINNETS.optimism,
-          payTo: BASE_COLLECTOR,
-          maxTimeoutSeconds: 300,
-        },
-        {
-          scheme: "exact",
-          price: priceUSD,
-          network: EVM_MAINNETS.polygon,
-          payTo: BASE_COLLECTOR,
-          maxTimeoutSeconds: 300,
-        },
-        {
-          scheme: "exact",
-          price: priceUSD,
-          network: EVM_MAINNETS.bnb,
-          payTo: BASE_COLLECTOR,
-          maxTimeoutSeconds: 300,
-        },
-        {
-          scheme: "exact",
-          price: priceUSD,
-          network: EVM_MAINNETS.avalanche,
-          payTo: BASE_COLLECTOR,
-          maxTimeoutSeconds: 300,
-        },
-        {
-          scheme: "exact",
-          price: priceUSD,
-          network: SOLANA_MAINNET,
-          payTo: SOLANA_COLLECTOR,
-          maxTimeoutSeconds: 300,
-        },
-      ],
+      accepts: [{
+        scheme: "exact",
+        price: priceUSD,
+        network: policy.network,
+        payTo: policy.collector,
+        maxTimeoutSeconds: 300,
+      }],
       description,
       mimeType: "application/json",
       resource: request.url,

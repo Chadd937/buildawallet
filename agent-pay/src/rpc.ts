@@ -31,6 +31,7 @@ export async function checkBaseRpc(url: string): Promise<void> {
 export async function walletSnapshot(url: string, address: string) {
   const endpoints = url === "https://mainnet.base.org"
     ? [url, "https://base-rpc.publicnode.com"] : [url];
+  let mismatchedNetworks = 0;
   for (const endpoint of endpoints) {
     try {
       await checkBaseRpc(endpoint);
@@ -52,7 +53,14 @@ export async function walletSnapshot(url: string, address: string) {
         blockNumber: Number(BigInt(blockHex)),
         source: "verified Base mainnet JSON-RPC",
       };
-    } catch { /* another free endpoint may work */ }
+    } catch (error) {
+      // Try alternate providers, but preserve an explicit wrong-chain error
+      // when every configured provider responds with a wrong chain ID.
+      if (error instanceof Error && error.message === "RPC network mismatch") {
+        mismatchedNetworks++;
+      }
+    }
   }
+  if (mismatchedNetworks === endpoints.length) throw new Error("RPC network mismatch");
   throw new Error("Base RPC unavailable");
 }

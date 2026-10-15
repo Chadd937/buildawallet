@@ -4,7 +4,9 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 
-const machinePath = (path: string) => path === "/machine" || path.startsWith("/machine/");
+const machinePath = (path: string) =>
+  path === "/machine" || path.startsWith("/machine/") ||
+  path === "/api/public/machine" || path.startsWith("/api/public/machine/");
 
 async function machineResponse(request: Request) {
   const { handleMachineRequest } = await import("./lib/machine/router.server");

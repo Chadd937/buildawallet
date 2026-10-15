@@ -5,7 +5,7 @@ import { PageHero, Panel, Section } from "@/components/machine/ui";
 
 const TITLE = "Pricing ,  BuildAWallet Machine API";
 const DESC =
-  "Machine-native access with prepaid plans payable on any supported network. x402 pay-per-call is available on supported EVM and Solana rails.";
+  "Machine-native access with prepaid plans payable on any supported network. x402 pay-per-call is available when verified for the requested network; same-chain prepaid purchase is available on all nine.";
 export const Route = createFileRoute("/nonhuman/pricing")({
   head: () => ({
     meta: [
@@ -67,10 +67,10 @@ function Pricing() {
             <div>
               <div className="font-mono text-[10px] uppercase tracking-widest text-primary">Discovery</div>
               <ul className="mt-3 space-y-2 text-sm leading-6 text-muted-foreground">
-                <li><code>/llms.txt</code> — agent-readable service guide</li>
-                <li><code>/.well-known/agent.json</code> — machine offer manifest</li>
-                <li><code>/openapi.json</code> — OpenAPI 3.1 contract</li>
-                <li><code>/mcp</code> — Streamable HTTP tool interface</li>
+                <li><code>/api/public/machine/llms.txt</code> — agent-readable service guide</li>
+                <li><code>/api/public/machine/agent.json</code> — machine offer manifest</li>
+                <li><code>/api/public/machine/openapi.json</code> — OpenAPI 3.1 contract</li>
+                <li><code>/api/public/mcp</code> — Streamable HTTP tool interface</li>
               </ul>
             </div>
             <div>
@@ -78,7 +78,7 @@ function Pricing() {
               <ol className="mt-3 space-y-2 text-sm leading-6 text-muted-foreground">
                 <li><b className="text-foreground">1.</b> Discover free plans and payment addresses.</li>
                 <li><b className="text-foreground">2.</b> Create or bring a wallet; prove control with a signed challenge.</li>
-                <li><b className="text-foreground">3.</b> Pay the exact quoted asset amount on any supported payment network (USDC on EVM/Solana; BTC on Bitcoin).</li>
+                <li><b className="text-foreground">3.</b> Pay the exact quote on the same network you are querying (USDC on EVM/Solana; BTC on Bitcoin).</li>
                 <li><b className="text-foreground">4.</b> Verify the transaction and receive a machine API credential.</li>
                 <li><b className="text-foreground">5.</b> Spend prepaid units across the API/MCP capability surface.</li>
               </ol>
@@ -86,15 +86,15 @@ function Pricing() {
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
             <Link to="/nonhuman/overview" className="rounded-xl border border-border px-4 py-2 font-mono text-xs uppercase tracking-widest hover:border-primary">Platform overview</Link>
-            <a href="/.well-known/agent.json" className="rounded-xl border border-border px-4 py-2 font-mono text-xs uppercase tracking-widest hover:border-primary">Agent manifest</a>
-            <a href="/openapi.json" className="rounded-xl border border-border px-4 py-2 font-mono text-xs uppercase tracking-widest hover:border-primary">OpenAPI</a>
-            <a href="/llms.txt" className="rounded-xl border border-border px-4 py-2 font-mono text-xs uppercase tracking-widest hover:border-primary">llms.txt</a>
+            <a href="/api/public/machine/agent.json" className="rounded-xl border border-border px-4 py-2 font-mono text-xs uppercase tracking-widest hover:border-primary">Agent manifest</a>
+            <a href="/api/public/machine/openapi.json" className="rounded-xl border border-border px-4 py-2 font-mono text-xs uppercase tracking-widest hover:border-primary">OpenAPI</a>
+            <a href="/api/public/machine/llms.txt" className="rounded-xl border border-border px-4 py-2 font-mono text-xs uppercase tracking-widest hover:border-primary">llms.txt</a>
           </div>
         </Panel>
       </Section>
 
       <Section title="Pay per use" intro="No subscription? Use x402 metered access when enabled.">
-        <Panel><div className="grid gap-5 md:grid-cols-3"><div><div className="font-display text-3xl font-black">$0.01</div><div className="text-xs uppercase tracking-widest text-muted-foreground">per request</div></div><div><div className="font-display text-3xl font-black">$1+</div><div className="text-xs uppercase tracking-widest text-muted-foreground">minimum balance</div></div><div><div className="font-display text-3xl font-black">10</div><div className="text-xs uppercase tracking-widest text-muted-foreground">supported networks</div></div></div><p className="mt-5 text-sm text-muted-foreground">Fund your machine balance with an explicit on-chain payment. Prepaid checkout supports every supported payment network; x402 supports the configured EVM and Solana rails. Nothing is automatically taken from a connected human wallet; the calling agent must explicitly authorize and sign its payment.</p></Panel>
+        <Panel><div className="grid gap-5 md:grid-cols-3"><div><div className="font-display text-3xl font-black">$0.01</div><div className="text-xs uppercase tracking-widest text-muted-foreground">per request</div></div><div><div className="font-display text-3xl font-black">$1+</div><div className="text-xs uppercase tracking-widest text-muted-foreground">minimum balance</div></div><div><div className="font-display text-3xl font-black">9</div><div className="text-xs uppercase tracking-widest text-muted-foreground">supported networks</div></div></div><p className="mt-5 text-sm text-muted-foreground">Fund your machine balance with an explicit on-chain payment. Prepaid checkout supports every supported payment network; Instant x402 is currently limited to network/facilitator combinations verified at runtime; Bitcoin and the remaining networks use same-chain prepaid checkout. Nothing is automatically taken from a connected human wallet; the calling agent must explicitly authorize and sign its payment.</p></Panel>
       </Section>
       <Section
         title="What each call costs"

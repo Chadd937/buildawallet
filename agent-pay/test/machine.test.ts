@@ -113,6 +113,46 @@ describe("machine payment boundary", () => {
     expect(await res.text()).not.toContain(env.BASE_RPC_URL);
   });
 
+  it("falls back to a chain-verified public Base RPC when the configured endpoint is rate limited", async () => {
+    const requests: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      const method = JSON.parse(init.body as string).method as string;
+      requests.push(url + ":" + method);
+      if (url === env.BASE_RPC_URL) return new Response("rate limited", { status: 429 });
+      if (url === "https://base-rpc.publicnode.com") {
+        const values: Record<string, string> = {
+          eth_chainId: "0x2105",
+          eth_getBalance: "0xde0b6b3a7640000",
+          eth_getTransactionCount: "0x4",
+          eth_blockNumber: "0x100",
+        };
+        return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: values[method] }), { status: 200 });
+      }
+      throw new Error("Unexpected fallback");
+    }));
+    const snapshot = await walletSnapshot(env.BASE_RPC_URL, address);
+    expect(snapshot).toMatchObject({
+      chainId: 8453, balanceWei: "1000000000000000000",
+      balanceEth: "1", transactionCount: 4, blockNumber: 256,
+    });
+    expect(requests).toContain(env.BASE_RPC_URL + ":eth_chainId");
+    expect(requests).toContain("https://base-rpc.publicnode.com:eth_chainId");
+  });
+
+  it("does not use a wrong-chain fallback before trying the next Base provider", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      const method = JSON.parse(init.body as string).method as string;
+      if (url === env.BASE_RPC_URL) return new Response("unavailable", { status: 503 });
+      const values: Record<string, string> = {
+        eth_chainId: url === "https://base-rpc.publicnode.com" ? "0x1" : "0x2105",
+        eth_getBalance: "0x0", eth_getTransactionCount: "0x0", eth_blockNumber: "0x10",
+      };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: values[method] }), { status: 200 });
+    }));
+    const snapshot = await walletSnapshot(env.BASE_RPC_URL, address);
+    expect(snapshot).toMatchObject({ chainId: 8453, balanceWei: "0", blockNumber: 16 });
+  });
+
   it("checks the RPC network before reporting chain data", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       jsonrpc: "2.0", id: 1, result: "0x1",

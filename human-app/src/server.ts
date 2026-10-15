@@ -31,20 +31,21 @@ async function discoveryResponse(path: string) {
       headers: { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" },
     });
   if (path === scoped + "/agent.json") {
+    const scopedOffer = JSON.parse(rewrite(JSON.stringify(offer))) as typeof offer;
     return Response.json({
-      ...offer,
+      ...scopedOffer,
       version: "4.1.0",
       api: "https://buildawallet.xyz" + scoped + "/v1",
       mcp: "https://buildawallet.xyz/api/public/mcp",
       openapi: "https://buildawallet.xyz" + scoped + "/openapi.json",
       billing: {
-        ...offer.billing,
+        ...scopedOffer.billing,
         machineBootstrap: "https://buildawallet.xyz" + scoped + "/v1/agent/bootstrap",
         quote: "https://buildawallet.xyz" + scoped + "/v1/agent/quote",
         activate: "https://buildawallet.xyz" + scoped + "/v1/agent/activate",
         rule: "Pay on the requested blockchain; EVM/Solana use their native USDC, Bitcoin uses BTC. New subscriptions use the $15/$49/$149 plans.",
       },
-      x402: { ...offer.x402,
+      x402: { ...scopedOffer.x402,
         documentedNetworks: ["base", "polygon", "solana"],
         note: "Only advertise instant settlement when supported by the current facilitator; other networks use verified prepaid purchase on the same chain." },
     }, { headers: { "access-control-allow-origin": "*", "cache-control": "public, max-age=300" } });

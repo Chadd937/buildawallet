@@ -1,0 +1,65 @@
+name: Ryze publish
+
+on:
+  push:
+    branches: [main, 'ryze/publishing-setup']
+    paths:
+      - 'blog/data/**'
+      - 'scripts/ryze-convert.mjs'
+      - '.github/workflows/ryze-publish.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ryze-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate renderer and test fixtures outside published content
+        run: |
+          node --check scripts/ryze-convert.mjs
+          mkdir -p /tmp/ryze-input
+          printf '%s' '{"slug":"ryze-test","title":"Test guide","body_html":"<h2>Test heading</h2><p>Test body</p>","image":{"url":"https://buildawallet.xyz/agentic-human-robot-hero.jpg","alt":"Test image"},"status":"published"}' > /tmp/ryze-input/test.json
+          printf '%s' '{"slug":"draft-test","status":"drafted"}' > /tmp/ryze-input/draft.json
+          RYZE_INPUT=/tmp/ryze-input RYZE_OUTPUT=/tmp/ryze-output node scripts/ryze-convert.mjs
+          test -f /tmp/ryze-output/ryze-test/index.html
+          test ! -e /tmp/ryze-output/draft-test
+          grep -q 'Test heading' /tmp/ryze-output/ryze-test/index.html
+          grep -q 'src="https://buildawallet.xyz/agentic-human-robot-hero.jpg"' /tmp/ryze-output/ryze-test/index.html
+          ! grep -q '\[object Object\]' /tmp/ryze-output/ryze-test/index.html
+      - name: Render all published articles
+        run: |
+          node scripts/ryze-convert.mjs
+          git add static/blog human-app/public/blog
+          git diff --cached > /tmp/ryze-first.diff
+          node scripts/ryze-convert.mjs
+          git add static/blog human-app/public/blog
+          git diff --cached > /tmp/ryze-second.diff
+          cmp /tmp/ryze-first.diff /tmp/ryze-second.diff
+          ! grep -R '\[object Object\]' static/blog human-app/public/blog
+          test ! -e static/blog/ryze-test
+          test ! -e human-app/public/blog/ryze-test
+      - name: Commit generated pages
+        run: |
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Render Ryze blog pages'
+          git push origin HEAD:${{ github.ref_name }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ryze-blog-preview
+          path: static/blog
